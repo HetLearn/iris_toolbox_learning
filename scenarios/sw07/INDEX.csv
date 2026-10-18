@@ -1,0 +1,49 @@
+folder,id,parent,options,compare_with,has_results,title
+app1_peak,a1_learn,sw07_learn,,{'a1_re'},true,"App 1: forecast from the 2022Q2 peak, learning on inflation"
+app1_peak,a1_re,sw07_re,,,true,"App 1: forecast from the 2022Q2 peak, rational expectations"
+app2_replay,a2_learn,a1_learn,shocks.source = 'smoothed',{'a2_re'},true,"App 2: replay of the RE-smoothed shocks 2022Q3-2026Q2, learning on inflation"
+app2_replay,a2_re,a1_re,shocks.source = 'smoothed',,true,"App 2: replay of the RE-smoothed shocks 2022Q3-2026Q2, rational expectations"
+app3_policy,a3_loose_learn,a1_learn,conditions = c.conditions,{'a1_learn'},true,"App 3: policy 100 bp looser than the Taylor rule in 2022Q3-2023Q2, learning on inflation"
+app3_policy,a3_loose_re,a1_re,"conditions = struct('variable', 'ms', 'shock', 'em', 'dates', [qq(2022, 3), qq(2023, 2)], 'values', -0.25, 'type', 'delta', 'reference', 'self')",{'a1_re'},true,"App 3: policy 100 bp looser than the Taylor rule in 2022Q3-2023Q2, rational expectations"
+app3_policy,a3_tight_learn,a3_loose_learn,conditions.values = 0.25,,true,"App 3: policy 100 bp tighter than the Taylor rule in 2022Q3-2023Q2, learning on inflation"
+app3_policy,a3_tight_re,a3_loose_re,conditions.values = 0.25,,true,"App 3: policy 100 bp tighter than the Taylor rule in 2022Q3-2023Q2, rational expectations"
+app4_ramsey,a4_ramsey_balanced_learn,a4_rule_learn,policy = r.policy,{'a4_rule_learn'},true,"App 4: Ramsey policy, balanced weights, learning on inflation"
+app4_ramsey,a4_ramsey_balanced_re,a4_rule_re,"policy.mode = 'ramsey'; policy.type = 'commitment'; policy.loss = struct('pinf', 1, 'ygap', 0.5, 'r', 0.1, 'dr', 0)",{'a4_rule_re'},true,"App 4: Ramsey policy, balanced weights, rational expectations"
+app4_ramsey,a4_ramsey_dove_learn,a4_rule_learn,policy = r.policy,{'a4_rule_learn'},true,"App 4: Ramsey policy, dovish weights, learning on inflation"
+app4_ramsey,a4_ramsey_dove_re,a4_ramsey_balanced_re,"policy.loss = struct('pinf', 1, 'ygap', 1, 'r', 0.1, 'dr', 0)",,true,"App 4: Ramsey policy, dovish weights, rational expectations"
+app4_ramsey,a4_ramsey_hawk_learn,a4_rule_learn,policy = r.policy,{'a4_rule_learn'},true,"App 4: Ramsey policy, hawkish weights, learning on inflation"
+app4_ramsey,a4_ramsey_hawk_re,a4_ramsey_balanced_re,"policy.loss = struct('pinf', 1, 'ygap', 0.1, 'r', 0.1, 'dr', 0)",,true,"App 4: Ramsey policy, hawkish weights, rational expectations"
+app4_ramsey,a4_ramsey_smooth_learn,a4_rule_learn,policy = r.policy,{'a4_rule_learn'},true,"App 4: Ramsey policy, balanced weights with rate smoothing, learning on inflation"
+app4_ramsey,a4_ramsey_smooth_re,a4_ramsey_balanced_re,"policy.loss = struct('pinf', 1, 'ygap', 0.5, 'r', 0.1, 'dr', 0.5)",,true,"App 4: Ramsey policy, balanced weights with rate smoothing, rational expectations"
+app4_ramsey,a4_rule_learn,a1_learn,policy.loss_horizon = 80,{'a4_rule_re'},true,"App 4: Taylor rule from the 2022Q2 peak, learning on inflation, loss over 80 quarters"
+app4_ramsey,a4_rule_re,a1_re,policy.loss_horizon = 80,,true,"App 4: Taylor rule from the 2022Q2 peak, rational expectations, loss over 80 quarters"
+app5_density,a5_demand_learn,a1_learn,density = d.density,{'a5_demand_re'},true,"App 5: density forecast, demand shock uncertainty, learning on inflation"
+app5_density,a5_demand_re,a5_markup_re,"density.shocks = {'eb', 'eg', 'eqs'}",,true,"App 5: density forecast, demand shock uncertainty, rational expectations"
+app5_density,a5_markup_learn,a1_learn,density = d.density,{'a5_markup_re'},true,"App 5: density forecast, mark-up shock uncertainty, learning on inflation"
+app5_density,a5_markup_re,a1_re,"density.enabled = true; density.shocks = {'epinf', 'ew'}; density.sigma = 'calibrated'; density.method = 'normal'; density.ndraws = 500; density.seed = 0",,true,"App 5: density forecast, mark-up shock uncertainty, rational expectations"
+app6_history,a6_inv_learn,a6_smooth_learn,history.mode = 'inversion',{'a6_smooth_learn'},true,App 6: history 1966Q1-2026Q2 backed out with the learning model
+app6_history,a6_smooth_learn,a1_learn,"forecast.origin = qq(2026, 2); forecast.horizon = 4",{'a6_smooth_re'},true,App 6: learning on inflation over the RE-smoothed history 1966Q1-2026Q2
+app6_history,a6_smooth_re,a1_re,"forecast.origin = qq(2026, 2); forecast.horizon = 4",,true,"App 6: RE-smoothed history 1966Q1-2026Q2, rational expectations"
+base,sw07_learn,sw07_re,expectations.mode = 'switching',{'sw07_re'},false,"Forecast from the 2022Q2 inflation peak, learning on inflation"
+base,sw07_re,none,model = 'sw07'; forecast.origin = origin; forecast.horizon = 16; expectations.mode = 'rational'; expectations.variables = {'pinf'},,false,"Forecast from the 2022Q2 inflation peak, rational expectations"
+eval,e01_re,sw07_re,,{},true,Evaluation variant: rational expectations (the benchmark)
+eval,e02_learn,sw07_learn,,{},true,Evaluation variant: learning on inflation
+eval,e03_learn_mc,v1_mc_learn,,{},true,"Evaluation variant: learning on inflation, model-consistent RE agents"
+eval,e04_learn_all_learners,e02_learn,expectations.mode = 'learning',{},true,Evaluation variant: every agent a learner (share of learners fixed at 1)
+eval,e05_ar2,v2_ar2,,{},true,"Evaluation variant: learning on inflation, AR(2) PLM"
+eval,e06_ar1nc,v2_ar1nc,,{},true,"Evaluation variant: learning on inflation, AR(1) PLM without constant"
+eval,e07_reg,v2_reg,,{},true,"Evaluation variant: learning on inflation, PLM on lagged inflation, output gap and rate"
+eval,e08_var3,v2_var3,,{},true,"Evaluation variant: learning on inflation, VAR(1) PLM in inflation, output gap and rate"
+eval,e09_var12,v2_var12,,{},true,"Evaluation variant: learning on inflation, VAR(1) PLM in the 12 forward-looking variables"
+eval,e10_allvars,v3_all,,{},true,Evaluation variant: learning on all 12 forward-looking variables (anchored RE)
+var1_re_variant,v1_mc_learn,a1_learn,expectations.re_variant = 'model_consistent',{'a1_learn'},true,"Variant 1: forecast from the 2022Q2 peak, learning on inflation, model-consistent RE agents"
+var2_plm,v2_ar1nc,a1_learn,beliefs.plm.default = 'ar1_noconst',{'a1_learn'},true,Variant 2: learning on inflation with an AR(1) PLM without constant
+var2_plm,v2_ar2,a1_learn,beliefs.plm.default = 'ar2',{'a1_learn'},true,Variant 2: learning on inflation with an AR(2) PLM
+var2_plm,v2_reg,a1_learn,"beliefs.plm.derived.ygap = 'y - yf'; beliefs.plm.by_var.pinf = struct('regressors', {{'pinf{-1}', 'ygap{-1}', 'r{-1}'}}, 'constant', true)",{'a1_learn'},true,"Variant 2: learning on inflation with lagged inflation, output gap and rate as regressors"
+var2_plm,v2_var12,a1_learn,"beliefs.plm.var = struct('variables', {{'invef', 'rkf', 'pkf', 'cf', 'labf', 'inve', 'pinf', 'rk', 'pk', 'c', 'lab', 'w'}}, 'lags', 1, 'constant', true)",{'a1_learn'},true,Variant 2: learning on inflation with a VAR(1) in the 12 forward-looking variables
+var2_plm,v2_var3,a1_learn,"beliefs.plm.derived.ygap = 'y - yf'; beliefs.plm.var = struct('variables', {{'pinf', 'ygap', 'r'}}, 'lags', 1, 'constant', true)",{'a1_learn'},true,"Variant 2: learning on inflation with a VAR(1) in inflation, output gap and rate"
+var3_allvars,v3_all,a1_learn,expectations.variables = 'all',{'a1_learn'},true,Variant 3: learning on all 12 forward-looking variables (facility plm_alm)
+var3_allvars,v3_all_alm,v3_all,projection.facility = 'alm',{'v3_all'},true,Variant 3: learning on all 12 forward-looking variables (facility alm)
+var3_allvars,v3_all_none,v3_all,projection.facility = 'none',{'v3_all'},true,Variant 3: learning on all 12 forward-looking variables (no projection facility)
+var4_gain,v4_koz,a1_learn,gain.rule = 'koz'; gain.koz.error_scale = 4,{'a1_learn'},true,Variant 4: learning on inflation with an endogenous gain (KOZ 2024)
+var4_gain,v4_koz_full,v4_koz,"forecast.origin = qq(2026, 2); forecast.horizon = 4",{'a6_smooth_learn'},true,Variant 4: endogenous gain on the RE-smoothed history 1966Q1-2026Q2
