@@ -1,0 +1,10 @@
+Data files for Herbst and Schorfheide (2016):
+  Bayesian Estimation of DSGE Models
+
+  {dsge1,fiscal,sw}_data.csv contain the data used to estimate
+  the three dsge models in the book.
+
+  {dsge1,sw}_great_rec_data.csv contain the extended data to
+  for evaluating the particle filter performance over the Great
+  Recession.
+
