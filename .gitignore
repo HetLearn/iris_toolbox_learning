@@ -1,0 +1,18 @@
+# Outputs and caches: rebuilt by the pipeline, not versioned
+results/*
+!results/summary_v3/
+results/summary_v3/*
+!results/summary_v3/*.m
+!results/summary_v3/FINDINGS_v3.md
+models/*/generated/
+tests/output/
+reports/*.html
+
+# Round 1-2 material and code backups, kept locally only
+archive/
+
+# Editor, MATLAB and Python leftovers
+*.asv
+*.autosave
+__pycache__/
+*.pyc
