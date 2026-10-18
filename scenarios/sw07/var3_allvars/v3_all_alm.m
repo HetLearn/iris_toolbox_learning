@@ -1,0 +1,16 @@
+function cfg = v3_all_alm()
+%V3_ALL_ALM  Model variant 3: learning on all 12 variables, projection facility 'alm' (ALM check only).
+%
+%   cfg = v3_all_alm()
+%
+%   As v3_all, but the PLMs are never restricted: explosive beliefs are
+%   allowed while the model stays stable; an unstable model reverts every
+%   belief (and, if needed, keeps last quarter's shares). Writes compare_v3_all.csv.
+
+cfg = v3_all();
+cfg.id = 'v3_all_alm';
+cfg.title = 'Variant 3: learning on all 12 forward-looking variables (facility alm)';
+cfg.description = 'As v3_all, with only the model (ALM) checked each quarter and the PLMs of the learners left unrestricted.';
+cfg.projection.facility = 'alm';
+cfg.compare_with = {'v3_all'};
+end
