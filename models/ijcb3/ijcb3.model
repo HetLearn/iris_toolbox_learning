@@ -1,0 +1,82 @@
+% Three-equation New Keynesian model of Ozden (2025), "Heterogeneous Expectations
+% and the Business Cycle", International Journal of Central Banking 21(1).
+%
+% The skeleton model of IJCB sec. 2.1, eqs. (1)-(2): hybrid IS curve, hybrid
+% Phillips curve, Taylor rule with smoothing; AR(1) demand and cost-push shocks
+% and an i.i.d. policy shock. The ELB regime switching of IJCB sec. 2.2 is left
+% out: the policy rule holds in every quarter, and the package treats the
+% federal funds rate as missing in ELB quarters (data/README.md), so the
+% Kalman filter infers a shadow rate.
+%
+% Linear. Transition variables are deviations from the trends (steady state 0):
+%   y     output gap, percent (Hamilton-filter cycle of 100 x log real GDP,
+%         covid-adjusted regressors; data/README.md)
+%   pinf  CPI inflation, percent per quarter (q/q, not annualised)
+%   r     nominal policy rate, percent per quarter
+% Units are IJCB's estimation units (README.md, "Units"). The observables carry
+% the trends pi_bar and r_bar_T as constants (IJCB eq. 21).
+% Load with Model.fromFile('ijcb3.model', 'linear', true).
+
+!transition_variables
+
+    "Output gap" y
+    "Inflation, % q/q" pinf
+    "Nominal policy rate, % per quarter" r
+    "Demand shock process" u_y
+    "Cost-push shock process" u_pinf
+
+!transition_shocks
+
+    "Demand innovation" eps_y
+    "Cost-push innovation" eps_pinf
+    "Monetary policy shock, i.i.d." eps_r
+
+!parameters
+
+    "Discount factor (fixed)" beta
+    "Inverse elasticity of intertemporal substitution (risk aversion)" tau
+    "Slope of the Phillips curve" kappa
+    "Indexation in the IS curve" iota_y
+    "Indexation in the Phillips curve" iota_p
+    "Policy reaction to inflation" phi_pi
+    "Policy reaction to the output gap" phi_y
+    "Policy reaction to the change in the output gap" phi_dy
+    "Interest-rate smoothing" rho_r
+    "Persistence of the demand shock" rho_y
+    "Persistence of the cost-push shock" rho_pi
+    "Inflation trend, % per quarter" pi_bar
+    "Policy-rate trend in the Taylor regime, % per quarter" r_bar_T
+
+!transition_equations
+
+    "IS curve, hybrid (IJCB eq. 1)"
+    y = (1 - iota_y)*y{+1} + iota_y*y{-1} - (1/tau)*(r - pinf{+1}) + u_y;
+
+    "Phillips curve, hybrid (IJCB eq. 1)"
+    pinf = beta*((1 - iota_p)*pinf{+1} + iota_p*pinf{-1}) + kappa*y + u_pinf;
+
+    "Monetary policy rule, Taylor rule with smoothing (IJCB eq. 1)"
+    r = rho_r*r{-1} + (1 - rho_r)*(phi_pi*pinf + phi_y*y) + phi_dy*(y - y{-1}) + eps_r;
+
+    "Demand shock, AR(1) (IJCB eq. 2)"
+    u_y = rho_y*u_y{-1} + eps_y;
+
+    "Cost-push shock, AR(1) (IJCB eq. 2)"
+    u_pinf = rho_pi*u_pinf{-1} + eps_pinf;
+
+!measurement_variables
+
+    "Output gap, Hamilton (2018) filter with covid-adjusted regressors, 100 x log" yobs
+    "CPI inflation, % q/q" pinfobs
+    "Federal funds rate, % per quarter (missing at the ELB)" robs
+
+!measurement_equations
+
+    "Output gap observed directly (IJCB eq. 21)"
+    yobs = y;
+
+    "Inflation: trend plus model inflation (IJCB eq. 21)"
+    pinfobs = pi_bar + pinf;
+
+    "Policy rate: Taylor-regime trend plus model rate (IJCB eq. 21)"
+    robs = r_bar_T + r;
