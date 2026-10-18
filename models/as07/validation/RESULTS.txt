@@ -1,0 +1,112 @@
+as07 validation: validation/check_model.m, 2026-10-18 22:02, MATLAB 25.1.0.2973910 (R2025a) Update 1
+Model as07.model at as07_params (published posterior means, Herbst and Schorfheide 2016, Ch. 4 slides, "Posterior Estimates of DSGE Model Parameters"); database data/as07_database.csv
+
+0. PARAMETERS
+as07_params vs the published means: max abs diff 0; measurement-error std (sysmat.m) vs 0.2 x std(us.txt): 9.93e-08 (pass 1)
+  tau          2.83  [1.95, 3.82]
+  kappa        0.78  [0.51, 0.98]
+  psi1         1.80  [1.43, 2.20]
+  psi2         0.63  [0.23, 1.21]
+  rA           0.42  [0.04, 0.95]
+  piA          3.30  [2.78, 3.80]
+  gammaQ       0.52  [0.28, 0.74]
+  rho_r        0.77  [0.71, 0.82]
+  rho_g        0.98  [0.96, 1.00]
+  rho_z        0.88  [0.84, 0.92]
+  std_eps_r    0.22  [0.18, 0.26]
+  std_eps_g    0.71  [0.61, 0.84]
+  std_eps_z    0.31  [0.26, 0.36]
+  measurement errors (sysmat.m, not in the table): me_dy 0.1160, me_pinfobs 0.2942, me_robs 0.4476
+beta = 1/(1 + rA/400) = 0.99895110
+
+1. SOLUTION
+IRIS solve: success. Steady state of dy, pinfobs, robs: 0.5200, 3.3000, 5.8000 (= gammaQ, piA, piA+rA+4gammaQ: 1)
+Eigenvalues (IRIS eig, all roots of the transition system; IRIS stability code 0 stable, 1 unit, 2 unstable):
+   1    1.459316  +0.000000i   |1.459316|   code 2
+   2    1.197909  +0.000000i   |1.197909|   code 2
+   3    0.980000  +0.000000i   |0.980000|   code 0
+   4    0.880000  +0.000000i   |0.880000|   code 0
+   5    0.440934  +0.000000i   |0.440934|   code 0
+   6   -0.000000  +0.000000i   |0.000000|   code 0
+   7    0.000000  +0.000000i   |0.000000|   code 0
+   8   -0.000000  +0.000000i   |0.000000|   code 0
+Stable 6, unit 0, unstable 2; leads y{+1}, pinf{+1}: 2. Blanchard-Kahn (unique stable solution): 1
+Book gensys at the same parameters (model_solution.m): 2 unstable generalised eigenvalues for 2 expectational errors; finite unstable roots 1.459316, 1.197909 = IRIS unstable roots: 1
+Nonzero roots of the book's T1 (0.980000, 0.880000, 0.440934) = IRIS stable nonzero roots: 1
+
+2. IMPULSE RESPONSES (1-sd shocks, 20 quarters; srf)
+IRIS srf vs the book's gensys solution (model_solution.m, T1 and T0; observables by sysmat.m's B), y/pinf/r/g/z and dy/pinfobs/robs, all three shocks and quarters, no rescaling: max abs diff 5.33e-15 (pass 1; observables from srf 1)
+Units: y, g in %; pinf, r, z in % per quarter; dy % per quarter; pinfobs, robs % a year. Extreme = largest |response|.
+shock  var         impact   extreme   qtr       q20     cum20
+eps_z  y           0.2010    0.2010     1    0.0014    0.4532
+eps_z  pinf        0.3605    0.3605     1    0.0090    1.2487
+eps_z  r           0.1784    0.2420     3    0.0315    2.4278
+eps_z  g           0.0000   -0.0000    16   -0.0000   -0.0000
+eps_z  z           0.3100    0.3100     1    0.0273    2.3830
+eps_z  dy          0.5110    0.5110     1    0.0271    2.3844
+eps_z  pinfobs     1.4420    1.4420     1    0.0361    4.9950
+eps_z  robs        0.7135    0.9681     3    0.1260    9.7111
+eps_g  y           0.7100    0.7100     1    0.4837   11.7999
+eps_g  pinf       -0.0000   -0.0000     1   -0.0000   -0.0000
+eps_g  r          -0.0000   -0.0000     6   -0.0000   -0.0000
+eps_g  g           0.7100    0.7100     1    0.4837   11.7999
+eps_g  z           0.0000    0.0000     1    0.0000    0.0000
+eps_g  dy          0.7100    0.7100     1   -0.0099    0.4837
+eps_g  pinfobs    -0.0000   -0.0000     1   -0.0000   -0.0000
+eps_g  robs       -0.0000   -0.0000     6   -0.0000   -0.0000
+eps_r  y          -0.1302   -0.1302     1   -0.0000   -0.2329
+eps_r  pinf       -0.1815   -0.1815     1   -0.0000   -0.3247
+eps_r  r           0.1260    0.1260     1    0.0000    0.2253
+eps_r  g           0.0000    0.0000     1    0.0000    0.0000
+eps_r  z           0.0000    0.0000     1    0.0000    0.0000
+eps_r  dy         -0.1302   -0.1302     1    0.0000   -0.0000
+eps_r  pinfobs    -0.7261   -0.7261     1   -0.0000   -1.2988
+eps_r  robs        0.5039    0.5039     1    0.0000    0.9014
+Policy shock: r up, y down, pinf down on impact: 1
+
+3. LOG LIKELIHOOD ON us.txt, 1983Q1-2002Q4 (80 quarters, 3 observables)
+Both start from the stationary distribution: kalman.m sets s(0) = 0 and P(0) = the unconditional variance;
+IRIS loglik default initial condition (steady-state mean, asymptotic MSE), relative = false (no variance scaling).
+With sysmat.m measurement errors: book dsgeliki -315.91557171, IRIS -315.91557171, gap 1.14e-13
+Without measurement errors:      book kalman(H=0) -304.23974054, IRIS (std_me = 0) -304.23974054, gap 1.14e-13
+PASS (|gap| < 1e-6): 1
+
+4. KALMAN FILTER AND SMOOTHER
+Range 1965Q1-2026Q2, 246 quarters, 3 observables, 3 transition + 3 measurement shocks; IRIS default initial condition.
+Missing observations (robs in ELB quarters): 36. Smoothed measurement errors in the filter output: 1.
+Observables rebuilt through the measurement equations (lhsmrhs, data on the left, NaN skipped): max abs error 7.27e-14
+Same by hand (dy, pinfobs, robs from the smoothed y, y{-1}, z, pinf, r and measurement errors): max abs error 7.28e-14
+Policy rule and AR(1) shock processes at the smoothed values (rows from labels: 1): max abs residual 6.44e-14
+Euler equation and Phillips curve with the smoothed t+1 values in place of expectations (not tested): residual = expectational error, largest 7.356 in 2020Q1
+PASS (all < 1e-08): 1
+Smoothed model rate in ELB quarters = shadow rate, piA + rA + 4 gammaQ + 4 r, % a year:
+  2009Q1-2015Q4: trough -1.15 in 2009Q1, mean 3.44 (fed funds mean 0.13)
+  2020Q2-2022Q1: trough 0.40 in 2020Q2, mean 2.74 (fed funds mean 0.09)
+  Outside the ELB, model rate minus fed funds rate (= -me_robs): rmse 0.252 pp
+  quarter   shadow       FF
+  2009Q1     -1.15     0.18
+  2010Q2      2.90     0.19
+  2011Q4      5.14     0.07
+  2013Q4      4.26     0.09
+  2015Q4      1.64     0.16
+  2020Q2      0.40     0.06
+  2020Q4      2.79     0.09
+  2021Q2      3.59     0.07
+  2021Q4      3.53     0.08
+  2022Q1      2.87     0.12
+Smoothed shocks (model units):
+  shock           mean      std model sd  max|e|/sd  date
+  eps_z         0.0002   0.3229   0.3100       7.01  2008Q4
+  eps_g        -0.2641   1.3409   0.7100       8.38  2020Q2
+  eps_r        -0.0920   0.2766   0.2200       5.48  1974Q4
+  me_dy        -0.0168   0.0424   0.1160       1.42  1980Q2
+  me_pinfobs    0.0341   0.1204   0.2942       1.86  2008Q4
+  me_robs       0.0215   0.2322   0.4476       2.88  1980Q3
+
+5. APPLICATION-1 ORIGIN
+CPI inflation peak 2020Q1-2024Q4 (max of pinfobs): 2022Q2, 9.2973 % a year (2.3243 % q/q); hetlearn.find_peak via load_spec/load_database: 2022Q2 (same 1)
+Smoothed state at 2022Q2: y 5.442, pinf 1.416 (annualised 5.66, level 8.96 % a year without me), r -1.015 (level 1.74 % a year), g 4.422, z -0.023
+Smoothed shocks at 2022Q2: eps_z -0.127, eps_g -0.550, eps_r -1.186, me_dy -0.013, me_pinfobs 0.334, me_robs -0.970
+Data at 2022Q2: dy -0.050, pinfobs 9.297, robs 0.770 (ffr 0.770)
+
+OVERALL PASS: 1  (parameters 1, steady state 1, Blanchard-Kahn 1, roots vs gensys 1, IRFs vs gensys 1, policy-shock signs 1, likelihood vs dsgeliki 1, filter 1, peak 1)
