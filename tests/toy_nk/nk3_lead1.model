@@ -1,0 +1,42 @@
+% nk3_lead1.model: nk3.model without the 2-step lead pie{+2} (tests/test_anchored.m).
+% With every forward-looking variable learning and the anchored RE variant, the
+% extended model of this file has no leads left (a purely backward model), which
+% exercises hetlearn.engine.backward_simulate. Parameters: nk3_params (c2 unused).
+
+!transition_variables
+    "Output gap" y
+    "Inflation q/q" pie
+    "Policy rate" r
+    'Demand shock process' g, 'Cost-push shock process' u
+    "Expected output growth" dy_e
+    "Expected policy rate" r_e
+
+!transition_shocks
+    "Demand shock" e_g
+    "Cost-push shock" e_u
+    "Policy shock" e_r
+
+!parameters
+    h, sig, bet, iota, kap
+    rho_r phi_pi phi_y phi_dy
+    rho_g, rho_u
+
+!measurement_variables
+    obs_y, obs_pie, obs_r
+
+!substitutions
+    rr := (r - pie{+1});
+
+!transition_equations
+    "IS curve" y = 1/(1+h)*y{+1} + h/(1+h)*y{-1} - (1-h)/(sig*(1+h))*$rr$ + g;
+    "NKPC" pie = bet/(1+bet*iota)*pie{+1} + iota/(1+bet*iota)*pie{-1} + kap*y + u;
+    r = rho_r*r{-1} + (1-rho_r)*(phi_pi*pie + phi_y*y) + phi_dy*(y - y{-1}) + e_r;
+    g = rho_g*g{-1} + e_g;
+    u = rho_u*u{-1} + e_u;
+    dy_e = y{+1} - y;
+    r_e = r{+1};
+
+!measurement_equations
+    obs_y = y;
+    obs_pie = pie;
+    obs_r = r;
