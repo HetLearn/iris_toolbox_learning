@@ -1,0 +1,69 @@
+ijcb3 validation: validation/check_model.m, 2026-10-18 19:30, MATLAB 25.1.0.2973910 (R2025a) Update 1
+Model ijcb3.model at ijcb3_params (IJCB Table 1, HE posterior means); database data/ijcb3_database.csv
+
+1. SOLUTION
+IRIS solve: success. Steady state of yobs, pinfobs, robs: 0.0000, 0.5800, 0.2600 (= 0, pi_bar, r_bar_T: 1)
+Eigenvalues (IRIS eig, all roots of the transition system; IRIS stability code 0 stable, 1 unit, 2 unstable):
+   1    1.234755  +0.000000i   |1.234755|   code 2
+   2    1.017717  +0.000000i   |1.017717|   code 2
+   3    0.950000  +0.000000i   |0.950000|   code 0
+   4    0.837147  +0.000000i   |0.837147|   code 0
+   5    0.174203  +0.000000i   |0.174203|   code 0
+   6    0.056548  +0.000000i   |0.056548|   code 0
+   7    0.040000  +0.000000i   |0.040000|   code 0
+Stable 5, unit 0, unstable 2; leads y{+1}, pinf{+1}: 2. Blanchard-Kahn (unique stable solution): 1
+
+2. IMPULSE RESPONSES (1-sd shocks, 20 quarters; srf)
+Independent solve of IJCB eqs. (3)-(6) by fixed-point iteration: 164 iterations, residuals b 8.9e-16, d 4.4e-16; eig(b) = 0.837147, 0.174203, 0.056548
+IRIS srf vs independent solution, y/pinf/r, all shocks and quarters: max abs diff 3.33e-15 (pass 1)
+Units: y in % of trend output; pinf and r annualised (x4), percentage points. Extreme = largest |response|.
+shock     var      impact   extreme   qtr       q20     cum20  sign on impact
+eps_y     y        1.3133    1.3133     1    0.1584   10.5047  ok (expected +1)
+eps_y     pinf     0.1677    0.1793     2    0.0391    1.8426  ok (expected +1)
+eps_y     r        0.8274    0.9115     4    0.5347   15.2678  ok (expected +1)
+eps_y     rr       0.6482   (ex-ante real rate r - pinf{+1}, annualised, impact)
+eps_pinf  y       -0.1297   -0.1921     2   -0.0090   -1.4030  ok (expected -1)
+eps_pinf  pinf     1.8337    1.8337     1   -0.0010    2.1784  ok (expected +1)
+eps_pinf  r        0.1448    0.1448     1    0.0049    0.8653  ok (expected +1)
+eps_pinf  rr      -0.2300   (ex-ante real rate r - pinf{+1}, annualised, impact)
+eps_r     y       -0.7669   -0.7669     1   -0.0281   -4.8520  ok (expected -1)
+eps_r     pinf    -0.0698   -0.0712     2   -0.0030   -0.5086  ok (expected -1)
+eps_r     r        0.4803    0.4803     1    0.0154    2.7246  ok (expected +1)
+eps_r     rr       0.5515   (ex-ante real rate r - pinf{+1}, annualised, impact)
+All impact signs as expected: 1
+
+3. KALMAN FILTER AND SMOOTHER
+Range 1960Q1-2026Q2, 266 quarters, 3 observables, 3 shocks; IRIS default initial condition (asymptotic distribution).
+Missing observations (robs in ELB quarters): 36.
+Observables rebuilt through the measurement equations (lhsmrhs, data on the left, NaN skipped): max abs error 4.44e-15
+Same by hand (yobs - y, pinfobs - pi_bar - pinf, robs - r_bar_T - r): max abs error 4.44e-15
+Policy rule and AR(1) shock processes at the smoothed values (rows from labels: 1): max abs residual 2.66e-15
+PASS (all < 1e-08): 1
+Smoothed policy rate in ELB quarters = shadow rate, annualised level 4*(r_bar_T + r), % a year:
+  2009Q1-2015Q4: trough -2.85 in 2010Q2, 2010Q2 -2.85, mean -1.00 (fed funds mean 0.13)
+  2020Q2-2022Q1: trough -2.24 in 2020Q2, mean -0.60 (fed funds mean 0.09)
+  (IJCB Fig. 2, HE model with ELB regime: trough in 2010Q2, compared with an annual rate of -4 percent.)
+  quarter   shadow       FF
+  2009Q1     -0.78     0.18
+  2010Q2     -2.85     0.19
+  2011Q4     -0.91     0.07
+  2013Q4     -0.61     0.09
+  2015Q4     -0.04     0.16
+  2020Q2     -2.24     0.06
+  2020Q4     -0.85     0.09
+  2021Q2     -0.36     0.07
+  2021Q4      0.21     0.08
+  2022Q1      0.52     0.12
+Smoothed shocks (model units):
+  shock         mean      std model sd  max|e|/sd  date
+  eps_y       0.0337   0.2845   0.3200       5.22  2020Q2
+  eps_pinf    0.1937   0.5167   0.3800       6.40  2008Q4
+  eps_r       0.0267   0.2268   0.2400       5.95  1980Q4
+
+4. APPLICATION-1 ORIGIN
+CPI inflation peak 2020Q1-2024Q4 (max of pinfobs): 2022Q2, 2.3243 % q/q = 9.30 % annualised
+Smoothed state at 2022Q2: y 0.998, pinf 1.744 (annualised 6.98), r -0.068 (level 0.77 % a year), u_y 0.014, u_pinf 1.190
+Smoothed shocks at 2022Q2: eps_y 0.059, eps_pinf 1.147, eps_r -0.216 (model sd 0.32, 0.38, 0.24)
+Data at 2022Q2: yobs 0.998 (Hamilton gap, IJCB-sample coefficients, covid-adjusted regressors; helpers, not observed: yobs_hamilton 9.009, yobs_fullsample 0.942), pinfobs 2.3243, robs 0.1925
+
+OVERALL PASS: 1  (steady state 1, Blanchard-Kahn 1, IRFs vs independent solve 1, impact signs 1, filter 1)
