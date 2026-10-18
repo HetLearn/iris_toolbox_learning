@@ -1,0 +1,50 @@
+% nk3.model: 3-equation hybrid New Keynesian model (Ozden 2025, IJCB, eq. 1)
+% Test model for hetlearn. Leads are written in MIXED notations on purpose:
+%   y{+1}, pie{1}, pie[+1], y(+1), r{t+1}, and a 2-step lead pie{+2}.
+% No time subscript inside a comment or a label may be rewritten.
+
+!transition_variables
+    "Output gap, depends on y{+1}" y
+    "Inflation q/q, forward term pie[+1]" pie
+    "Policy rate (y(+1) in a label)" r
+    'Demand shock process' g, 'Cost-push shock process' u
+    "Expected output growth, y(+1) - y" dy_e
+    "Expected policy rate r{t+1}" r_e
+
+!transition_shocks
+    "Demand shock" e_g
+    "Cost-push shock" e_u
+    "Policy shock" e_r
+
+!parameters
+    "Output persistence (habit), not y{-1}" h = 0.5
+    sig, bet, iota, kap, c2
+    rho_r phi_pi phi_y phi_dy
+    rho_g, rho_u
+
+!measurement_variables
+    obs_y, obs_pie, obs_r
+
+!substitutions
+    % real rate uses expected inflation pie{+1}; this comment must not change
+    rr := (r - pie{1});
+
+!transition_equations
+    /* IS curve with y{+1} and y{-1}: block comment */
+    "IS curve: y{+1}" y = 1/(1+h)*y{+1} + h/(1+h)*y{-1} - (1-h)/(sig*(1+h))*$rr$ + g;
+    %{
+    Hybrid NKPC. An older version used pie(+1) only:
+    pie = bet*pie(+1) + kap*y;
+    %}
+    "NKPC with pie[+1] and pie{+2}" pie = (bet/(1+bet*iota) - c2)*pie[ + 1 ] + c2*pie{+2} + iota/(1+bet*iota)*pie(-1) + kap*y + u;
+    // Taylor rule with smoothing r{-1} and an output-growth term
+    "Taylor rule" r = rho_r*r{t-1} + (1-rho_r)*(phi_pi*pie + phi_y*y) + phi_dy*(y - y[-1]) + e_r;
+    g = rho_g*g{-1} + e_g;
+    u = rho_u*u{-1} + e_u;
+    dy_e = y(+1) - y;     % expected output growth, uses y(+1)
+    r_e = r{ t + 1 };
+
+!measurement_equations
+    obs_y = y;
+    obs_pie = pie;
+    obs_r = r;
