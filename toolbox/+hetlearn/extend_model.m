@@ -121,6 +121,8 @@ function meta = extend_model(spec, plm, varargin)
 
 GENERATOR_VERSION = 4;     % 2 (2026-10-18): anchored-RE block, derived regressors, VAR PLMs; 3: spec.policy (Ramsey wrap);
                            % 4: br_info_current toggle (beliefs.info), leads detected on the active !if branches
+GENERATOR_VERSION_RELAG = 5;   % files with the lagged RE information block only (re_info = 'lagged', DESIGN 19,
+                               % 2026-10-19: <name>_ext_<tag>_relag.model); the default files stay at version 4
 ANCHOR_TOGGLE = 're_anchored';
 INFO_TOGGLE = 'br_info_current';   % global !if switch of the BR information set (beliefs.info, DESIGN 4.2)
 POLICY_TOGGLE = 'ramsey';  % global !if switch of the Ramsey wrap (DESIGN 13)
@@ -128,9 +130,18 @@ POLICY_TOGGLE = 'ramsey';  % global !if switch of the Ramsey wrap (DESIGN 13)
 ip = inputParser;
 ip.addParameter('force', false);
 ip.addParameter('validate', true);
+ip.addParameter('re_info', 'current');
 ip.parse(varargin{:});
 force = logical(ip.Results.force);
 doValidate = logical(ip.Results.validate);
+reInfo = char(ip.Results.re_info);
+if ~any(strcmp(reInfo, {'current', 'lagged'}))
+    error('hetlearn:extend_model:reInfo', 're_info must be ''current'' or ''lagged'' (got ''%s'').', reInfo);
+end
+lagged = strcmp(reInfo, 'lagged');     % DESIGN 19: RE expectations of the learning set dated t-1
+if lagged
+    GENERATOR_VERSION = GENERATOR_VERSION_RELAG;
+end
 
 if nargin < 2 || isempty(plm)
     plm = 'ar1';
@@ -213,6 +224,7 @@ expVars = struct();
 shareParams = struct();
 beliefParams = struct();
 toggles = cell(1, numel(fwd));
+reChain = struct();
 for i = 1:numel(fwd)
     x = fwd{i};
     agg = arrayfun(@(k) sprintf('%s_exp%d', x, k), 1:maxLead.(x), 'UniformOutput', false);
@@ -220,6 +232,11 @@ for i = 1:numel(fwd)
     shareParams.(x) = {['n1_' x], ['n2_' x]};
     toggles{i} = ['br_' x];
     gen = [gen, agg, {[x '_exp1_RE'], [x '_exp1_BR']}, shareParams.(x), toggles(i)]; %#ok<AGROW>
+    if lagged
+        % lagged RE chain (DESIGN 19): x_REt1 = E_t x_{t+1}, x_REt2 = E_t x_{t+2}, x_exp1_RE = x_REt2{-1}
+        reChain.(x) = {[x '_REt1'], [x '_REt2']};
+        gen = [gen, reChain.(x)]; %#ok<AGROW>
+    end
 end
 for i = 1:numel(sys.eq)
     beliefParams.(sys.eq(i).target) = sys.eq(i).param_names;
@@ -240,8 +257,12 @@ genDir = fullfile(spec.folder, 'generated');
 if exist(genDir, 'dir') ~= 7
     mkdir(genDir);
 end
-extFile = fullfile(genDir, sprintf('%s_ext_%s.model', spec.name, plmtag));
-metaFile = fullfile(genDir, sprintf('%s_ext_%s_meta.mat', spec.name, plmtag));
+fileTag = plmtag;
+if lagged
+    fileTag = [plmtag '_relag'];      % own file and meta: the default files are never touched (DESIGN 19)
+end
+extFile = fullfile(genDir, sprintf('%s_ext_%s.model', spec.name, fileTag));
+metaFile = fullfile(genDir, sprintf('%s_ext_%s_meta.mat', spec.name, fileTag));
 normFile = fullfile(genDir, sprintf('%s_norm.model', spec.name));
 
 if ~force && exist(metaFile, 'file') == 2 && exist(extFile, 'file') == 2
@@ -264,7 +285,12 @@ if ~force && exist(metaFile, 'file') == 2 && exist(extFile, 'file') == 2
         meta.ref_file = refNow;
         meta.ext_file = extFile;
         if doValidate && ~meta.validated
-            [meta.collapse_maxdiff, meta.collapse_info_maxdiff] = collapse_test(spec, assign, meta);
+            if lagged
+                [meta.collapse_maxdiff, meta.collapse_info_maxdiff, meta.collapse_lagged_sets] = ...
+                    collapse_test_lagged(spec, assign, meta);
+            else
+                [meta.collapse_maxdiff, meta.collapse_info_maxdiff] = collapse_test(spec, assign, meta);
+            end
             meta.validated = true;
             save(metaFile, 'meta');
         end
@@ -305,7 +331,11 @@ if ~isempty(clash)
         strjoin(clash, ', '));
 end
 
-block = make_block(fwd, maxLead, sys, plmtag, spec, S, derived, anchor, INFO_TOGGLE);
+if lagged
+    block = make_block_lagged(fwd, maxLead, sys, plmtag, spec, S, derived, anchor, INFO_TOGGLE, reChain);
+else
+    block = make_block(fwd, maxLead, sys, plmtag, spec, S, derived, anchor, INFO_TOGGLE);
+end
 if isempty(extBody) || extBody(end) ~= newline
     extBody = [extBody, newline];
 end
@@ -348,12 +378,23 @@ meta.collapse_info_maxdiff = NaN;
 meta.assign_key = assignKey;
 meta.generator_version = GENERATOR_VERSION;
 meta.created = datestr(now, 'yyyy-mm-dd HH:MM:SS'); %#ok<TNOW1,DATST>
+if lagged
+    % fields of the lagged RE information files only (DESIGN 19); a default meta has none of them
+    meta.re_info = 'lagged';
+    meta.re_chain = reChain;             % struct by forward variable: {x_REt1, x_REt2}
+    meta.collapse_lagged_sets = {};
+end
 
 if exist(metaFile, 'file') == 2
     delete(metaFile);
 end
 if doValidate
-    [meta.collapse_maxdiff, meta.collapse_info_maxdiff] = collapse_test(spec, assign, meta);
+    if lagged
+        [meta.collapse_maxdiff, meta.collapse_info_maxdiff, meta.collapse_lagged_sets] = ...
+            collapse_test_lagged(spec, assign, meta);
+    else
+        [meta.collapse_maxdiff, meta.collapse_info_maxdiff] = collapse_test(spec, assign, meta);
+    end
     meta.validated = true;
 end
 save(metaFile, 'meta');
@@ -964,6 +1005,317 @@ if ~isempty(logged)
     L{end+1} = ['    ' strjoin(logged, ', ')];
 end
 txt = [strjoin(L, newline), newline];
+end
+
+
+% =========================================================================
+function txt = make_block_lagged(fwd, maxLead, sys, plmtag, spec, S, derived, anchor, infoToggle, reChain)
+% The expectation block of a lagged RE information file (re_info = 'lagged',
+% DESIGN 19). Same as make_block, except the RE expectation inside each
+% br_<x> block, which uses information up to t-1:
+%   model-consistent (re_anchored = false): the chain
+%       x_exp1_RE = x_REt2{-1};  x_REt2 = x_REt1{+1};  x_REt1 = x{+1};
+%     so x_REt1_t = E_t x_{t+1}, x_REt2_t = E_t x_{t+2} and x_exp1_RE_t =
+%     E_{t-1} x_{t+1} (every lead stays at +1);
+%   anchored (re_anchored = true): x_exp1_RE = are_x__const + sum_j
+%     are_x__<s_j>*s_j{-1}, the anchored expression with every state dated one
+%     period earlier (coefficients from hetlearn.re_anchor_coefficients with
+%     're_info', 'lagged').
+% Variables outside the learning set (br_<x> = false) keep x_exp1 = x{+1}.
+L = {};
+L{end+1} = '';
+L{end+1} = '% =====================================================================';
+L{end+1} = ['% hetlearn expectation block (hetlearn.extend_model), PLM tag ' plmtag ...
+    ', RE information up to t-1 (expectations.re_info = ''lagged'')'];
+L{end+1} = ['% Source: ' strrep(spec.model_file, '\', '/') '. Do not edit; regenerate instead.'];
+L{end+1} = '% =====================================================================';
+dn = fieldnames(derived);
+L{end+1} = '!transition_variables';
+for i = 1:numel(dn)
+    L{end+1} = sprintf('    "Derived PLM regressor, %s = %s" %s', dn{i}, derived.(dn{i}), dn{i}); %#ok<AGROW>
+end
+for i = 1:numel(fwd)
+    x = fwd{i};
+    ch = reChain.(x);
+    for k = 1:maxLead.(x)
+        L{end+1} = sprintf('    "Aggregate expectation of %s{+%d}" %s_exp%d', x, k, x, k); %#ok<AGROW>
+    end
+    L{end+1} = sprintf('    !if br_%s', x); %#ok<AGROW>
+    L{end+1} = sprintf('        "RE expectation of %s{+1}, information up to t-1" %s_exp1_RE', x, x); %#ok<AGROW>
+    L{end+1} = sprintf('        "BR (adaptive learning) expectation of %s{+1}" %s_exp1_BR', x, x); %#ok<AGROW>
+    if anchor.ok
+        L{end+1} = sprintf('        !if ~%s', anchor.toggle); %#ok<AGROW>
+    end
+    L{end+1} = sprintf('        "Lagged RE chain: E_t %s{+1}" %s', x, ch{1}); %#ok<AGROW>
+    L{end+1} = sprintf('        "Lagged RE chain: E_t %s{+2}" %s', x, ch{2}); %#ok<AGROW>
+    if anchor.ok
+        L{end+1} = '        !end'; %#ok<AGROW>
+    end
+    L{end+1} = '    !end'; %#ok<AGROW>
+end
+L{end+1} = '!parameters';
+for i = 1:numel(fwd)
+    x = fwd{i};
+    L{end+1} = sprintf('    "Share of RE agents, %s" n1_%s', x, x); %#ok<AGROW>
+    L{end+1} = sprintf('    "Share of BR agents, %s" n2_%s', x, x); %#ok<AGROW>
+end
+for i = 1:numel(sys.eq)
+    e = sys.eq(i);
+    kind = 'PLM';
+    if e.isAux
+        kind = 'Auxiliary PLM';
+    end
+    p = 0;
+    if e.constant
+        p = 1;
+        L{end+1} = sprintf('    "%s constant, %s" %s', kind, e.target, e.param_names{1}); %#ok<AGROW>
+    end
+    for j = 1:numel(e.reg_names)
+        L{end+1} = sprintf('    "%s coefficient, %s on %s{-%d}" %s', kind, e.target, ...
+            e.reg_names{j}, e.reg_lags(j), e.param_names{p + j}); %#ok<AGROW>
+    end
+end
+if anchor.ok
+    for i = 1:numel(fwd)
+        x = fwd{i};
+        pn = anchor.params.(x);
+        L{end+1} = sprintf('    "Anchored RE forecast of %s{+1} with information up to t-1, constant" %s', x, pn{1}); %#ok<AGROW>
+        for j = 1:numel(anchor.states)
+            L{end+1} = sprintf('    "Anchored RE forecast of %s{+1} with information up to t-1, coefficient on %s dated t-1" %s', ...
+                x, anchor.states{j}, pn{1 + j}); %#ok<AGROW>
+        end
+    end
+end
+L{end+1} = '!transition_equations';
+for i = 1:numel(dn)
+    L{end+1} = sprintf('    %s = %s;', dn{i}, derived.(dn{i})); %#ok<AGROW>
+end
+for i = 1:numel(fwd)
+    x = fwd{i};
+    ch = reChain.(x);
+    L{end+1} = sprintf('    !if br_%s', x); %#ok<AGROW>
+    L{end+1} = sprintf('        %s_exp1 = n1_%s*%s_exp1_RE + n2_%s*%s_exp1_BR;', x, x, x, x, x); %#ok<AGROW>
+    L{end+1} = '        % RE agents with information up to t-1: x_exp1_RE_t = E_{t-1} x_{t+1} (DESIGN 19)'; %#ok<AGROW>
+    chain = {sprintf('%s_exp1_RE = %s{-1};', x, ch{2}), sprintf('%s = %s{+1};', ch{2}, ch{1}), ...
+        sprintf('%s = %s{+1};', ch{1}, x)};
+    if anchor.ok
+        L{end+1} = sprintf('        !if %s', anchor.toggle); %#ok<AGROW>
+        L{end+1} = sprintf('            %s_exp1_RE = %s;', x, anchor_expr_lagged(anchor.params.(x), anchor.states)); %#ok<AGROW>
+        L{end+1} = '        !else'; %#ok<AGROW>
+        for q = 1:numel(chain)
+            L{end+1} = ['            ' chain{q}]; %#ok<AGROW>
+        end
+        L{end+1} = '        !end'; %#ok<AGROW>
+    else
+        for q = 1:numel(chain)
+            L{end+1} = ['        ' chain{q}]; %#ok<AGROW>
+        end
+    end
+    L{end+1} = sprintf('        !if %s', infoToggle); %#ok<AGROW>
+    L{end+1} = sprintf('            %s_exp1_BR = %s;', x, hetlearn.plm.forecast_expr(sys, x, 'current')); %#ok<AGROW>
+    L{end+1} = '        !else'; %#ok<AGROW>
+    L{end+1} = sprintf('            %s_exp1_BR = %s;', x, hetlearn.plm.forecast_expr(sys, x, 'lagged')); %#ok<AGROW>
+    L{end+1} = '        !end'; %#ok<AGROW>
+    L{end+1} = '    !else'; %#ok<AGROW>
+    L{end+1} = sprintf('        %s_exp1 = %s{+1};', x, x); %#ok<AGROW>
+    L{end+1} = '    !end'; %#ok<AGROW>
+    for k = 2:maxLead.(x)
+        L{end+1} = sprintf('    %s_exp%d = %s_exp%d{+1};', x, k, x, k - 1); %#ok<AGROW>
+    end
+end
+logged = {};
+for i = 1:numel(fwd)
+    x = fwd{i};
+    inList = any(strcmp(S.logvars, x));
+    if S.log_all_but
+        if inList
+            warning('hetlearn:extend_model:logAllBut', ...
+                ['%s is excluded with !all_but in !log_variables; the generated ' ...
+                'expectation variables of %s will be treated as log variables.'], x, x);
+        end
+    elseif inList
+        logged = [logged, arrayfun(@(k) sprintf('%s_exp%d', x, k), 1:maxLead.(x), ...
+            'UniformOutput', false)]; %#ok<AGROW>
+    end
+end
+if ~isempty(logged)
+    L{end+1} = '!log_variables';
+    L{end+1} = ['    ' strjoin(logged, ', ')];
+end
+txt = [strjoin(L, newline), newline];
+end
+
+
+function txt = anchor_expr_lagged(pn, states)
+% are_x__const + are_x__<v>*v{-1} + are_x__<v>_l<k>*v{-k-1} + ...: the anchored
+% expression with every state of the original model dated one period earlier
+[~, sv, sl] = hetlearn.plm.anchor_names('x', states);
+terms = cell(1, numel(states) + 1);
+terms{1} = pn{1};
+for j = 1:numel(states)
+    terms{j + 1} = sprintf('%s*%s{-%d}', pn{j + 1}, sv{j}, sl(j) + 1);
+end
+txt = strjoin(terms, ' + ');
+end
+
+
+% =========================================================================
+function [maxdiff, infoDiff, sets] = collapse_test_lagged(spec, assign, meta)
+% Collapse test of a lagged RE information file (DESIGN 19; T4 of
+% tests/test_re_info.m). With n1 = 1, n2 = 0 and zero beliefs:
+%   (1) every br = false reproduces the reference (original) model: maxdiff(2);
+%   (2) every forward-looking variable with max lead 1 learning (br = true),
+%       re_anchored = false: the model-consistent lagged RE model, the RE(t-1)
+%       model of that set (no external reference; it must solve);
+%   (3) the same with re_anchored = true and the coefficients of
+%       hetlearn.re_anchor_coefficients(..., 're_info', 'lagged') reproduces
+%       (2): maxdiff(3);
+%   (4) (2) with br_info_current = true reproduces (2): infoDiff.
+% maxdiff(1) is NaN: with lagged RE information the extended model differs
+% from the original by construction. If (2) has no unique stable solution for
+% the whole set, (2)-(4) run for each variable on its own; sets lists the
+% learning sets used. Every comparison: IRFs to every shock, every variable
+% of the reference model, 40 periods, < 1e-10.
+TOL = 1e-10;
+params = call_params(spec);
+mo = Model.fromFile(meta.ref_file, 'linear', logical(spec.linear), 'assign', assign);
+mo = put_params(mo, params);
+mo = prepare(mo, spec, 'reference model');
+so = srf(mo, 1:40);
+xl = get(mo, 'xList');
+el = get(mo, 'eList');
+anchOK = isfield(meta, 'anchor_ok') && meta.anchor_ok && logical(spec.linear);
+hasInfo = isfield(meta, 'info_toggle') && ~isempty(meta.info_toggle);
+maxdiff = [NaN, NaN, NaN];
+infoDiff = NaN;
+% (1) every br = false: the original model
+[me, ~] = load_ext(spec, assign, meta, {}, false, false, params, struct());
+if ~isequal(get(me, 'eList'), el)
+    error('hetlearn:extend_model:collapseFailed', 'Shock lists differ between reference and extended model.');
+end
+[maxdiff(2), worst] = irf_diff(so, srf(me, 1:40), xl);
+if ~(maxdiff(2) < TOL)
+    error('hetlearn:extend_model:collapseFailed', ['Collapse test failed (lagged RE file, br = false): ' ...
+        'max abs IRF difference %.3g (variable %s) >= %g. Extended file: %s'], maxdiff(2), worst, TOL, meta.ext_file);
+end
+lead1 = meta.forward_vars(cellfun(@(x) meta.max_lead.(x) == 1, meta.forward_vars));
+sets = {};
+if isempty(lead1)
+    return
+end
+% (2)-(4) for the whole set, else one variable at a time
+try
+    [dA, dI] = lagged_passes(spec, assign, meta, lead1, params, xl, anchOK, hasInfo, TOL);
+    sets = {lead1};
+catch err
+    if ~strcmp(err.identifier, 'hetlearn:extend_model:solveFailed')
+        rethrow(err);
+    end
+    dA = NaN;
+    dI = NaN;
+    for i = 1:numel(lead1)
+        [a, b] = lagged_passes(spec, assign, meta, lead1(i), params, xl, anchOK, hasInfo, TOL);
+        dA = max([dA, a], [], 'omitnan');
+        dI = max([dI, b], [], 'omitnan');
+        sets{end+1} = lead1(i); %#ok<AGROW>
+    end
+end
+maxdiff(3) = dA;
+infoDiff = dI;
+end
+
+
+function [dA, dI] = lagged_passes(spec, assign, meta, set, params, xl, anchOK, hasInfo, TOL)
+% Passes (2)-(4) of collapse_test_lagged for one learning set.
+dA = NaN;
+dI = NaN;
+mL = load_ext(spec, assign, meta, set, false, false, params, struct());
+sL = srf(mL, 1:40);
+lab = strjoin(set, ',');
+if anchOK
+    Aa = hetlearn.re_anchor_coefficients(spec, params, 're_info', 'lagged', 'model', mL, ...
+        'vars', set, 'states', meta.re_states, 'chain', meta.re_chain);
+    mA = load_ext(spec, assign, meta, set, true, false, params, Aa);
+    [dA, worst] = irf_diff(sL, srf(mA, 1:40), xl);
+    if ~(dA < TOL)
+        error('hetlearn:extend_model:collapseFailed', ['Collapse test failed (lagged RE file, learning {%s}, ' ...
+            're_anchored = 1 vs 0): max abs IRF difference %.3g (variable %s) >= %g. Extended file: %s'], ...
+            lab, dA, worst, TOL, meta.ext_file);
+    end
+end
+if hasInfo
+    mI = load_ext(spec, assign, meta, set, false, true, params, struct());
+    [dI, worst] = irf_diff(sL, srf(mI, 1:40), xl);
+    if ~(dI < TOL)
+        error('hetlearn:extend_model:collapseFailed', ['Collapse test failed (lagged RE file, learning {%s}, ' ...
+            'br_info_current = 1 vs 0): max abs IRF difference %.3g (variable %s) >= %g. Extended file: %s'], ...
+            lab, dI, worst, TOL, meta.ext_file);
+    end
+end
+end
+
+
+function [me, a] = load_ext(spec, assign, meta, set, anch, cur, params, Aa)
+% Extended model with br = true for the variables in set, n1 = 1, n2 = 0,
+% zero beliefs and anchored coefficients (Aa for anch = true), solved.
+a = assign;
+for i = 1:numel(meta.toggles)
+    a.(meta.toggles{i}) = any(strcmp(meta.forward_vars{i}, set));
+end
+a.(meta.anchor_toggle) = anch;
+if isfield(meta, 'info_toggle') && ~isempty(meta.info_toggle)
+    a.(meta.info_toggle) = cur;
+end
+if isfield(meta, 'policy_toggle') && ~isempty(meta.policy_toggle)
+    a.(meta.policy_toggle) = false;
+end
+me = Model.fromFile(meta.ext_file, 'linear', logical(spec.linear), 'assign', a);
+me = put_params(me, params);
+for i = 1:numel(meta.forward_vars)
+    x = meta.forward_vars{i};
+    me.(['n1_' x]) = 1;
+    me.(['n2_' x]) = 0;
+end
+f = fieldnames(meta.belief_params);
+for i = 1:numel(f)
+    pn = meta.belief_params.(f{i});
+    for j = 1:numel(pn)
+        me.(pn{j}) = 0;
+    end
+end
+f = fieldnames(meta.anchor_params);
+for i = 1:numel(f)
+    pn = meta.anchor_params.(f{i});
+    for j = 1:numel(pn)
+        me.(pn{j}) = 0;
+    end
+end
+if anch
+    me = put_params(me, Aa);
+end
+me = prepare(me, spec, sprintf('lagged RE file (learning {%s}, re_anchored = %d, br_info_current = %d)', ...
+    strjoin(set, ','), anch, cur));
+end
+
+
+function [d, worst] = irf_diff(so, se, xl)
+% Max abs IRF difference over the variables xl, periods 1..40.
+d = 0;
+worst = '';
+for i = 1:numel(xl)
+    v = xl{i};
+    A = so.(v)(1:40, :);
+    B = se.(v)(1:40, :);
+    if ~isequal(size(A), size(B))
+        error('hetlearn:extend_model:collapseFailed', 'IRF sizes differ for %s.', v);
+    end
+    dd = abs(A(:) - B(:));
+    dd(isnan(dd)) = Inf;
+    if ~isempty(dd) && max(dd) > d
+        d = max(dd);
+        worst = v;
+    end
+end
 end
 
 
