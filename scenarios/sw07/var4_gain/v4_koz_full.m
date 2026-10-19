@@ -13,5 +13,6 @@ cfg.title = 'Variant 4: endogenous gain on the RE-smoothed history 1966Q1-2026Q2
 cfg.description = 'The learning-on-inflation model with the KOZ endogenous gain run over the RE-smoothed history to 2026Q2.';
 cfg.forecast.origin = qq(2026, 2);
 cfg.forecast.horizon = 4;
+% cfg.gain.koz.error_scale = 1 is inherited from v4_koz (quarterly units, user decision 2026-10-19).
 cfg.compare_with = {'a6_smooth_learn'};
 end
