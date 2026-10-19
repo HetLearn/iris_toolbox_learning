@@ -9,10 +9,14 @@ function H = re_filter(spec, opts, varargin)
 %   Inputs
 %     spec  model spec (hetlearn.load_spec); needs spec.database and
 %           spec.filter_range
-%     opts  merged options (hetlearn.load_options); only beliefs.plm is used
-%           (it selects the generated model file). The filter model always
-%           has EVERY br_<x> = true and n1_<x> = 1, belief parameters 0, so
-%           every <x>_exp1_RE is in the smoothed history.
+%     opts  merged options (hetlearn.load_options); beliefs.plm selects the
+%           generated model file. With expectations.re_info = 'current'
+%           (default) the filter model has EVERY br_<x> = true and n1_<x> = 1,
+%           belief parameters 0, so every <x>_exp1_RE is in the smoothed
+%           history. With 'lagged' (DESIGN 19) it is the RE(t-1) model of the
+%           scenario's own learning set (expectations.variables kept, lagged
+%           generated file, the scenario's re_variant), so <x>_exp1_RE_t =
+%           E_{t-1} x_{t+1} for the learning set only.
 %   Options
 %     'force'  re-run the filter even if a cache file exists (default false)
 %     'end'    last date of data used (default [] = spec.filter_range end).
@@ -35,6 +39,10 @@ function H = re_filter(spec, opts, varargin)
 %                 the range (no presample lags). Read by the history stage
 %                 under history.re_states = 'filtered'
 %                 (hetlearn.engine.history_db)
+%     .predicted  re_info = 'lagged' only: one-step predictions x_{t|t-1}
+%                 of the same call ('pred'); under 'filtered' the RE
+%                 forecast made in t with data up to t-1 is
+%                 .predicted.<x>_exp1_RE(t) (hetlearn.engine.history_db)
 %     .range      filter range (date vector)
 %     .data       the input databank (hetlearn.load_database; clipped at
 %                 'end' when given)
@@ -57,6 +65,9 @@ function H = re_filter(spec, opts, varargin)
 %   bytes, so a data change after the end date does not touch it. A cache
 %   without .filtered (written before 2026-10-19) is not used: the filter is
 %   run again and the file rewritten under the same name (.cached = false).
+%   Lagged RE information: the extended model text (the _relag file) and the
+%   assign struct (learning-set toggles) in the key separate its caches from
+%   the default ones; a lagged cache without .predicted is filtered again.
 
 ip = inputParser;
 ip.addParameter('force', false);
@@ -71,9 +82,15 @@ end
 if isempty(spec.filter_range)
     error('hetlearn:re_filter:range', 'Model %s has no spec.filter_range.', spec.name);
 end
+lagged = isfield(opts, 'expectations') && isfield(opts.expectations, 're_info') ...
+    && strcmp(opts.expectations.re_info, 'lagged');
 if isempty(ip.Results.model)
     optsAll = opts;
-    optsAll.expectations.variables = 'all';
+    if ~lagged
+        optsAll.expectations.variables = 'all';
+    end
+    % re_info = 'lagged' (DESIGN 19): the RE model is the RE(t-1) model of the scenario's
+    % learning set, so the filter model keeps that set (own generated file and cache key)
     optsAll.policy.mode = 'rule';          % the history is always the estimated rule model (DESIGN 13)
     [m, info] = hetlearn.load_model(spec, optsAll);
 else
@@ -113,7 +130,7 @@ end
 
 if ~ip.Results.force && exist(cacheFile, 'file') == 2
     L = load(cacheFile, 'H');
-    if isfield(L.H, 'filtered')
+    if isfield(L.H, 'filtered') && (~lagged || isfield(L.H, 'predicted'))
         H = L.H;
         H.model = m;
         H.file = cacheFile;
@@ -133,7 +150,16 @@ end
 % as with 'output', 'smooth' alone (checked: max diff 0 on SW07). The filter
 % databank has no presample lag rows; observed measurement variables equal the
 % data in both; where data are missing the filtered value is the prediction.
-[~, f] = filter(m, d, range, 'output', 'filter,smooth', 'meanOnly', true);
+fp = [];
+if lagged
+    % DESIGN 19: the one-step predictions x_{t|t-1} too; under history.re_states =
+    % 'filtered' the RE agents' forecast made in t with information up to t-1 is the
+    % prediction of <x>_exp1_RE_t (a function of the t-1 state), see engine.history_db
+    [~, f] = filter(m, d, range, 'output', 'pred,filter,smooth', 'meanOnly', true);
+    fp = f.pred;
+else
+    [~, f] = filter(m, d, range, 'output', 'filter,smooth', 'meanOnly', true);
+end
 ff = f.filter;
 f = f.smooth;
 
@@ -158,6 +184,9 @@ end
 H = struct();
 H.smooth = f;
 H.filtered = ff;
+if lagged
+    H.predicted = fp;                 % re_info = 'lagged' caches only (DESIGN 19)
+end
 H.range = range;
 H.data = d;
 H.fit_error = fitErr;
