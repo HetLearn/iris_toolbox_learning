@@ -28,6 +28,7 @@ function opts = load_options(cfg, master)
 %
 %   Validation (errors with identifier hetlearn:options:*)
 %     enumerations (expectations.mode, expectations.re_variant,
+%     expectations.re_info ('current' | 'lagged'),
 %     beliefs.update, beliefs.plm.default, beliefs.init.method,
 %     shares.structure, projection.facility ('plm_alm' | 'alm' | 'none'),
 %     history.mode, history.re_states ('smoothed' | 'filtered'),
@@ -39,7 +40,9 @@ function opts = load_options(cfg, master)
 %     cross-field: 'fixed_shares' needs shares.fixed_n2, 'universal'
 %     needs shares.master, 'training_ols' needs beliefs.init.training_range,
 %     history.re_states = 'filtered' needs history.mode = 're_smoother'
-%     (the inversion is one-sided already).
+%     (the inversion is one-sided already); expectations.re_info =
+%     'lagged' needs a non-empty learning set and is not supported with
+%     policy.mode = 'ramsey' (hetlearn:options:unsupported, DESIGN 19).
 %     gain.koz.*: structure 'common' | 'per_variable', error 'rls' |
 %     'forecast', mu >= 0, error_scale > 0, Rg0 finite, bounds [lower
 %     upper] with 0 < lower <= upper <= 1, gamma0 [] or in (0, 1], master
@@ -190,6 +193,7 @@ o.description = tochar(o.description, 'description');
 o.model = tochar(o.model, 'model');
 o.expectations.mode = tochar(o.expectations.mode, 'expectations.mode');
 o.expectations.re_variant = tochar(o.expectations.re_variant, 'expectations.re_variant');
+o.expectations.re_info = tochar(o.expectations.re_info, 'expectations.re_info');
 v = o.expectations.variables;
 if isstring(v), v = cellstr(v); end
 if ischar(v)
@@ -275,10 +279,24 @@ end
 function validate(o)
 enum(o.expectations.mode, {'rational', 'learning', 'fixed_shares', 'switching'}, 'expectations.mode');
 enum(o.expectations.re_variant, {'model_consistent', 'anchored'}, 'expectations.re_variant');
+enum(o.expectations.re_info, {'current', 'lagged'}, 'expectations.re_info');
 v = o.expectations.variables;
 if ~(iscellstr(v) || (ischar(v) && strcmpi(v, 'all')))
     error('hetlearn:options:type', ...
         'Option "expectations.variables" must be a cellstr or ''all''.');
+end
+if strcmp(o.expectations.re_info, 'lagged')
+    % DESIGN 19: only the learning set's RE expectations are dated t-1, so an empty set
+    % would leave the option without effect (an error rather than a silently ignored option)
+    if iscell(v) && isempty(v)
+        error('hetlearn:options:value', ['expectations.re_info = ''lagged'' dates the RE expectations ' ...
+            'of the learning set (expectations.variables) at t-1; the learning set is empty.']);
+    end
+    if strcmp(o.policy.mode, 'ramsey')
+        error('hetlearn:options:unsupported', ['expectations.re_info = ''lagged'' with policy.mode = ' ...
+            '''ramsey'' is not supported: the Ramsey plan with predetermined RE expectations has not been ' ...
+            'derived or tested (DESIGN 19). Use policy.mode = ''rule'' or re_info = ''current''.']);
+    end
 end
 enum(o.beliefs.update, {'rls', 'fixed'}, 'beliefs.update');
 enum(o.beliefs.info, {'lagged', 'current'}, 'beliefs.info');
