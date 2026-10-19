@@ -4,10 +4,12 @@
 %
 %   Reads   results/<id>/results.mat (+ density.mat, decomposition.csv, decomposition_check.csv),
 %           results/run_log.csv, results/eval_sw07_v3/ (merged tables and parts), the database and
-%           the original SW07 model (models/sw07/sw07.model, for the RE checks). Runs two 10-draw
-%           density checks (not saved).
+%           the original SW07 model (models/sw07/sw07.model, for the RE checks). Runs, without saving,
+%           two 10-draw density checks, five model-consistent RE copies of the app-4 RE runs (check
+%           C12 against the saved a4_ramsey_<w>_re_mc runs) and ten impulse runs (app5_mechanism.csv).
 %   Writes  results/summary_v3/: scenarios.csv, paths_long.csv, learning_long.csv, events_long.csv,
-%           app3_policy.csv, app4_losses.csv, app5_density.csv, app5_widths.csv,
+%           app3_policy.csv, app4_losses.csv, app4_targets_long.csv, app5_density.csv, app5_widths.csv,
+%           app5_mechanism.csv,
 %           app6_decomp_long.csv, app6_shocks_long.csv, v3_facility.csv, eval_metrics.csv,
 %           eval_relative.csv, eval_dm.csv, key_numbers.csv, checks_v3.txt.
 %   Units   report units = model units x spec.report.scale (pinfobs, robs, dy, dc: x 4, annualised).
@@ -63,6 +65,10 @@ SC = {
     'a4_ramsey_hawk_re', 'app4_ramsey', 'app4', 'RE, Ramsey (hawk)'
     'a4_ramsey_dove_re', 'app4_ramsey', 'app4', 'RE, Ramsey (dove)'
     'a4_ramsey_smooth_re', 'app4_ramsey', 'app4', 'RE, Ramsey (smooth)'
+    'a4_ramsey_balanced_re_mc', 'app4_ramsey', 'app4', 'RE (model-consistent), Ramsey (balanced)'
+    'a4_ramsey_hawk_re_mc', 'app4_ramsey', 'app4', 'RE (model-consistent), Ramsey (hawk)'
+    'a4_ramsey_dove_re_mc', 'app4_ramsey', 'app4', 'RE (model-consistent), Ramsey (dove)'
+    'a4_ramsey_smooth_re_mc', 'app4_ramsey', 'app4', 'RE (model-consistent), Ramsey (smooth)'
     'a4_ramsey_balanced_learn', 'app4_ramsey', 'app4', 'Learning, Ramsey (balanced)'
     'a4_ramsey_hawk_learn', 'app4_ramsey', 'app4', 'Learning, Ramsey (hawk)'
     'a4_ramsey_dove_learn', 'app4_ramsey', 'app4', 'Learning, Ramsey (dove)'
@@ -316,14 +322,34 @@ cf.id = 'chk_mc_rule';
 cf.expectations.re_variant = 'model_consistent';
 cf.compare_with = {};
 rmc = hetlearn.run(cf, 'save', false, 'quiet', true);
+% RE_model_consistent rows: Ramsey from the saved benchmark runs a4_ramsey_<w>_re_mc; rule from
+% a4_rule_re (under the rule the two RE variants coincide, check C11). C12: the saved runs reproduce
+% the in-script diagnostic above.
+e12 = 0;
 for w = 1:numel(wn)
+    Ls = R.(sprintf('a4_ramsey_%s_re_mc', wn{w})).loss;
     for N = [16 80]
-        [tot, con] = loss_rebuild(rmc.loss, W.(wn{w}), tn, N);
+        [tot, con] = loss_rebuild(R.a4_rule_re.loss, W.(wn{w}), tn, N);
         rows(end+1, :) = [{wn{w}, 'RE_model_consistent', 'rule', N, tot}, num2cell(con)]; %#ok<SAGROW>
-        [tot, con] = loss_rebuild(MCR.(wn{w}), W.(wn{w}), tn, N);
+        [tot, con] = loss_rebuild(Ls, W.(wn{w}), tn, N);
         rows(end+1, :) = [{wn{w}, 'RE_model_consistent', 'ramsey', N, tot}, num2cell(con)]; %#ok<SAGROW>
+        [tot2, con2] = loss_rebuild(MCR.(wn{w}), W.(wn{w}), tn, N);
+        e12 = max([e12, abs(tot - tot2) / tot2, max(abs(con - con2)) / tot2]);
     end
 end
+% app-4 target paths over the 80-quarter loss horizon (every app-4 run; targets as in the loss:
+% 4*pinf, y - yf, 4*r, 4*(r - r{-1}))
+B = {};
+for i = find(strcmp(SC(:, 3), 'app4'))'
+    Lx = R.(ids{i}).loss;
+    nN = numel(Lx.dates);
+    for k = 1:numel(tn)
+        B{end+1} = {rep('app4', nN), rep(ids{i}, nN), (1:nN)', col(Lx.dates), rep(tn{k}, nN), ...
+            Lx.values.(tn{k})(:)}; %#ok<SAGROW>
+    end
+end
+write_cols(fullfile(out, 'app4_targets_long.csv'), {'app', 'scenario', 'h', 'date', 'target', 'value'}, ...
+    cat_blocks(B));
 e11 = max(abs(rmc.paths.pinfobs(hz) - R.a4_rule_re.paths.pinfobs(hz)));
 e11b = abs(rmc.loss.total - R.a4_rule_re.loss.total) / R.a4_rule_re.loss.total;
 write_cols(fullfile(out, 'app4_losses.csv'), {'weights', 'expectations', 'policy', 'horizon', 'total', ...
@@ -370,6 +396,32 @@ write_cols(fullfile(out, 'app5_density.csv'), {'case', 'expectations', 'variable
     cat_blocks(B));
 write_cols(fullfile(out, 'app5_widths.csv'), {'case', 'expectations', 'variable', 'date', 'width_90', ...
     'ratio_to_re'}, cat_blocks(BW));
+
+% ---- app 5 mechanism: one unit of each density shock in 2022Q3, RE vs learning (runs not saved) -----
+% Each run is a1_re or a1_learn with the shock added in the first forecast quarter; the response is
+% the difference from the saved run without it. Expectations x 4 (annualised, as pinfobs).
+mshk = {'epinf', 'ew', 'eb', 'eg', 'eqs'};
+mset = {'markup', 'markup', 'demand', 'demand', 'demand'};
+mvar = {'pinfobs', 'pinf_exp1', 'pinf_exp1_RE', 'pinf_exp1_BR', 'robs', 'dy', 'n2_model_pinf'};
+B = {};
+MECH = struct();
+for s = 1:numel(mshk)
+    for e = 1:2
+        cf = feval(['a1_' ex{e, 1}]);
+        cf.id = ['chk_irf_' mshk{s} '_' ex{e, 1}];
+        cf.compare_with = {};
+        cf.shocks.add = {{mshk{s}, hz(1), 1}};
+        rr = hetlearn.run(cf, 'save', false, 'quiet', true);
+        for v = 1:numel(mvar)
+            dlt = mech_v(rr, mvar{v}, hz, sc) - mech_v(R.(['a1_' ex{e, 1}]), mvar{v}, hz, sc);
+            MECH.(mshk{s}).(ex{e, 1}).(mvar{v}) = dlt;
+            B{end+1} = {rep(mshk{s}, nh), rep(mset{s}, nh), rep(ex{e, 2}, nh), rep(mvar{v}, nh), ...
+                (1:nh)', hs, dlt}; %#ok<SAGROW>
+        end
+    end
+end
+write_cols(fullfile(out, 'app5_mechanism.csv'), {'shock', 'case', 'expectations', 'variable', 'h', 'date', ...
+    'response'}, cat_blocks(B));
 
 % ---- app 6: decompositions and backed-out shocks ---------------------------------------------
 dcase = {'re_smooth', 'a6_smooth_re'; 'learn_smooth', 'a6_smooth_learn'; 'learn_inv', 'a6_inv_learn'};
@@ -509,7 +561,7 @@ for i = find(strcmp(SC(:, 3), 'app4'))'
     tot = loss_rebuild(Lx, wv, tn, Lx.horizon);
     e4b = max(e4b, abs(tot - Lx.total) / max(1, abs(Lx.total)));
 end
-CH(end+1, :) = {'C4 Loss rebuilt from the paths equals res.loss (10 app-4 runs: targets over 16 quarters from res.paths; 80-quarter total from the targets and weights, relative)', ...
+CH(end+1, :) = {sprintf('C4 Loss rebuilt from the paths equals res.loss (%d app-4 runs: targets over 16 quarters from res.paths; 80-quarter total from the targets and weights, relative)', nnz(strcmp(SC(:, 3), 'app4'))), ...
     e4a < 1e-9 && e4b < 1e-12, sprintf('targets %.3g, totals %.3g', e4a, e4b)};
 % C5 density: RE fast path and a 10-draw fast vs general check
 fastOK = strcmp(DN.a5_markup_re.path, 'fast') && strcmp(DN.a5_demand_re.path, 'fast');
@@ -610,6 +662,8 @@ CH(end+1, :) = {'C10 Share timing in a1_learn: n2_model(t) = n2(t-1) in every fo
 
 CH(end+1, :) = {'C11 Under the Taylor rule anchored and model-consistent RE agents give the same RE path and loss (a4_rule_re vs an unsaved model-consistent copy; inflation max abs, loss relative)', ...
     e11 < 1e-9 && e11b < 1e-9, sprintf('inflation %.3g, 80-quarter loss %.3g', e11, e11b)};
+CH(end+1, :) = {'C12 The saved RE Ramsey benchmarks a4_ramsey_<w>_re_mc reproduce the in-script model-consistent diagnostic (4 weight sets, 16 and 80 quarters, totals and contributions, relative)', ...
+    e12 < 1e-10, sprintf('%.3g', e12)};
 
 fid = fopen(fullfile(out, 'checks_v3.txt'), 'w');
 fprintf(fid, 'checks_v3.txt: build_summary_v3.m, %s\n\n', datestr(now, 'yyyy-mm-dd HH:MM')); %#ok<TNOW1,DATST>
@@ -857,6 +911,58 @@ for id = {'v1_mc_learn', 'v2_var3'}
 end
 nm3 = 1 - R.v2_var3.learning.pinf.n1_model(hz);
 K = addk(K, 'v2_var3_n2_model_2023Q1', nm3(strcmp(hs, '2023Q1')), 'share', 'Learners'' share in force in 2023Q1 (shares kept 2022Q4-2023Q4), v2_var3');
+% app 5 mechanism
+for s = 1:numel(mshk)
+    a = MECH.(mshk{s}).re.pinfobs;
+    b = MECH.(mshk{s}).learn.pinfobs;
+    K = addk(K, ['a5m_impact_pinf_re_' mshk{s}], a(1), 'pp annualised', ['Inflation response in 2022Q3 to one unit of ' mshk{s} ', RE']);
+    K = addk(K, ['a5m_impact_pinf_learn_' mshk{s}], b(1), 'pp annualised', ['Inflation response in 2022Q3 to one unit of ' mshk{s} ', learning']);
+    K = addk(K, ['a5m_impact_exp_re_' mshk{s}], MECH.(mshk{s}).re.pinf_exp1(1), 'pp annualised', ['Aggregate inflation expectation response in 2022Q3, ' mshk{s} ', RE']);
+    K = addk(K, ['a5m_impact_exp_learn_' mshk{s}], MECH.(mshk{s}).learn.pinf_exp1(1), 'pp annualised', ['Aggregate inflation expectation response in 2022Q3, ' mshk{s} ', learning']);
+    K = addk(K, ['a5m_impact_br_learn_' mshk{s}], MECH.(mshk{s}).learn.pinf_exp1_BR(1), 'pp annualised', ['Learners'' expectation response in 2022Q3, ' mshk{s}]);
+    k1 = find(abs(b) > abs(a), 1);
+    if isempty(k1)
+        k1 = NaN;
+    end
+    K = addk(K, ['a5m_first_h_learn_larger_' mshk{s}], k1, 'h', ['First horizon with a larger learning than RE inflation response, ' mshk{s}]);
+    K = addk(K, ['a5m_cumabs_ratio_' mshk{s}], sum(abs(b)) / sum(abs(a)), 'ratio', ['Sum of absolute inflation responses h = 1-16, learning / RE, ' mshk{s}]);
+    K = addk(K, ['a5m_max_dn2_' mshk{s}], max(abs(MECH.(mshk{s}).learn.n2_model_pinf)), 'share', ['Largest change in n2_model, h = 1-16, ' mshk{s}]);
+end
+% variant 1 path (inflation, perceived mean)
+for dq = {'2022Q3', '2023Q2', '2024Q2', '2025Q2', '2026Q2'}
+    K = addk(K, ['v1_pinf_' dq{1}], R.v1_mc_learn.paths.pinfobs(hz(strcmp(hs, dq{1}))) * sc.pinfobs, '% annualised', ['Inflation in ' dq{1} ', model-consistent RE (v1_mc_learn)']);
+end
+ps = PS.v1_mc_learn;
+jp = find(strcmp(ps.targets, 'pinf'));
+[~, tf] = ismember(hs, ps.dates);
+pmv = sc.pinfobs * (ps.mu(tf, jp) + SSv.pinf);
+[pmx, imx] = max(pmv);
+[pmn, imn] = min(pmv);
+K = addk(K, 'v1_pmean_2022Q3', pmv(1), '% annualised', 'Perceived mean inflation in 2022Q3 (beliefs at the end of the quarter), v1_mc_learn');
+K = addk(K, 'v1_pmean_max', pmx, '% annualised', ['Highest perceived mean inflation over the forecast, v1_mc_learn, at ' hs{imx}]);
+K = addk(K, 'v1_pmean_min', pmn, '% annualised', ['Lowest perceived mean inflation over the forecast, v1_mc_learn, at ' hs{imn}]);
+K = addk(K, 'v1_pmean_2026Q2', pmv(end), '% annualised', 'Perceived mean inflation in 2026Q2, v1_mc_learn');
+% AR(2): history facility events and the beliefs in force at the origin
+E = R.v2_ar2.events;
+sel = find(strcmp(E.type, 'projection_plm') & strcmp(E.stage, 'history'));
+for k = reshape(sel, 1, [])
+    K = addk(K, ['v2_ar2_hist_event_' E.date{k}], str2double(regexp(E.detail{k}, 'largest root ([0-9.]+)', 'tokens', 'once')), ...
+        'root', ['Rejected AR(2) root in ' E.date{k} ' (beliefs kept), v2_ar2']);
+end
+La = R.v2_ar2.learning.pinf;
+dchg = max(cellfun(@(p) abs(La.(p)(d22) - La.(p)(qq(2021, 3))), La.params));
+K = addk(K, 'v2_ar2_belief_change_2021Q3_2022Q2', dchg, 'coefficient', 'Largest change in the AR(2) beliefs between the end of 2021Q3 and 2022Q2 (0 = 2021Q3 beliefs in force)');
+% look-ahead: real-time evaluation forecasts from 2022Q2 vs the full-sample-filter runs, h = 1-8
+la = {'e01_re', 'a1_re'; 'e02_learn', 'a1_learn'; 'e03_learn_mc', 'v1_mc_learn'};
+for i = 1:size(la, 1)
+    for v = 1:numel(pv)
+        sel = strcmp(TE.variant, la{i, 1}) & strcmp(TE.origin, '2022Q2') & strcmp(TE.variable, pv{v});
+        fh = TE.h(sel);
+        x = R.(la{i, 2}).paths.(pv{v})(hz(fh)) * sc.(pv{v});
+        K = addk(K, sprintf('lookahead_%s_%s', la{i, 2}, pv{v}), max(abs(TE.forecast(sel) - x(:))), 'pp annualised', ...
+            sprintf('Largest |real-time (%s) minus full-sample (%s) forecast| from 2022Q2, h = 1-8, %s', la{i, 1}, la{i, 2}, pv{v}));
+    end
+end
 for hq = [1 8]
     sel = strcmp(Tm.sample, 's2020_2026') & strcmp(Tm.variant, 'e01_re') & strcmp(Tm.variable, 'pinfobs') & Tm.h == hq;
     K = addk(K, sprintf('ev_n_targets_s2020_2026_h%d', hq), Tm.n(sel), 'targets', sprintf('Targets in the 2020-2026 sample at h = %d', hq));
@@ -906,6 +1012,20 @@ switch v
         x = res.paths.y(dts) - res.paths.yf(dts);
     case 'ms'
         x = 4 * res.paths.ms(dts);
+    case 'n2_model_pinf'
+        x = 1 - res.learning.pinf.n1_model(dts);
+    otherwise
+        x = res.paths.(v)(dts) * sc.(v);
+end
+x = x(:);
+end
+
+
+function x = mech_v(res, v, dts, sc)
+% Series for the app-5 impulse comparison: observables in report units, expectations x 4, n2_model.
+switch v
+    case {'pinf_exp1', 'pinf_exp1_RE', 'pinf_exp1_BR'}
+        x = 4 * res.paths.(v)(dts);
     case 'n2_model_pinf'
         x = 1 - res.learning.pinf.n1_model(dts);
     otherwise
