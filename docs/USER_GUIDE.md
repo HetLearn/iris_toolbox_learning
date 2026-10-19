@@ -1072,9 +1072,10 @@ pass). `FINDINGS_v3.md` is the memo (1.1).
 ### 6.6 The report
 
 `reports/sw07_learning_report.html`, written by `python reports/build_report_v3.py`: 16
-sections, 151 charts, about 640 KB. It is page content only (no `<html>` wrapper); the claude.ai
+sections, 161 charts, about 685 KB. It is page content only (no `<html>` wrapper); the claude.ai
 Artifact publisher wraps it, and a browser opens it as it is (fonts come from Google Fonts).
-Published at https://claude.ai/artifact/BvM5vuFBTYm943Z8eBpZR8 (version 3, 2026-10-18).
+Published at https://claude.ai/artifact/BvM5vuFBTYm943Z8eBpZR8 (version 5, 2026-10-19, after
+the reviewer's pass).
 
 ### 6.7 Units
 
@@ -1224,6 +1225,6 @@ https://github.com/tolgaozden/iris_toolbox_learning (private, branch `main`). No
 (`.gitignore`): `results/` except `results/summary_v3/*.m` and `FINDINGS_v3.md`, every
 `generated/` folder, `tests/output/`, `reports/*.html` and `archive/`. Everything else (code,
 scenarios, model packages with their data, docs) is versioned once committed, and a clone
-rebuilds every output with the steps in 2.3. `README_PIPELINE.md` (status 2026-10-18) lists the
-docs, the report builder, the memo and the remaining scripts as still to be committed. Project
-convention: one file per commit, authored by the user, each message explaining the file.
+rebuilds every output with the steps in 2.3. Every versioned file is committed (269 commits on
+2026-10-19). Project convention: one file per commit, authored by the user, each message
+explaining the file.
