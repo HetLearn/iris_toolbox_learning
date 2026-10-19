@@ -330,6 +330,17 @@ measurement equations (`lhsmrhs`, data on the left) reproduce the data (max abs 
 < 1e-8 when there are at least as many shocks as observables). Comparing the smoothed
 observables themselves is vacuous: IRIS copies the data into them.
 
+As built 2026-10-19: one call `filter(m, d, range, 'output', 'filter,smooth', 'meanOnly',
+true)` gives both databanks, `H.smooth` (two-sided, x_{t|T}) and `H.filtered` (one-sided,
+x_{t|t}: data up to t). In IRIS 20230622 (`model/filter`, `hdataobj.hdatafinal`) two
+requested outputs come back as a struct with fields `.filter` and `.smooth`; one output is the
+databank itself. The smoothed output is identical with or without the filter output (SW07:
+max diff 0). The filtered series have no presample lag rows and start one period before the
+range. Observed measurement variables equal the data in both. Where every observable is
+missing (SW07 2020Q1-Q3) the filtered value is the one-step prediction and the filtered
+shocks are 0. The cache key is unchanged. A cache without `H.filtered` (written before
+2026-10-19) is filtered again and rewritten under the same name the first time it is read.
+
 ### 5.2 History stage (`history.mode = 're_smoother'`)
 Learning states are run over [init.date, origin] on the RE-smoothed history. For
 t = init.date .. origin:
@@ -341,6 +352,38 @@ The history itself does not depend on the learning states; agents learn while wa
 RE-smoothed economy. Future option (not implemented): `history.mode = 'hetero_filter'`,
 a time-varying Kalman filter in which the heterogeneous model is solved every period and
 beliefs are updated on the filtered states (IJCB App. D).
+
+**RE states: `history.re_states` (as built 2026-10-19).** `'smoothed'` (default) is the loop
+above. The smoothed `x_exp1_RE_t` is the RE forecast from states estimated with data after t,
+which gives the RE agents hindsight in the fitness race. `'filtered'` takes every value of the
+loop from `H.filtered` instead (`hetlearn.engine.history_db`): f^RE_t = filtered `x_exp1_RE_t`
+= E_t x_{t+1} from s_{t|t}, the learners' data, and the realised v_t in both fitness errors,
+so the loop is one-sided. Under `'filtered'`:
+- f^RE_t equals the Kalman filter's one-step prediction x_{t+1|t} of the RE model, and FE^RE_t
+  is the squared one-step prediction error.
+- An observed variable has filtered = smoothed = data (SW07 inflation outside 2020Q1-Q3). The
+  option moves f^RE everywhere, since it depends on unobserved states. On SW07 the largest
+  |filtered - smoothed| of `pinf_exp1_RE` per decade (% per quarter) falls from 0.12 in the
+  1960s to 0.01 in the 2010s, then reaches 0.07 in 2020Q4, after the data gap. It moves the
+  learners' data only where observations are missing.
+- In a quarter without data the filtered value is the RE prediction, so FE^RE_t = 0 there.
+- `history.learn = false` takes f^i at the origin from the same databank, and so does
+  `beliefs.init.method = 'training_ols'`.
+- The forecast stage still starts from the smoothed state at the origin (`build_shocks`), and
+  the RE run is unchanged.
+- `history.realtime` is orthogonal. The filtered values up to the origin do not depend on later
+  data, so the history loop is the same with or without it; realtime only clips the smoother
+  at the origin and moves the forecast's starting state. `'filtered'` with
+  `history.realtime = true` is the fully real-time setup.
+- `'inversion'` is one-sided already, so `'filtered'` with it is an error
+  (`hetlearn:options:value`). A silently ignored option would give a run equal to the
+  `'smoothed'` one.
+- Densities, decompositions, the Ramsey continuation and `hetlearn.evaluate` need no change.
+  They start from the history's end state, or run `hetlearn.run` with filters that carry both
+  databanks. Their own uses of `H.smooth` (shock pools, the forecast databank) are not
+  learners' information.
+
+Tests: `tests/test_re_states.m`.
 
 ### 5.3 Forecast / scenario stage
 For t = origin+1 .. origin+H:
@@ -435,6 +478,7 @@ projection.facility        ['plm_alm'] | 'alm' | 'none'  (sec. 4.4; the only sta
 engine.step                ['fast'] | 'iris';  engine.conditions_weighting ['std'] | 'none'
 history.learn              [true]
 history.mode               ['re_smoother'] | 'inversion'  (sec. 15)
+history.re_states          ['smoothed'] | 'filtered'  (sec. 5.2; 're_smoother' only)
 history.inversion          start [[] = beliefs.init.date], shocks [{} = every transition shock]
 history.realtime           [false]  (RE filter on data up to the origin, sec. 17)
 shocks.source              ['none'] | 'smoothed';  shocks.range [[] = horizon];  shocks.exclude [{}];  shocks.add [{}]
@@ -815,6 +859,9 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   the origin as its control); on SW07 the real-time filter moves the 8-quarter forecasts
   by up to 0.12-0.18 pp annualised (inflation, growth, policy rate; origins 2010Q1,
   2015Q1, 2020Q1). SW07 2010Q1-2024Q2, H = 8, 2 variants: 116 runs in about 90 s.
+- With `history.re_states = 'filtered'` (5.2) the real-time filters supply `H.filtered`
+  as well. The variant's history loop is then the same as on the full-sample filter, and
+  the real-time part is the forecast's starting state.
 
 ## 18. Endogenous gain (`gain.rule = 'koz'`, as built 2026-10-18)
 Kostyshyna, Özden and Zhang (2024, Bank of Canada SWP 2024-14), eq. (9), the adaptive
