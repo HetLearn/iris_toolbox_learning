@@ -9,12 +9,16 @@ app3_policy,a3_tight_learn,a3_loose_learn,conditions.values = 0.25,,true,"App 3:
 app3_policy,a3_tight_re,a3_loose_re,conditions.values = 0.25,,true,"App 3: policy 100 bp tighter than the Taylor rule in 2022Q3-2023Q2, rational expectations"
 app4_ramsey,a4_ramsey_balanced_learn,a4_rule_learn,policy = r.policy,{'a4_rule_learn'},true,"App 4: Ramsey policy, balanced weights, learning on inflation"
 app4_ramsey,a4_ramsey_balanced_re,a4_rule_re,"policy.mode = 'ramsey'; policy.type = 'commitment'; policy.loss = struct('pinf', 1, 'ygap', 0.5, 'r', 0.1, 'dr', 0)",{'a4_rule_re'},true,"App 4: Ramsey policy, balanced weights, rational expectations"
+app4_ramsey,a4_ramsey_balanced_re_mc,a4_ramsey_balanced_re,expectations.re_variant = 'model_consistent',,true,"App 4: Ramsey policy, balanced weights, rational expectations (model-consistent RE agents)"
 app4_ramsey,a4_ramsey_dove_learn,a4_rule_learn,policy = r.policy,{'a4_rule_learn'},true,"App 4: Ramsey policy, dovish weights, learning on inflation"
 app4_ramsey,a4_ramsey_dove_re,a4_ramsey_balanced_re,"policy.loss = struct('pinf', 1, 'ygap', 1, 'r', 0.1, 'dr', 0)",,true,"App 4: Ramsey policy, dovish weights, rational expectations"
+app4_ramsey,a4_ramsey_dove_re_mc,a4_ramsey_dove_re,expectations.re_variant = 'model_consistent',,true,"App 4: Ramsey policy, dovish weights, rational expectations (model-consistent RE agents)"
 app4_ramsey,a4_ramsey_hawk_learn,a4_rule_learn,policy = r.policy,{'a4_rule_learn'},true,"App 4: Ramsey policy, hawkish weights, learning on inflation"
 app4_ramsey,a4_ramsey_hawk_re,a4_ramsey_balanced_re,"policy.loss = struct('pinf', 1, 'ygap', 0.1, 'r', 0.1, 'dr', 0)",,true,"App 4: Ramsey policy, hawkish weights, rational expectations"
+app4_ramsey,a4_ramsey_hawk_re_mc,a4_ramsey_hawk_re,expectations.re_variant = 'model_consistent',,true,"App 4: Ramsey policy, hawkish weights, rational expectations (model-consistent RE agents)"
 app4_ramsey,a4_ramsey_smooth_learn,a4_rule_learn,policy = r.policy,{'a4_rule_learn'},true,"App 4: Ramsey policy, balanced weights with rate smoothing, learning on inflation"
 app4_ramsey,a4_ramsey_smooth_re,a4_ramsey_balanced_re,"policy.loss = struct('pinf', 1, 'ygap', 0.5, 'r', 0.1, 'dr', 0.5)",,true,"App 4: Ramsey policy, balanced weights with rate smoothing, rational expectations"
+app4_ramsey,a4_ramsey_smooth_re_mc,a4_ramsey_smooth_re,expectations.re_variant = 'model_consistent',,true,"App 4: Ramsey policy, balanced weights with rate smoothing, rational expectations (model-consistent RE agents)"
 app4_ramsey,a4_rule_learn,a1_learn,policy.loss_horizon = 80,{'a4_rule_re'},true,"App 4: Taylor rule from the 2022Q2 peak, learning on inflation, loss over 80 quarters"
 app4_ramsey,a4_rule_re,a1_re,policy.loss_horizon = 80,,true,"App 4: Taylor rule from the 2022Q2 peak, rational expectations, loss over 80 quarters"
 app5_density,a5_demand_learn,a1_learn,density = d.density,{'a5_demand_re'},true,"App 5: density forecast, demand shock uncertainty, learning on inflation"
@@ -45,5 +49,5 @@ var2_plm,v2_var3,a1_learn,"beliefs.plm.derived.ygap = 'y - yf'; beliefs.plm.var 
 var3_allvars,v3_all,a1_learn,expectations.variables = 'all',{'a1_learn'},true,Variant 3: learning on all 12 forward-looking variables (facility plm_alm)
 var3_allvars,v3_all_alm,v3_all,projection.facility = 'alm',{'v3_all'},true,Variant 3: learning on all 12 forward-looking variables (facility alm)
 var3_allvars,v3_all_none,v3_all,projection.facility = 'none',{'v3_all'},true,Variant 3: learning on all 12 forward-looking variables (no projection facility)
-var4_gain,v4_koz,a1_learn,gain.rule = 'koz'; gain.koz.error_scale = 4,{'a1_learn'},true,Variant 4: learning on inflation with an endogenous gain (KOZ 2024)
+var4_gain,v4_koz,a1_learn,gain.rule = 'koz'; gain.koz.error_scale = 1,{'a1_learn'},true,Variant 4: learning on inflation with an endogenous gain (KOZ 2024)
 var4_gain,v4_koz_full,v4_koz,"forecast.origin = qq(2026, 2); forecast.horizon = 4",{'a6_smooth_learn'},true,Variant 4: endogenous gain on the RE-smoothed history 1966Q1-2026Q2
