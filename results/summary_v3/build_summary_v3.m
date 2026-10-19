@@ -910,7 +910,7 @@ for id = {'v1_mc_learn', 'v2_var3'}
     K = addk(K, ['plm_quarters_forecast__' id{1}], numel(unique(E.date(sel))), 'quarters', ['Forecast quarters with beliefs kept, ' id{1}]);
 end
 nm3 = 1 - R.v2_var3.learning.pinf.n1_model(hz);
-K = addk(K, 'v2_var3_n2_model_2023Q1', nm3(strcmp(hs, '2023Q1')), 'share', 'Learners'' share in force in 2023Q1 (shares kept 2022Q4-2023Q4), v2_var3');
+K = addk(K, 'v2_var3_n2_model_2023Q1', nm3(strcmp(hs, '2023Q1')), 'share', 'Learners'' share in force in 2023Q1, v2_var3');
 % app 5 mechanism
 for s = 1:numel(mshk)
     a = MECH.(mshk{s}).re.pinfobs;
@@ -963,6 +963,24 @@ for i = 1:size(la, 1)
             sprintf('Largest |real-time (%s) minus full-sample (%s) forecast| from 2022Q2, h = 1-8, %s', la{i, 1}, la{i, 2}, pv{v}));
     end
 end
+% covid treatment (user decision 2026-10-19): share path, inversion shocks in 2020, dropped targets
+for dq = {'2019Q4', '2020Q1', '2020Q2', '2020Q3', '2020Q4', '2021Q1', '2021Q2', '2021Q3', '2021Q4', '2022Q1', '2022Q2'}
+    K = addk(K, ['a1_n2_end_' dq{1}], Lh.n2(hd(strcmp(hds, dq{1}))), 'share', ['n2 at the end of ' dq{1} ', a1_learn (RE-smoothed history)']);
+end
+for dq = {'2023Q4', '2025Q1', '2025Q2'}
+    K = addk(K, ['a1_n2_model_' dq{1}], 1 - R.a1_learn.learning.pinf.n1_model(hz(strcmp(hs, dq{1}))), 'share', ['n2_model in ' dq{1} ', a1_learn']);
+    K = addk(K, ['a1_gap_pinf_' dq{1}], g1(strcmp(hs, dq{1})), 'pp annualised', ['Learning-minus-RE inflation gap in ' dq{1}]);
+end
+for s = 1:numel(shk)
+    for dq = {'2020Q1', '2020Q2', '2020Q3', '2020Q4'}
+        t = hd(strcmp(hds, dq{1}));
+        K = addk(K, sprintf('a6_shock_sm_%s_%s', shk{s}, dq{1}), R.a6_smooth_re.paths.(shk{s})(t), 'shock units', sprintf('RE-smoothed %s in %s', shk{s}, dq{1}));
+        K = addk(K, sprintf('a6_shock_inv_%s_%s', shk{s}, dq{1}), R.a6_inv_learn.paths.(shk{s})(t), 'shock units', sprintf('%s backed out by the inversion in %s', shk{s}, dq{1}));
+    end
+end
+K = addk(K, 'ev_n_errors', height(TE), 'errors', 'Errors in the merged evaluation (variant x origin x h x observable with data)');
+K = addk(K, 'ev_n_errors_dropped', numel(es.ids) * numel(oS) * es.horizon * numel(es.observables) - height(TE), 'errors', ...
+    'Errors without data (the covid targets 2020Q1-Q3), out of variants x origins x h x observables');
 for hq = [1 8]
     sel = strcmp(Tm.sample, 's2020_2026') & strcmp(Tm.variant, 'e01_re') & strcmp(Tm.variable, 'pinfobs') & Tm.h == hq;
     K = addk(K, sprintf('ev_n_targets_s2020_2026_h%d', hq), Tm.n(sel), 'targets', sprintf('Targets in the 2020-2026 sample at h = %d', hq));
