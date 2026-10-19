@@ -17,7 +17,7 @@ function o = defaults()
 %     shares.master = {}           required for shares.structure 'universal'
 %     shares.fixed_n2 = []         required for mode 'fixed_shares'
 %     shocks.range = []            the forecast horizon
-%     report.variables = {}        spec.observables
+%     report.variables = {}        reserved; no toolbox code reads it
 %     gain.koz.gamma0 = []         gain.value (per_variable: gain.by_var.<x> where set)
 %     gain.koz.master = ''         the first learning variable (structure 'common')
 %
@@ -74,7 +74,7 @@ o.gain.koz = struct( ...       % gain.rule = 'koz': Kostyshyna, Ozden and Zhang 
     'Rg0', 0, ...              % initial Rg (the paper is silent)
     'bounds', [0.001 0.25], ...    % [lower upper] projection interval of the gain, inside (0, 1]
     'error', 'rls', ...        % signed error: 'rls' (one-step PLM residual) | 'forecast' (x_t - f^BR_{t-1})
-    'error_scale', 1, ...      % errors times this first (SW07 KOZ scenarios: 4, annualised percent)
+    'error_scale', 1, ...      % errors times this first (1 = the model's units, % per quarter; user decision 2026-10-19)
     'structure', 'common', ... % 'common' (one process, KOZ fn. 7) | 'per_variable' (one per PLM equation)
     'master', '');             % common: '' = first learning variable; name or cellstr (mean of their errors)
 
@@ -132,7 +132,7 @@ o.density = struct( ...
 
 % Engine: one-period step from the cached state-space solution or IRIS simulate
 o.engine = struct( ...
-    'step', 'fast', ...                % 'fast' (= IRIS to ~1e-12, 3-20x faster) | 'iris' (bit-identical IRIS simulate)
+    'step', 'fast', ...                % 'fast' (= IRIS to ~1e-12; 2-3x faster, ~20x with observables exogenised) | 'iris' (IRIS simulate)
     'conditions_weighting', 'std');    % more shocks than targets: min norm in std units ('std') | unweighted ('none')
 
 % Monetary policy (DESIGN 13): the package's rule or Ramsey optimal policy
