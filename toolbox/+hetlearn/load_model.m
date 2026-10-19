@@ -8,7 +8,17 @@ function [m, info] = load_model(spec, opts)
 %     opts  options (merged or partial); always passed through
 %           hetlearn.load_options, so a res.cfg saved by an older version works;
 %           used: beliefs.plm, beliefs.info, expectations.variables,
-%           expectations.re_variant.
+%           expectations.re_variant, expectations.re_info.
+%
+%   Lagged RE information (expectations.re_info = 'lagged', DESIGN 19): the
+%   model comes from hetlearn.extend_model(spec, plm, 're_info', 'lagged')
+%   (<name>_ext_<tag>_relag.model), where the RE expectation of each learning
+%   variable is E_{t-1} x_{t+1}; learning variables need a maximum lead of 1
+%   (hetlearn:load_model:reInfo). For 'anchored', the model-consistent lagged
+%   model at n1 = 1 (the RE(t-1) model of this learning set) is loaded and
+%   solved first, the coefficients come from
+%   hetlearn.re_anchor_coefficients(..., 're_info', 'lagged'), and the IRFs of
+%   the two models at n1 = 1 must agree (< 1e-10, info.re_info_check).
 %
 %   Outputs
 %     m     solved IRIS Model of <spec.folder>/generated/<name>_ext_<tag>.model
@@ -39,8 +49,11 @@ function [m, info] = load_model(spec, opts)
 %       .assign     full assign struct passed to Model.fromFile (incl.
 %                   re_anchored)
 %       .re_variant 'model_consistent' | 'anchored'
+%       .re_info    'current' | 'lagged'; with 'lagged' also .re_info_check
+%                   ([] for 'model_consistent', else .anchored_vs_mc_maxdiff)
 %       .anchor     [] or the info output of hetlearn.re_anchor_coefficients
-%                   (states, k, c, check_maxdiff)
+%                   (states, k, c, check_maxdiff; lagged: also cz, k_full,
+%                   c_full, xb, fixed_point_rcond)
 %       .has_leads  false if the loaded model has no leads (a backward
 %                   model: hetlearn.engine.solve_model then falls back to
 %                   the backward simulator when IRIS finds no stable
@@ -84,8 +97,25 @@ if uses_learning_set(plm)
     meta0 = hetlearn.extend_model(spec, 'ar1', 'validate', false);
     plm = resolve_learning_set(plm, learning_vars(v, meta0.forward_vars, spec));
 end
-meta = hetlearn.extend_model(spec, plm);
+reInfo = 'current';
+if isfield(opts.expectations, 're_info')
+    reInfo = char(opts.expectations.re_info);
+end
+lagged = strcmp(reInfo, 'lagged');       % RE expectations of the learning set dated t-1 (DESIGN 19)
+if lagged
+    meta = hetlearn.extend_model(spec, plm, 're_info', 'lagged');   % own file <name>_ext_<tag>_relag.model
+else
+    meta = hetlearn.extend_model(spec, plm);
+end
 learnVars = learning_vars(v, meta.forward_vars, spec);
+if lagged
+    long = learnVars(cellfun(@(x) meta.max_lead.(x) > 1, learnVars));
+    if ~isempty(long)
+        error('hetlearn:load_model:reInfo', ['expectations.re_info = ''lagged'' needs learning variables with ' ...
+            'a maximum lead of 1 (the k-step expectations x_expk = x_exp(k-1){+1} would keep period-t ' ...
+            'information); %s has longer leads in %s.'], strjoin(long, ', '), spec.model_file);
+    end
+end
 
 anchored = strcmp(opts.expectations.re_variant, 'anchored');
 if anchored && ~(isfield(meta, 'anchor_ok') && meta.anchor_ok && logical(spec.linear))
@@ -157,9 +187,29 @@ end
 m = assign(m, Pm);
 m = assign(m, Z);
 anchorInfo = [];
-if anchored
+reCheck = [];
+if anchored && ~lagged
     [Aa, anchorInfo] = hetlearn.re_anchor_coefficients(spec, P, 'vars', meta.forward_vars, ...
         'states', meta.re_states, 'ref_file', meta.ref_file);
+    m = assign(m, Aa);
+elseif anchored
+    % Lagged RE information (DESIGN 19): the anchored agents forecast with the RE(t-1)
+    % model of this learning set, i.e. the model-consistent lagged model at n1 = 1
+    Amc = A;
+    Amc.(meta.anchor_toggle) = false;
+    mMC = Model.fromFile(meta.ext_file, 'linear', logical(spec.linear), 'assign', Amc);
+    mMC = assign(mMC, Pm);
+    mMC = assign(mMC, Z);
+    [mMC, ok, msg] = hetlearn.engine.solve_model(mMC, spec);
+    if ~ok
+        error('hetlearn:load_model:solveFailed', ['solve failed for %s (the RE model with information up ' ...
+            'to t-1 for {%s}): %s'], meta.ext_file, strjoin(learnVars, ', '), msg);
+    end
+    if logical(spec.linear)
+        mMC = sstate(mMC);
+    end
+    [Aa, anchorInfo] = hetlearn.re_anchor_coefficients(spec, P, 're_info', 'lagged', 'model', mMC, ...
+        'vars', learnVars, 'states', meta.re_states, 'chain', meta.re_chain);
     m = assign(m, Aa);
 end
 [m, ok, msg] = hetlearn.engine.solve_model(m, spec);
@@ -168,6 +218,24 @@ if ~ok
 end
 if logical(spec.linear)
     m = sstate(m);
+end
+if anchored && lagged
+    % collapse check for this learning set (DESIGN 19): at n1 = 1 the anchored model with
+    % information up to t-1 is the model-consistent one (IRFs of every variable of both, 40 periods)
+    common = intersect(cellstr(get(m, 'xList')), cellstr(get(mMC, 'xList')), 'stable');
+    sA = srf(m, 1:40);
+    sM = srf(mMC, 1:40);
+    dd = 0;
+    for i = 1:numel(common)
+        e = abs(sA.(common{i})(1:40, :) - sM.(common{i})(1:40, :));
+        e(isnan(e)) = Inf;
+        dd = max([dd; e(:)]);
+    end
+    reCheck = struct('anchored_vs_mc_maxdiff', dd, 'variables', {common});
+    if ~(dd < 1e-10)
+        error('hetlearn:load_model:reInfo', ['With information up to t-1 the anchored RE model at n1 = 1 ' ...
+            'differs from the model-consistent one by %.3g (IRFs, learning {%s}).'], dd, strjoin(learnVars, ', '));
+    end
 end
 mRule = [];
 if ~isempty(pol) && pol.ramsey
@@ -229,6 +297,10 @@ info.params = P;
 info.toggles = tog;
 info.assign = A;
 info.re_variant = opts.expectations.re_variant;
+info.re_info = reInfo;
+if lagged
+    info.re_info_check = reCheck;         % [] for 'model_consistent' (no second model)
+end
 info.anchor = anchorInfo;
 info.has_leads = get(m, 'maxLead') > 0;
 info.xList = xList;
