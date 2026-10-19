@@ -4,7 +4,7 @@ function L = run_applications(groups, varargin)
 %   run_applications                     every group below, in order ('all')
 %   run_applications('app1')             one group
 %   run_applications({'app3', 'var2'})   several groups, in the order given
-%   run_applications('a5_markup_learn')  one scenario, by its id (any file in scenarios/sw07/)
+%   run_applications('a5_markup_learn')  one scenario, by its id (any scenario function on the MATLAB path)
 %   run_applications('decompose')        only the three shock decompositions of app 6
 %   run_applications('eval_part', variants, parts)
 %                                        evaluation parts only, e.g. ('eval_part', 'e02_learn', 1:3);
@@ -30,8 +30,9 @@ function L = run_applications(groups, varargin)
 %   app2   app2_replay        a2_re, a2_learn: replay of the RE-smoothed shocks          ~10 s
 %   app3   app3_policy        a3_{loose,tight}_{re,learn}: rate 100 bp a year below /     ~30 s
 %                             above the Taylor rule in 2022Q3-2023Q2
-%   app4   app4_ramsey        a4_rule_{re,learn} (Taylor rule, 80-quarter loss), then     ~2 min
-%                             a4_ramsey_{balanced,hawk,dove,smooth}_{re,learn}
+%   app4   app4_ramsey        a4_rule_{re,learn} (Taylor rule, 80-quarter loss), then     ~2.5 min
+%                             a4_ramsey_{balanced,hawk,dove,smooth}_{re,re_mc,learn}
+%                             (_re_mc: model-consistent RE agents, the RE Ramsey benchmark)
 %   app5   app5_density       a5_{markup,demand}_re (500 draws, fast RE path, 30 s       ~14 min
 %                             each), then a5_{markup,demand}_learn (500 draws, 0.71 s
 %                             per draw, 6.5 min each)
@@ -103,7 +104,12 @@ for g = 1:numel(groups)
     end
     if isempty(k)
         if exist(name, 'file') == 2
-            L = [L; run_ids(root, 'single', {name})]; %#ok<AGROW>
+            gi = find(cellfun(@(c) any(strcmp(c, name)), G(:, 2)), 1);
+            grp = 'single';
+            if ~isempty(gi)
+                grp = G{gi, 1};
+            end
+            L = [L; run_ids(root, grp, {name})]; %#ok<AGROW>
             continue
         end
         error('run_applications: unknown group or scenario "%s".', name);
@@ -134,6 +140,7 @@ G = {
     'app3', {'a3_loose_re', 'a3_tight_re', 'a3_loose_learn', 'a3_tight_learn'}
     'app4', {'a4_rule_re', 'a4_rule_learn', ...
              'a4_ramsey_balanced_re', 'a4_ramsey_hawk_re', 'a4_ramsey_dove_re', 'a4_ramsey_smooth_re', ...
+             'a4_ramsey_balanced_re_mc', 'a4_ramsey_hawk_re_mc', 'a4_ramsey_dove_re_mc', 'a4_ramsey_smooth_re_mc', ...
              'a4_ramsey_balanced_learn', 'a4_ramsey_hawk_learn', 'a4_ramsey_dove_learn', 'a4_ramsey_smooth_learn'}
     'app5', {'a5_markup_re', 'a5_demand_re', 'a5_markup_learn', 'a5_demand_learn'}
     'app6', {'a6_smooth_re', 'a6_smooth_learn', 'a6_inv_learn'}
