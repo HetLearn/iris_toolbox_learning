@@ -1,7 +1,7 @@
 function spec = model_spec()
 % MODEL_SPEC  Package contract for the three-equation NK model of Ozden (2025, IJCB).
 %
-% See docs/USER_GUIDE.md sec. 3 and README.md. Paths are relative to
+% See docs/USER_GUIDE.md sec. 4.6 and README.md. Paths are relative to
 % spec.folder. Needs IRIS on the path (qq).
 
 spec = struct();
