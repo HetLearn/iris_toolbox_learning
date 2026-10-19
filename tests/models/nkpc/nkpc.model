@@ -1,0 +1,24 @@
+% nkpc.model: Phillips curve with an exogenous gap (tests/test_re_info.m, T3).
+% pi_t = bet*E pi_{t+1} + kap*x_t + u_t, x and u AR(1). Under
+% expectations.re_info = 'lagged' with pi learning, the expectation is
+% E_{t-1} pi_{t+1}, and the RE solution has the closed form
+%   pi_t = kap*x_t + u_t + bet*kap*rho_x^2/(1-bet*rho_x)*x_{t-1} + bet*rho_u^2/(1-bet*rho_u)*u_{t-1},
+%   E_{t-1} pi_{t+1} = kap*rho_x^2/(1-bet*rho_x)*x_{t-1} + rho_u^2/(1-bet*rho_u)*u_{t-1}
+% (current information: pi_t = kap/(1-bet*rho_x)*x_t + 1/(1-bet*rho_u)*u_t).
+
+!transition_variables
+    "Inflation" pi
+    "Output gap, exogenous" x
+    "Cost-push process" u
+
+!transition_shocks
+    "Gap shock" e_x
+    "Cost-push shock" e_u
+
+!parameters
+    bet, kap, rho_x, rho_u
+
+!transition_equations
+    "Phillips curve" pi = bet*pi{+1} + kap*x + u;
+    x = rho_x*x{-1} + e_x;
+    u = rho_u*u{-1} + e_u;
