@@ -27,7 +27,9 @@ suites = {'test_options', 'test_rls', 'test_switching', 'test_plm', 'test_genera
     'test_info', ...   % test_info: beliefs.info 'lagged' | 'current' (toy + SW07 runs, about 40 s)
     'test_gain', ...   % test_gain: endogenous gain gain.rule = 'koz' (DESIGN 18; unit, toy, SW07 runs)
     'test_facility', ...  % test_facility: projection facility (DESIGN 4.4; unit systems and toy, about 30 s)
-    'test_re_states'};    % test_re_states: history.re_states 'smoothed' | 'filtered' (DESIGN 5.2; toy + SW07 runs, about 2 min)
+    'test_re_states', ... % test_re_states: history.re_states 'smoothed' | 'filtered' (DESIGN 5.2; toy + SW07 runs, about 2 min)
+    'test_re_info'};      % test_re_info: expectations.re_info 'current' | 'lagged' (DESIGN 19; about 8 min, or
+                          %   test_re_info('toy' | 'sw07_model' | 'sw07_runs' | 'sw07_stages') one part at a time)
 if nargin >= 1 && ~isempty(only)
     suites = suites(ismember(suites, cellstr(only)));
 end
