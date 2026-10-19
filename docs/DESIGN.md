@@ -19,7 +19,7 @@ added during the build.
 ```
 iris_toolbox_learning/
   setup_paths.m              adds IRIS + toolbox/ to the path, runs iris.startup
-  run_scenarios.m            runs a list of scenario files in order
+  run_applications.m         runs the application groups, decompositions and evaluation parts
   config/master_options.m    project-wide option overrides (user edits this)
   toolbox/+hetlearn/         the toolbox source (the user never edits this)
   models/<name>/             one self-contained folder per model (sec. 2)
@@ -729,7 +729,7 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   Checks: toy RE inversion = smoothed shocks to 7e-14; SW07 1966Q1-2026Q2 (242 quarters)
   to 2.1e-13 (paths 4.4e-12), flat over the decades, so rounding does not grow (no
   invertibility problem with 7 shocks for 7 observables). Runtime with `engine.step =
-  'fast'`: 6.5-7 s (RE), 5-9 s (switching on pinf); with `'iris'` (default) each period
+  'fast'` (the default): 6.5-7 s (RE), 5-9 s (switching on pinf); with `'iris'` each period
   costs about 0.25 s (9 simulations): 77 s for the RE inversion (same 2.1e-13).
 - Evaluation (17): one inversion per variant to the last origin on the full-sample RE
   filter (it only supplies the state before the start), state kept at every origin
