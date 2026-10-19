@@ -206,8 +206,8 @@ zero: its 2009Q1-2015Q4 mean is 3.44% (trough -1.15% in 2009Q1, 5.14% in 2011Q4)
 2. Measurement errors: the published means come with the replication code's fixed measurement
    errors, which the table does not mention (Measurement errors). SW07 and IJCB3 have none.
    `hetlearn.extend_model` parses `!measurement_shocks`, and the IRIS filter output carries the
-   smoothed errors, so the `re_filter` fit check should pass; the engine has not run this
-   package yet (phase 2). Std 0 for the three errors removes them.
+   smoothed errors, and the engine has now run the package (track M3, application 1: 11/11
+   checks in `results/summary_v3/other_models_checks.txt`). Std 0 for the three errors removes them.
 3. Steady state of the 1983-2002 sample: inflation 3.30% and a funds rate of 5.80% a year,
    output growth 2.08% a year. The RE forecast from 2022Q2 reverts to these levels.
 4. Population. `dy` uses an HP trend of log CNP16OV, inferred from the match with us.txt. The
