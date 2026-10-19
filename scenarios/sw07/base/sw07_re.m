@@ -79,6 +79,7 @@ cfg.expectations.variables = {'pinf'};        % forward-looking variables in the
 % ---- history stage ---------------------------------------------------------------------------
 % cfg.history.learn = true;                   % false: the initial beliefs apply at the origin
 % cfg.history.mode = 're_smoother';           % 're_smoother' | 'inversion' (history backed out with the learning model)
+% cfg.history.re_states = 'smoothed';         % 're_smoother': RE forecasts and learners' data smoothed (two-sided) | 'filtered' (data up to t)
 % cfg.history.inversion.start = [];           % 'inversion': [] = beliefs.init.date
 % cfg.history.inversion.shocks = {};          % 'inversion': endogenised shocks; {} = every transition shock
 % cfg.history.realtime = false;               % true: RE filter on data up to the origin only
