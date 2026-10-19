@@ -38,6 +38,7 @@ cfg.forecast.horizon = 16;                    % quarters: 2022Q3-2026Q2
 cfg.expectations.mode = 'rational';           % 'rational' | 'learning' (all learners) | 'fixed_shares' | 'switching'
 cfg.expectations.variables = {'pinf'};        % forward-looking variables in the RE/BR mix, or 'all' (12 in SW07)
 % cfg.expectations.re_variant = 'anchored';   % 'anchored' (RE agents use the pure-RE forecast) | 'model_consistent'
+% cfg.expectations.re_info = 'current';       % 'current' (E_t x_{t+1}) | 'lagged' (E_{t-1} x_{t+1}: RE agents see data up to t-1)
 
 % ---- beliefs of the BR (adaptive learning) agents ------------------------------------------
 % cfg.beliefs.update = 'rls';                 % 'rls' (constant-gain RLS) | 'fixed'
