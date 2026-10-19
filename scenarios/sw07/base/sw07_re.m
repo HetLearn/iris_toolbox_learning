@@ -60,7 +60,7 @@ cfg.expectations.variables = {'pinf'};        % forward-looking variables in the
 % cfg.gain.koz.Rg0 = 0;                       % 'koz': initial Rg
 % cfg.gain.koz.bounds = [0.001 0.25];         % 'koz': the gain stays inside (gain_bound events)
 % cfg.gain.koz.error = 'rls';                 % 'koz': 'rls' (PLM one-step residual) | 'forecast' (x_t - f^BR_{t-1})
-% cfg.gain.koz.error_scale = 1;               % 'koz': factor on the error (v4_koz uses 4, annualised percent)
+% cfg.gain.koz.error_scale = 1;               % 'koz': factor on the error (1 = model units, % per quarter; v4_koz sets 1)
 % cfg.gain.koz.structure = 'common';          % 'koz': 'common' (one process) | 'per_variable'
 % cfg.gain.koz.master = '';                   % 'koz' common: '' = the first learning variable
 
