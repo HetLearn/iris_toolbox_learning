@@ -23,7 +23,8 @@ function [S, ctx] = state_init(ctx, m, H)
 %            .groupOf.<x>        group index of learning variable x
 %
 %   Initial beliefs: beliefs.init.method 're_moments' (hetlearn.init.re_moments
-%   on m), 'training_ols' (hetlearn.init.training_ols on H.smooth over
+%   on m), 'training_ols' (hetlearn.init.training_ols on H.smooth, or on
+%   H.filtered under history.re_states = 'filtered', over
 %   beliefs.init.training_range) or 'user' (hetlearn.init.user with
 %   re_moments as fallback). Initial fitness: hetlearn.switching.init_fitness
 %   (shares.init_n2, switching.intensity); initial n1 = 1 - shares.init_n2.
@@ -45,8 +46,8 @@ else
     switch o.beliefs.init.method
         case 're_moments'
             [phi, R] = hetlearn.init.re_moments(mInit, sys);
-        case 'training_ols'
-            [phi, R] = hetlearn.init.training_ols(sys, H.smooth, ...
+        case 'training_ols'      % on the history the learners watch (history.re_states)
+            [phi, R] = hetlearn.init.training_ols(sys, hetlearn.engine.history_db(o, H), ...
                 hetlearn.util.to_dates(o.beliefs.init.training_range));
         case 'user'
             [phiF, RF] = hetlearn.init.re_moments(mInit, sys);
