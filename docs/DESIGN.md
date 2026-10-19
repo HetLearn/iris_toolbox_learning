@@ -107,7 +107,9 @@ For each forward-looking variable `x` with maximum lead K:
 ```
 
 Parameters are declared unconditionally (unused parameters are harmless); variables and
-equations sit inside the `br_x` toggle.
+equations sit inside the `br_x` toggle. With `expectations.re_info = 'lagged'` the loader
+uses a separate file with an E_{t-1} x_{t+1} block instead (`<name>_ext_<tag>_relag.model`,
+sec. 19).
 
 ### 3.3 Model-file toggles
 `br_<x>` (one per forward-looking variable) is an IRIS `!if` switch. The loader sets it
@@ -323,7 +325,9 @@ learning scenarios it is compared with (the collapse test in 3.4 makes this exac
 
 ### 5.1 RE benchmark filter (cached per model + data hash)
 The extended model with all chosen `br_x = true`, n1 = 1 (= the RE model) is run through
-the IRIS Kalman filter/smoother over `spec.filter_range`. Output: smoothed paths of every
+the IRIS Kalman filter/smoother over `spec.filter_range` (with `expectations.re_info =
+'lagged'`: the RE(t-1) model of the scenario's learning set, plus the one-step
+predictions, sec. 19). Output: smoothed paths of every
 variable (including `x_exp1_RE`, i.e. the RE agents' forecast at each date) and smoothed
 shocks. Check: the observables rebuilt from the smoothed states and shocks through the
 measurement equations (`lhsmrhs`, data on the left) reproduce the data (max abs error
@@ -451,6 +455,7 @@ forecast.horizon           [16]
 expectations.mode          ['rational'] | 'learning' | 'fixed_shares' | 'switching'
 expectations.variables     [{}] cellstr or 'all'
 expectations.re_variant    ['anchored'] | 'model_consistent'  (sec. 11; anchored default since 2026-10-18)
+expectations.re_info       ['current'] | 'lagged'  (RE expectations of the learning set E_{t-1} x_{t+1}, sec. 19)
 beliefs.update             ['rls'] | 'fixed'
 beliefs.info               ['lagged'] | 'current'  (BR information set, sec. 4.2)
 beliefs.plm.default        ['ar1'] | 'ar2' | 'ar1_noconst' | 'var1';  beliefs.plm.by_var.<x>  (sec. 12)
@@ -514,7 +519,7 @@ hetlearn.decompose(res|id, vars, range, opts)   shock decomposition (sec. 16)
 hetlearn.evaluate(name, variants, origins, opts)   recursive real-time evaluation (sec. 17)
 hetlearn.evaluate_tables(errors, opts)   metrics, relative RMSE and DM from an error table,
                                      an errors_long.csv file or an eval_<name> folder
-hetlearn.re_anchor_coefficients(spec, P)   anchored-RE coefficients (sec. 11)
+hetlearn.re_anchor_coefficients(spec, P)   anchored-RE coefficients (sec. 11; 're_info', 'lagged': sec. 19)
 ```
 Engine stages are in `toolbox/+hetlearn/+engine/` (`core`, `state_init`, `history`,
 `forecast`, `step`, `update_learning`, `shares_for_mode`, `build_shocks`,
@@ -522,8 +527,9 @@ Engine stages are in `toolbox/+hetlearn/+engine/` (`core`, `state_init`, `histor
 
 ## 8. Tests (`tests/`)
 Toy model: 3-equation hybrid NK (IJCB eq. 1) with an extra 2-step lead, written with mixed
-lead notations (`tests/toy_nk/`). `tests/run_tests.m` runs 17 suites (257 checks on
-2026-10-18, track G); `run_tests({'suite', ...})` runs a subset, because the whole run
+lead notations (`tests/toy_nk/`). `tests/run_tests.m` runs 19 suites (257 checks on
+2026-10-18, track G; 293 on 2026-10-19 with `test_re_info`, whose test models are in
+`tests/models/`); `run_tests({'suite', ...})` runs a subset, because the whole run
 exceeds one 9-minute batch call. The tests do not read `scenarios/` or `results/`: SW07
 runs use the test scenarios `tests/scenarios/tsw07_*.m` (calibration written out), and
 the stored reference for the 2026-10-18 defaults is `tests/reference/tsw07_switch_pinf_iris.mat`
@@ -545,6 +551,8 @@ simulate, conditions = IRIS Plan, inversion = smoother.
 | `test_info` | `beliefs.info = 'current'`: forecasts = IRIS `x_exp1_BR`, timing assert, unchanged RLS |
 | `test_gain` | endogenous gain: recursion = a hand-coded loop, mu = 0 = constant gain bit for bit, bounds and events, signed-error behaviour, `'common'` vs `'per_variable'`, `'rls'` vs `'forecast'` errors, the gain state through history, inversion, evaluation, density and Ramsey; SW07 smoke run |
 | `test_facility` | projection facility (sec. 4.4): AR(1) block rule under each value, one explosive block among several and order independence, block detection, unstable ALM reverts every belief, history-stage ALM check, model shares kept when reverting the beliefs is not enough (F10: the run completes, `n1_model` kept while `n1` moves, `'tv'` rebuilds the paths), `almUnstable` (no earlier solved model) and `noSolution` errors, the explosive no-lead path under `'none'`, KOZ gain at revert periods, which stages solve |
+| `test_re_states` | `history.re_states` (sec. 5.2): default = pre-change run, filtered databank, f^RE = IRIS prediction, covid gap, realtime orthogonal, `history.learn = false`, `training_ols` |
+| `test_re_info` | `expectations.re_info` (sec. 19): options; SW07 RE(t-1) model = hand-written IRIS reference and Dynare `EXPECTATION(-1)`; closed form; n1 = 1 collapse; end-to-end runs (f^RE = independent two-step forecasts) and every stage; default files and runs unchanged |
 
 ## 9. Outputs (`results/<id>/`)
 - `results.mat`: `cfg` (merged), `paths` (databank, history + horizon, all variables incl.
@@ -625,6 +633,8 @@ request, then `ADDED` with a reason).
   satisfies both). As built, the RE filter model carries the `re_anchored` toggle of the
   scenario (own cache file); the smoothed history equals the model-consistent one to
   1e-13 (toy test).
+- With `expectations.re_info = 'lagged'` both variants use information up to t-1; the
+  anchored coefficients then come from the RE(t-1) model of the learning set (sec. 19).
 
 ## 12. More perceived laws of motion (`beliefs.plm`)
 - `'ar2'`: univariate AR(2) with constant (exists; verify on SW07).
@@ -913,3 +923,141 @@ Ramsey continuation) carries the gain. `'constant'` keeps its old two-argument f
 **Outputs.** `gain` (the gamma used in t) and `gain_R` (Rg_t) per PLM equation in
 `res.learning.<x>` and `learning.csv`; `gain_bound` events; the final state in
 `res.state.gain`. Constant-gain runs record no `gain_R`. Tests: `tests/test_gain.m`.
+
+## 19. RE information set (`expectations.re_info`, as built 2026-10-19)
+
+User request 2026-10-19: the learners have a t and a t-1 information set (`beliefs.info`),
+but the RE fixed point uses period-t information only; add an RE version with t-1
+information.
+
+**Definition.** `'current'` (default, unchanged): the RE expectation of a learning
+variable x is E_t x_{t+1}. `'lagged'`: it is E_{t-1} x_{t+1}, formed with information up
+to t-1, for every x in the learning set (`expectations.variables`). Expectations of the
+other variables stay E_t. This is the RE counterpart of `beliefs.info = 'lagged'`: the
+forecast made in t of x_{t+1} uses information up to t-1, so the RE agents' fitness error
+FE^RE_t = (x_t - f^RE_{t-1})^2 is a two-step-ahead error, like the lagged learners'. In a
+lagged scenario every RE object refers to the RE(t-1) model of its learning set: the
+original model with E_{t-1} x_{t+1} in place of E_t x_{t+1} for the learning set, solved
+as an RE fixed point with t-1 information. That model is the RE benchmark (mode
+`'rational'`), the anchored RE agents' model, the RE filter and smoother of the history,
+and the source of the RE-moment initial beliefs (the loaded model at n1 = 1).
+
+**Construction.** `hetlearn.extend_model(spec, plm, 're_info', 'lagged')` writes its own
+file, `generated/<name>_ext_<plmtag>_relag.model` with `_relag_meta.mat` (generator
+version 5; meta fields `re_info`, `re_chain`, `collapse_lagged_sets`). The default files
+keep version 4 and are byte-identical to the pre-change output (test T6a). The lagged file
+equals the default one except inside each `!if br_x` block:
+
+```
+x_exp1 = n1_x*x_exp1_RE + n2_x*x_exp1_BR;
+!if re_anchored
+    x_exp1_RE = are_x__const + sum_j are_x__<s_j>*s_j{-1};    % every state one period earlier
+!else
+    x_exp1_RE = x_REt2{-1};
+    x_REt2 = x_REt1{+1};
+    x_REt1 = x{+1};
+!end
+```
+
+x_REt1_t = E_t x_{t+1} and x_REt2_t = E_t x_REt1_{t+1} = E_t x_{t+2}, so x_exp1_RE_t =
+x_REt2_{t-1} = E_{t-1} x_{t+1}; the chain variables are declared under `!if
+~re_anchored`. IRIS 20230622 accepts `x{+2}` directly, but it then adds a lead element
+`x{1}` to the transition vector, which the fast step cannot read; the chain keeps every
+lead at +1 (the closed-form test T3 matches to 6e-16). With mode
+`'model_consistent'`, x_REt2 comes from the heterogeneous model in force at t-1, so
+x_exp1_RE_t is the forecast the RE agents made at t-1 under anticipated utility, and it
+is predetermined in t. A learning variable with a lead of 2 or more is an error under
+`'lagged'` (`hetlearn:load_model:reInfo`): its `x_exp2 = x_exp1{+1}` would keep period-t
+information.
+
+**Anchored RE agents with t-1 information (derivation).** Write the solution of the RE(t-1)
+model (the model-consistent lagged model at n1 = 1, zero beliefs) as [xf; xb]_t = T xb_{t-1}
++ K + R e_t, with xb = (s, z): s the original model's states (`meta.re_states`, the same
+names as for `'current'`; they keep their lag structure) and z the chain states, z_{x,t} =
+x_REt2_t (one per learning variable). Iterating two periods from the state at t-1,
+
+    E_{t-1} x_{t+1} = K_x + T_x (K_b + T_b xb_{t-1}) = k_x + C_s(x,:) s_{t-1} + C_z(x,:) z_{t-1},
+
+which holds for any xb_{t-1}. The RE agents evaluate it at the heterogeneous economy's
+state at t-1. The original states map by name: the economy's own variables at t-1, with
+auxiliary lags one period further back. The chain state z_{t-1} = E_{t-1} x_{t+1} is the RE
+agents' own forecast formed with information up to t-1, and in the heterogeneous economy
+that object is x_exp1_RE_t itself. Stacking the learning set, f_t = k + C_s s_{t-1} + C_z
+f_t, so
+
+    x_exp1_RE_t = (I - C_z)^{-1} (k + C_s s_{t-1}),
+
+a linear function of predetermined variables dated t-1 and earlier, with nothing the
+heterogeneous model does not have. On the RE(t-1) path the date-(t-1) equation z_{t-1} =
+E_{t-1} x_{t+1} is the same fixed point, so the anchored model at n1 = 1 is the RE(t-1)
+model: the anchored and model-consistent lagged models agree at n1 = 1 (SW07 {pinf}
+4.5e-13, every lead-1 variable learning 7.6e-14, toy 1.7e-14). SW07 {pinf}: C_z = 0.139
+(the agents' own lagged forecast enters x_t's equations and through them x_{t+1}); in the
+closed-form test model C_z = 0. Other states of the lagged model (PLM lags, derived
+regressors) carry zero coefficients at n1 = 1 (checked, error above 1e-12); a singular
+I - C_z is an error.
+
+- `hetlearn.re_anchor_coefficients(spec, P, 're_info', 'lagged', 'model', mMC, 'vars',
+  learnVars, 'states', meta.re_states, 'chain', meta.re_chain)` returns the values of the
+  same `are_x__*` parameters (0 for variables outside the learning set), checked against
+  two-period unit-perturbation simulations of mMC (SW07 2e-16). `hetlearn.load_model`
+  loads mMC (the lagged file with `re_anchored = false`, n1 = 1) for every anchored lagged
+  scenario, since the coefficients depend on the learning set, and checks the IRFs of the
+  anchored and model-consistent models against each other (< 1e-10;
+  `info.re_info_check`).
+- Alternative, not built (for the user to decide): map z_{t-1} to the aggregate
+  expectation that entered the economy, x_exp1_t = n1 x_exp1_RE_t + n2 x_exp1_BR_t. With one
+  learning variable, x_exp1_RE_t = (k + C_s s_{t-1} + C_z n2 x_exp1_BR_t) / (1 - C_z n1):
+  the RE agents would then know and use the learners' forecast in their own. Both versions
+  coincide at n2 = 0. Mapping z_{t-1} to x_exp1_RE_{t-1} (a forecast of x_t, not x_{t+1})
+  would mismatch the forecast target.
+
+**Collapse test of a lagged file** (`collapse_test_lagged` in `extend_model`; n1 = 1, zero
+beliefs, IRFs of every original variable to every shock, 40 periods, < 1e-10): (1) every
+br = false reproduces the original model (`collapse_maxdiff(2)`; SW07 3.4e-13); (2) every
+forward-looking variable with max lead 1 learning, `re_anchored = false`: the RE(t-1) model
+of that set must solve (SW07: all 12, determinate); (3) the same with `re_anchored = true`
+reproduces (2) (`collapse_maxdiff(3)`); (4) (2) with `br_info_current = true` reproduces (2)
+(`collapse_info_maxdiff`). `collapse_maxdiff(1)` is NaN (with lagged RE information the
+extended model differs from the original by construction). If (2) has no unique stable
+solution for the whole set, (2)-(4) run one variable at a time.
+
+**RE history (5.1-5.2).** `hetlearn.re_filter` keeps the scenario's learning set for a
+lagged scenario (not `'all'`: the RE(t-1) model depends on it) with the scenario's
+`re_variant`; the cache key changes through the `_relag` model text and the assign struct
+(learning-set toggles), so the default caches are untouched. The same filter call also
+returns the one-step predictions x_{t|t-1} (`'output', 'pred,filter,smooth'`; `H.predicted`,
+lagged caches only). f^RE_t in the history is the RE agents' forecast made in t of x_{t+1}
+with information up to t-1:
+- `'smoothed'`: H.smooth.x_exp1_RE(t) = E_{t-1} x_{t+1} at the smoothed state at t-1 (the
+  smoothed path satisfies the model, so this equals the two-step forecast from s_{t-1|T};
+  test 8.4e-13 against the hand-written reference).
+- `'filtered'`: H.predicted.x_exp1_RE(t) = E[x_exp1_RE_t | data to t-1] = E[x_{t+1} | data to
+  t-1] (x_exp1_RE_t is a function of the t-1 state), the filter's two-step prediction of
+  x_{t+1} (test 5.1e-13 against IRIS `'ahead', 2` on the reference). H.filtered.x_exp1_RE(t)
+  would use data dated t. The learners' data and the realised values stay x_{t|t}
+  (`hetlearn.engine.history_db`).
+- `history.realtime`: unchanged logic (filter on data to the origin); the 'filtered' history
+  is the same with or without it (test 0).
+The forecast starts from the smoothed state at the origin, so x_exp1_RE in the first
+forecast quarter is the smoothed value (predetermined, test 8e-15).
+
+**Stages.** Supported with `'lagged'` (each covered by `tests/test_re_info.m`): every mode,
+both `re_variant` values, both `beliefs.info` values, both `history.re_states`,
+`history.realtime`, `history.mode = 'inversion'` (the RE inversion reproduces the lagged
+RE-smoothed shocks), `history.learn = false` (f^RE from the same databank), conditions,
+`hetlearn.decompose` (IRIS and `'tv'`), densities (fast path = general path),
+`hetlearn.evaluate` (a lagged variant gets its own real-time filters: the filter group key
+adds `re_info`, the learning set and `re_variant`; default variants keep the PLM-key
+grouping), the projection facility and the endogenous gain (model-independent). Blocked:
+`policy.mode = 'ramsey'` with `'lagged'` (`hetlearn:options:unsupported` in
+`load_options`): the Ramsey plan with predetermined RE expectations, and the anchored
+variant under it (already an open design question, see sec. 13 and the README), has not
+been derived or tested. Also errors: `'lagged'` with an empty learning set
+(`hetlearn:options:value`) and learning variables with leads of 2 or more.
+
+Tests: `tests/test_re_info.m` (T0 options; T1 hand-written IRIS reference
+`tests/models/sw07_re_lagged_pinf.model`; T2 Dynare 4.6.1 with `EXPECTATION(-1)(pinf(+1))`,
+`tests/models/dynare/`, stored IRFs `tests/reference/re_info_dynare_irfs.mat`; T3 closed
+form `tests/models/nkpc/`; T4 n1 = 1 collapse; T5 end-to-end runs and stages; T6 defaults
+unchanged).
