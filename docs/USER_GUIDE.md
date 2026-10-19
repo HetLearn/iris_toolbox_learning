@@ -42,7 +42,7 @@ points to. All paths are relative to the project root
 | `toolbox/+hetlearn/` | The toolbox | Nobody, for a scenario or model change |
 | `toolbox/iris_patches/+model/Insertable.m` | Shadow copy of one IRIS file so that IRIS 20230622 optimal policy runs on R2025a; the IRIS installation is untouched | Nobody |
 | `models/<name>/generated/` | Extended model files and RE filter caches | The toolbox (delete a file to force a rebuild) |
-| `tests/` | `run_tests.m` (17 suites), toy NK package `tests/toy_nk/`, test scenarios `tests/scenarios/tsw07_*.m`, reference `tests/reference/` | Only when the toolbox changes |
+| `tests/` | `run_tests.m` (19 suites), toy NK package `tests/toy_nk/`, test scenarios `tests/scenarios/tsw07_*.m`, reference `tests/reference/`, test models of `test_re_info` `tests/models/` (hand-written SW07 RE(t-1) model, Dynare cross-check, closed-form Phillips curve) | Only when the toolbox changes |
 | `tests/output/` | Test runs | Disposable |
 | `archive/2026-10-18_rounds1-2/` | Round 1-2 scenarios, results, runners (`run_scenarios*.m`), report and code backups; `README.txt`. Not on the path | Nobody |
 | `docs/` | This guide, `DESIGN.md`, `FEATURES.md` | |
@@ -458,6 +458,26 @@ cfg.beliefs.info = 'current';    % default 'lagged'; project-wide: master_option
   holds both forms behind the toggle `br_info_current`.
 - The belief updates are the same under both; the forecasts, and so the shares, change.
 
+The RE agents have the same choice (added 2026-10-19, DESIGN 19):
+
+```matlab
+cfg = a1_learn();
+cfg.id = 'a1_learn_reinfo';
+cfg.expectations.re_info = 'lagged';     % default 'current'; RE agents forecast with data up to t-1
+res = hetlearn.run(cfg, 'save', false);
+```
+
+- `'lagged'` replaces E_t x_{t+1} by E_{t-1} x_{t+1} for the learning variables (other
+  variables keep E_t). With `beliefs.info = 'lagged'` both types then forecast x_{t+1} with
+  data up to t-1, and both fitness errors are two-step errors.
+- Everything RE in the scenario follows: the RE benchmark (mode `'rational'`) is the RE model
+  with t-1 information, the anchored RE agents forecast with that model, and the RE history
+  (filter, smoother, f^RE, RE-moment initial beliefs) uses it. So compare a lagged learning
+  run with a lagged RE run: `c = a1_re(); c.expectations.re_info = 'lagged';`.
+- The loader uses its own generated file, `<name>_ext_<tag>_relag.model`; the default files
+  are untouched. Learning variables must have a maximum lead of 1, and Ramsey policy is not
+  supported with `'lagged'` (both are errors).
+
 #### 4.4.8 Endogenous gain (Kostyshyna, Özden and Zhang 2024)
 
 ```matlab
@@ -689,8 +709,12 @@ leads `x_expk = x_exp(k-1){+1}`), and each forward-looking variable gets the blo
 | `ramsey` | `policy.mode` | Loss function in place of the rule equation |
 | `br_info_current` | `beliefs.info` | Learners see period-t data |
 
+`expectations.re_info = 'lagged'` is not a toggle: it selects a second generated file,
+`<name>_ext_<tag>_relag.model`, whose RE expectations use information up to t-1 (DESIGN 19).
+
 Every generated file passes a collapse test: with every RE share at 1 the extended model must
-reproduce the original model's impulse responses to 1e-10.
+reproduce the original model's impulse responses to 1e-10 (a `_relag` file: with no variable
+learning; with every lead-1 variable learning, its anchored and model-consistent forms must agree).
 
 Steps, with ijcb3 and as07 as the worked examples:
 
@@ -789,6 +813,7 @@ as a commented line at its default.
 | `expectations.mode` | `'rational'`, `'learning'`, `'fixed_shares'`, `'switching'` | All RE (BR share 0); all learners (BR share 1); fixed shares (`shares.fixed_n2`); shares switch on forecast performance |
 | `expectations.variables` | `{}`, cellstr, `'all'` | Forward-looking variables whose expectations are the RE/BR mix; the rest stay RE. `'all'` = every forward-looking variable (SW07: 12) |
 | `expectations.re_variant` | `'anchored'`, `'model_consistent'` | RE agents use the pure-RE forecast at the current state (IJCB sec. 2.3.1; the baseline since 2026-10-18), or forecast the heterogeneous economy, re-solved every quarter |
+| `expectations.re_info` | `'current'`, `'lagged'` | RE agents' information set for the learning variables: E_t x_{t+1}, or E_{t-1} x_{t+1} (data up to t-1, the RE counterpart of `beliefs.info = 'lagged'`). With `'lagged'` the RE benchmark, the anchored forecast and the RE history use the RE model with t-1 information (4.4.7, DESIGN 19). Not with Ramsey policy; learning variables need a maximum lead of 1 |
 | `beliefs.info` | `'lagged'`, `'current'` | Learners see data up to t-1, or up to t (IJCB eq. 12). The belief updates are the same; the forecasts, and so the shares, differ |
 
 In mode `'rational'` the learning variables keep their blocks with RE share 1: the run is
@@ -1185,6 +1210,7 @@ sessions. One PowerShell window per session, each with its own log file:
 | File | What it is |
 |---|---|
 | `<name>_ext_<tag>.model`, `<name>_ext_<tag>_meta.mat` | Extended model and its metadata; tag `ar1` for the default PLM, else `p` and 8 hex digits of the PLM spec's MD5 |
+| `<name>_ext_<tag>_relag.model`, `_relag_meta.mat` | The same with RE expectations on information up to t-1 (`expectations.re_info = 'lagged'`, generator version 5); its RE filter caches are separate and also hold the one-step predictions |
 | `<name>_norm.model` | Only when the source needs notation changes: the source in IRIS notation (reference of the collapse test) |
 | `refilter_<hash>.mat` | Full-sample RE filter; key: extended model text, parameters, `spec.assign`, database file bytes, filter range |
 | `refilter_rt_<end>_<hash>.mat` | Real-time RE filter per end date (evaluation, `history.realtime`); per PLM spec and RE variant; about 1,850 files for SW07 |
@@ -1214,9 +1240,13 @@ themselves; anything else needs `setup_paths` first.
 
 ### 8.6 Tests
 
-- `run_tests` runs the 18 suites in `tests/run_tests.m` (269 checks pass on 2026-10-19; the
-  18th suite, `test_re_states`, was added that day): more than 9 min.
-- A subset: `run_tests({'test_options', 'test_rls', 'test_switching'})`.
+- `run_tests` runs the 19 suites in `tests/run_tests.m` (293 checks pass on 2026-10-19, 24 of
+  them in the 19th suite, `test_re_info`, added that evening): more than 9 min.
+- A subset: `run_tests({'test_options', 'test_rls', 'test_switching'})`. `test_re_info` alone
+  takes about 8 min; `test_re_info('toy')`, `('sw07_model')`, `('sw07_runs')`,
+  `('sw07_stages')` run its parts. Its Dynare check reads stored IRFs
+  (`tests/reference/re_info_dynare_irfs.mat`); `tests/models/dynare/run_dynare_check.m`
+  remakes them in a session without IRIS (Dynare 4.6.1, run in `C:\dynare_work\re_info_check\`).
 - Run `run_tests({'test_generator'})` in a MATLAB session of its own (README_PIPELINE).
 - `test_decompose`'s SW07 part reads outputs of `test_inversion` in `tests/output/results/`; run
   `test_inversion` first (`run_tests` orders them so).
