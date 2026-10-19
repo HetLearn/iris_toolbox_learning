@@ -143,6 +143,12 @@ for v = 1:nV
     cfgs{v} = c;
     optsV{v} = ov;
     plmKey{v} = hetlearn.util.struct_key(ov.beliefs.plm);
+    if strcmp(ov.expectations.re_info, 'lagged')
+        % DESIGN 19: the RE filter model of a lagged variant is the RE(t-1) model of its own
+        % learning set and RE variant, so it shares a filter only with variants that match
+        plmKey{v} = sprintf('%s|re_info=lagged|%s|%s', plmKey{v}, strjoin(info.learnVars, ','), ...
+            ov.expectations.re_variant);
+    end
     if v > 1 && ~strcmp(M{v}.spec.folder, M{1}.spec.folder)
         error('hetlearn:evaluate:model', 'All variants must use the same model package (%s vs %s).', ...
             M{1}.spec.folder, M{v}.spec.folder);
@@ -182,7 +188,9 @@ Hfull = cell(1, numel(uk));
 for u = 1:numel(uk)
     v = find(kOf == u, 1);
     oa = optsV{v};
-    oa.expectations.variables = 'all';
+    if ~strcmp(oa.expectations.re_info, 'lagged')
+        oa.expectations.variables = 'all';      % lagged: the variant's learning set (hetlearn.re_filter)
+    end
     [mA, infoA] = hetlearn.load_model(spec, oa);
     MA = struct('m', mA, 'info', infoA);
     if any(invV(kOf == u))
