@@ -55,7 +55,7 @@ The rule: you write model packages, scenario files and the master options; the t
 
 | Package | Model | Parameters | Observables, filter range | Forward-looking variables | `spec.policy` |
 |---|---|---|---|---|---|
-| `models/sw07/` | Smets-Wouters (2007), re-estimated | Dynare mode `swX1`, sample 1966Q1-2026Q2 (`sw07_params.m`) | `dy`, `dc`, `dinve`, `dw`, `labobs`, `pinfobs`, `robs`; 1965Q1-2026Q2 | 12: `invef`, `rkf`, `pkf`, `cf`, `labf`, `inve`, `pinf`, `rk`, `pk`, `c`, `lab`, `w` | yes: Taylor rule by label; loss targets `pinf`, `ygap`, `r`, `dr` |
+| `models/sw07/` | Smets-Wouters (2007), re-estimated | Dynare mode `swX1`, sample 1966Q1-2026Q2 (`sw07_params.m`) | `dy`, `dc`, `dinve`, `dw`, `labobs`, `pinfobs`, `robs`; 1965Q1-2026Q2; every observable NaN in 2020Q1-2020Q3 (covid quarters ignored, user decision 2026-10-19) | 12: `invef`, `rkf`, `pkf`, `cf`, `labf`, `inve`, `pinf`, `rk`, `pk`, `c`, `lab`, `w` | yes: Taylor rule by label; loss targets `pinf`, `ygap`, `r`, `dr` |
 | `models/ijcb3/` | Three-equation NK model of IJCB (sec. 2.1) | IJCB Table 1, HE posterior means (`ijcb3_params.m`) | `yobs`, `pinfobs`, `robs`; 1960Q1-2026Q2; `robs` NaN in the 36 ELB quarters | `y`, `pinf` | no |
 | `models/as07/` | An and Schorfheide (2007) | Herbst and Schorfheide (2016) published posterior means; measurement errors fixed as in the book's code (`as07_params.m`) | `dy`, `pinfobs`, `robs`; 1965Q1-2026Q2; `robs` NaN in the 36 ELB quarters | `y`, `pinf` | no |
 
@@ -63,6 +63,14 @@ Each package has a `README.md` (model, parameters, units, open issues), `data/RE
 `data/build_database.m` (how the database is built and refreshed), and `validation/` (checks
 against Dynare or the authors' code). Parameters are published values; nothing is estimated in
 this project (user rule, 2026-10-18).
+
+SW07 data note (2026-10-19): `models/sw07/data/build_database.m` sets all seven observables to
+NaN in 2020Q1-2020Q3 (`covid_nan_quarters`; set it to `[]` to keep the covid quarters). The RE
+filter treats those quarters as missing and its fit check skips them. Downstream: the learners
+keep learning on the smoothed values there, `hetlearn.evaluate` drops the targets in those
+quarters, and the inversion history (`history.mode = 'inversion'`) has nothing to exogenise there,
+so it differs from the RE smoother from 2020 on. The swX1 parameters were estimated with the covid
+quarters.
 
 ### 1.3 How a run moves through the code
 
