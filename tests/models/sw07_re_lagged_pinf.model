@@ -1,0 +1,328 @@
+% sw07_re_lagged_pinf.model: hand-written reference for tests/test_re_info.m (T1).
+% models/sw07/sw07.model with every E_t pinf_{t+1} (the four pinf{+1} terms: the
+% value of capital, the consumption Euler equation, the price and the wage
+% Phillips curves) replaced by E_{t-1} pinf_{t+1}, written here by hand, not by
+% hetlearn.extend_model. Construction: pinf_n1 = E_t pinf_{t+1}, pinf_n2 = E_t
+% pinf_{t+2} (pinf_n2 = pinf_n1{+1}), and pinf_e1L = pinf_n2{-1} = E_{t-1}
+% pinf_{t+1}. Every other expectation stays E_t. Parameters: models/sw07/sw07_params.
+% Everything below this header is the original file except the four edited
+% terms and the block at the end.
+%
+% Smets and Wouters (2007), "Shocks and Frictions in US Business Cycles",
+% re-estimated on 1966Q1-2026Q2 (Dynare run swX1, 2026-09-29).
+%
+% IRIS translation of estimation/swX1.mod (Pfeifer's Dynare version of the AER
+% usmodel.mod). Variable, shock and parameter names are the Dynare names, and
+% the equations appear in the same order, so the two files can be read side
+% by side. Labels follow the IrisPie translation in
+% ucur-dsge/sw07-irispie/model_files/sw07.model.
+%
+% Log-linearised around a balanced growth path. All transition variables are
+% percent deviations from steady state (steady state = 0); the seven
+% observables carry the constants ctrend, constepinf, conster, constelab.
+% Load with Model.fromFile('sw07.model', 'linear', true).
+%
+% Five parameters declared but never used in the .mod (ccs, cinvs, crdpi,
+% crhoas, crhols) are left out here.
+
+
+% Derived steady-state quantities
+%
+% Dynare computes these as model-local variables (#cpie=..., #cgamma=..., ...)
+% inside model(linear). Here they are nested substitutions: each definition is
+% wrapped in parentheses and pasted as text wherever $name$ appears, so the
+% quantities are re-derived from the deep parameters at every solve.
+
+!substitutions
+
+    cpie = (1+constepinf/100);
+    cgamma = (1+ctrend/100);
+    cbeta = (1/(1+constebeta/100));
+    clandap = (cfc);
+    cbetabar = ($cbeta$*$cgamma$^(-csigma));
+    cr = ($cpie$/($cbeta$*$cgamma$^(-csigma)));
+    crk = (($cbeta$^(-1))*($cgamma$^csigma) - (1-ctou));
+    cw = ((calfa^calfa*(1-calfa)^(1-calfa)/($clandap$*$crk$^calfa))^(1/(1-calfa)));
+    cikbar = (1-(1-ctou)/$cgamma$);
+    cik = ((1-(1-ctou)/$cgamma$)*$cgamma$);
+    clk = (((1-calfa)/calfa)*($crk$/$cw$));
+    cky = (cfc*($clk$)^(calfa-1));
+    ciy = ($cik$*$cky$);
+    ccy = (1-cg-$cik$*$cky$);
+    crkky = ($crk$*$cky$);
+    cwhlc = ((1/clandaw)*(1-calfa)/calfa*$crk$*$cky$/$ccy$);
+    cwly = (1-$crk$*$cky$);
+    conster = (($cr$-1)*100);
+
+
+!transition_variables
+
+    % Flexible-price, flexible-wage economy
+    "Capital utilisation, flex-price economy" zcapf
+    "Rental rate of capital, flex-price economy" rkf
+    "Capital services, flex-price economy" kf
+    "Real value of installed capital, Tobin q, flex-price economy" pkf
+    "Consumption, flex-price economy" cf
+    "Investment, flex-price economy" invef
+    "Output, flex-price economy" yf
+    "Hours worked, flex-price economy" labf
+    "Real wage, flex-price economy" wf
+    "Real interest rate, flex-price economy" rrf
+    "Installed capital stock, flex-price economy" kpf
+
+    % Sticky-price, sticky-wage economy
+    "Marginal cost, inverse of the price markup" mc
+    "Capital utilisation" zcap
+    "Rental rate of capital" rk
+    "Capital services" k
+    "Real value of installed capital, Tobin q" pk
+    "Consumption" c
+    "Investment" inve
+    "Output" y
+    "Hours worked" lab
+    "Inflation, Q/Q" pinf
+    "Real wage" w
+    "Nominal interest rate, Q/Q" r
+    "Installed capital stock" kp
+
+    % Exogenous processes
+    "Total factor productivity process" a
+    "Risk premium process, scaled" b
+    "Exogenous spending process" g
+    "Investment-specific technology process" qs
+    "Monetary policy shock process" ms
+    "Price markup process" spinf
+    "Wage markup process" sw
+    "Price markup innovation, auxiliary for the MA term" epinfma
+    "Wage markup innovation, auxiliary for the MA term" ewma
+
+
+!transition_shocks
+
+    "Productivity shock" ea
+    "Risk premium shock" eb
+    "Exogenous spending shock" eg
+    "Investment-specific technology shock" eqs
+    "Monetary policy shock" em
+    "Price markup shock" epinf
+    "Wage markup shock" ew
+
+
+!parameters
+
+    % Fixed in the estimation
+    "Depreciation rate" ctou
+    "Steady-state gross wage markup" clandaw
+    "Steady-state exogenous spending share of output" cg
+    "Curvature of the Kimball aggregator, prices" curvp
+    "Curvature of the Kimball aggregator, wages" curvw
+
+    % Steady state and growth
+    "Steady-state inflation, percent Q/Q" constepinf
+    "Time preference rate, percent Q/Q" constebeta
+    "Steady-state hours, log level of labobs" constelab
+    "Trend growth rate, percent Q/Q" ctrend
+
+    % Preferences, technology and frictions
+    "Capital share" calfa
+    "Elasticity of capital utilisation adjustment cost" czcap
+    "Investment adjustment cost" csadjcost
+    "Inverse intertemporal elasticity of substitution, risk aversion" csigma
+    "External habit formation" chabb
+    "Fixed cost in production, one plus the share, gross price markup" cfc
+    "Wage indexation to past inflation" cindw
+    "Calvo probability, wages" cprobw
+    "Price indexation to past inflation" cindp
+    "Calvo probability, prices" cprobp
+    "Inverse Frisch elasticity of labour supply" csigl
+
+    % Taylor rule
+    "Taylor rule, response to inflation" crpi
+    "Taylor rule, response to the change in the output gap" crdy
+    "Taylor rule, response to the output gap" cry
+    "Taylor rule, interest rate smoothing" crr
+
+    % Exogenous processes
+    "AR(1), productivity" crhoa
+    "AR(1), risk premium" crhob
+    "AR(1), exogenous spending" crhog
+    "AR(1), investment-specific technology" crhoqs
+    "AR(1), monetary policy" crhoms
+    "AR(1), price markup" crhopinf
+    "AR(1), wage markup" crhow
+    "MA(1), price markup" cmap
+    "MA(1), wage markup" cmaw
+    "Response of exogenous spending to the productivity shock" cgy
+
+
+!transition_equations
+
+    % Flexible-price, flexible-wage economy
+
+    "Flex: marginal cost is constant, factor price frontier"
+    0*(1-calfa)*a + 1*a = calfa*rkf + (1-calfa)*(wf);
+
+    "Flex: capital utilisation"
+    zcapf = (1/(czcap/(1-czcap)))*rkf;
+
+    "Flex: firm cost minimisation, capital-labour ratio"
+    rkf = (wf) + labf - kf;
+
+    "Flex: capital services"
+    kf = kpf{-1} + zcapf;
+
+    "Flex: investment Euler equation"
+    invef = (1/(1+$cbetabar$*$cgamma$))*(invef{-1} + $cbetabar$*$cgamma$*invef{+1} + (1/($cgamma$^2*csadjcost))*pkf) + qs;
+
+    "Flex: arbitrage equation for the value of capital"
+    pkf = -rrf - 0*b + (1/((1-chabb/$cgamma$)/(csigma*(1+chabb/$cgamma$))))*b + ($crk$/($crk$+(1-ctou)))*rkf{+1} + ((1-ctou)/($crk$+(1-ctou)))*pkf{+1};
+
+    "Flex: consumption Euler equation"
+    cf = (chabb/$cgamma$)/(1+chabb/$cgamma$)*cf{-1} + (1/(1+chabb/$cgamma$))*cf{+1} + ((csigma-1)*$cwhlc$/(csigma*(1+chabb/$cgamma$)))*(labf-labf{+1}) - (1-chabb/$cgamma$)/(csigma*(1+chabb/$cgamma$))*(rrf+0*b) + b;
+
+    "Flex: aggregate resource constraint"
+    yf = $ccy$*cf + $ciy$*invef + g + $crkky$*zcapf;
+
+    "Flex: aggregate production function"
+    yf = cfc*(calfa*kf + (1-calfa)*labf + a);
+
+    "Flex: real wage equals the marginal rate of substitution"
+    wf = csigl*labf + (1/(1-chabb/$cgamma$))*cf - (chabb/$cgamma$)/(1-chabb/$cgamma$)*cf{-1};
+
+    "Flex: capital accumulation"
+    kpf = (1-$cikbar$)*kpf{-1} + ($cikbar$)*invef + ($cikbar$)*($cgamma$^2*csadjcost)*qs;
+
+
+    % Sticky-price, sticky-wage economy
+
+    "Marginal cost"
+    mc = calfa*rk + (1-calfa)*(w) - 1*a - 0*(1-calfa)*a;
+
+    "Capital utilisation"
+    zcap = (1/(czcap/(1-czcap)))*rk;
+
+    "Firm cost minimisation, capital-labour ratio"
+    rk = w + lab - k;
+
+    "Capital services"
+    k = kp{-1} + zcap;
+
+    "Investment Euler equation"
+    inve = (1/(1+$cbetabar$*$cgamma$))*(inve{-1} + $cbetabar$*$cgamma$*inve{+1} + (1/($cgamma$^2*csadjcost))*pk) + qs;
+
+    "Arbitrage equation for the value of capital"
+    pk = -r + pinf_e1L - 0*b + (1/((1-chabb/$cgamma$)/(csigma*(1+chabb/$cgamma$))))*b + ($crk$/($crk$+(1-ctou)))*rk{+1} + ((1-ctou)/($crk$+(1-ctou)))*pk{+1};
+
+    "Consumption Euler equation"
+    c = (chabb/$cgamma$)/(1+chabb/$cgamma$)*c{-1} + (1/(1+chabb/$cgamma$))*c{+1} + ((csigma-1)*$cwhlc$/(csigma*(1+chabb/$cgamma$)))*(lab-lab{+1}) - (1-chabb/$cgamma$)/(csigma*(1+chabb/$cgamma$))*(r-pinf_e1L+0*b) + b;
+
+    "Aggregate resource constraint"
+    y = $ccy$*c + $ciy$*inve + g + 1*$crkky$*zcap;
+
+    "Aggregate production function"
+    y = cfc*(calfa*k + (1-calfa)*lab + a);
+
+    "Phillips curve, price setting"
+    pinf = (1/(1+$cbetabar$*$cgamma$*cindp))*($cbetabar$*$cgamma$*pinf_e1L + cindp*pinf{-1}
+        + ((1-cprobp)*(1-$cbetabar$*$cgamma$*cprobp)/cprobp)/((cfc-1)*curvp+1)*(mc)) + spinf;
+
+    "Wage Phillips curve, wage setting"
+    w = (1/(1+$cbetabar$*$cgamma$))*w{-1}
+        + ($cbetabar$*$cgamma$/(1+$cbetabar$*$cgamma$))*w{+1}
+        + (cindw/(1+$cbetabar$*$cgamma$))*pinf{-1}
+        - (1+$cbetabar$*$cgamma$*cindw)/(1+$cbetabar$*$cgamma$)*pinf
+        + ($cbetabar$*$cgamma$)/(1+$cbetabar$*$cgamma$)*pinf_e1L
+        + (1-cprobw)*(1-$cbetabar$*$cgamma$*cprobw)/((1+$cbetabar$*$cgamma$)*cprobw)*(1/((clandaw-1)*curvw+1))
+        * (csigl*lab + (1/(1-chabb/$cgamma$))*c - ((chabb/$cgamma$)/(1-chabb/$cgamma$))*c{-1} - w)
+        + 1*sw;
+
+    "Monetary policy rule, Taylor rule on the output gap y-yf"
+    r = crpi*(1-crr)*pinf
+        + cry*(1-crr)*(y-yf)
+        + crdy*(y-yf-y{-1}+yf{-1})
+        + crr*r{-1}
+        + ms;
+
+    % Exogenous processes
+
+    "Productivity"
+    a = crhoa*a{-1} + ea;
+
+    "Risk premium"
+    b = crhob*b{-1} + eb;
+
+    "Exogenous spending, also hit by the productivity shock"
+    g = crhog*(g{-1}) + eg + cgy*ea;
+
+    "Investment-specific technology"
+    qs = crhoqs*qs{-1} + eqs;
+
+    "Monetary policy"
+    ms = crhoms*ms{-1} + em;
+
+    "Price markup, ARMA(1,1)"
+    spinf = crhopinf*spinf{-1} + epinfma - cmap*epinfma{-1};
+
+    "Price markup innovation, lets the MA term use a lagged shock"
+    epinfma = epinf;
+
+    "Wage markup, ARMA(1,1)"
+    sw = crhow*sw{-1} + ewma - cmaw*ewma{-1};
+
+    "Wage markup innovation, lets the MA term use a lagged shock"
+    ewma = ew;
+
+    "Capital accumulation"
+    kp = (1-$cikbar$)*kp{-1} + $cikbar$*inve + $cikbar$*$cgamma$^2*csadjcost*qs;
+
+    % Lagged RE information for inflation (hand-written, test_re_info T1)
+    "Inflation expectation with information up to t-1, E_{t-1} pinf_{t+1}"
+    pinf_e1L = pinf_n2{-1};
+
+    "Two-step inflation expectation, E_t pinf_{t+2}"
+    pinf_n2 = pinf_n1{+1};
+
+    "One-step inflation expectation, E_t pinf_{t+1}"
+    pinf_n1 = pinf{+1};
+
+
+!transition_variables
+
+    "E_{t-1} pinf_{t+1}" pinf_e1L
+    "E_t pinf_{t+1}" pinf_n1
+    "E_t pinf_{t+2}" pinf_n2
+
+
+!measurement_variables
+
+    "Output growth, percent Q/Q, per capita" dy
+    "Consumption growth, percent Q/Q, per capita" dc
+    "Investment growth, percent Q/Q, per capita" dinve
+    "Real wage growth, percent Q/Q" dw
+    "Hours worked, 100*log, demeaned" labobs
+    "Inflation, GDP deflator, percent Q/Q" pinfobs
+    "Federal funds rate, percent per quarter" robs
+
+
+!measurement_equations
+
+    "Output growth"
+    dy = y - y{-1} + ctrend;
+
+    "Consumption growth"
+    dc = c - c{-1} + ctrend;
+
+    "Investment growth"
+    dinve = inve - inve{-1} + ctrend;
+
+    "Real wage growth"
+    dw = w - w{-1} + ctrend;
+
+    "Inflation"
+    pinfobs = 1*(pinf) + constepinf;
+
+    "Policy rate, conster is the steady-state nominal rate"
+    robs = 1*(r) + $conster$;
+
+    "Hours worked"
+    labobs = lab + constelab;
