@@ -67,7 +67,8 @@ this project (user rule, 2026-10-18).
 SW07 data note (2026-10-19): `models/sw07/data/build_database.m` sets all seven observables to
 NaN in 2020Q1-2020Q3 (`covid_nan_quarters`; set it to `[]` to keep the covid quarters). The RE
 filter treats those quarters as missing and its fit check skips them. Downstream: the learners
-keep learning on the smoothed values there, `hetlearn.evaluate` drops the targets in those
+keep learning on the smoothed values there (on the filtered values under `history.re_states =
+'filtered'`, 5.8), `hetlearn.evaluate` drops the targets in those
 quarters, and the inversion history (`history.mode = 'inversion'`) has nothing to exogenise there,
 so it differs from the RE smoother from 2020 on. The swX1 parameters were estimated with the covid
 quarters.
@@ -82,7 +83,8 @@ quarters.
 3. `hetlearn.load_model`: writes (if needed) the extended model
    `generated/<name>_ext_<tag>.model` with `hetlearn.extend_model` (collapse test included),
    computes the anchored-RE coefficients (`hetlearn.re_anchor_coefficients`), loads and solves.
-4. `hetlearn.re_filter`: RE Kalman filter and smoother, cached in `generated/refilter_*.mat`.
+4. `hetlearn.re_filter`: RE Kalman filter and smoother (smoothed and filtered databanks),
+   cached in `generated/refilter_*.mat`.
 5. `hetlearn.engine.core`: initial state (`state_init`), history stage (`history`: learning on
    the RE-smoothed history, or the inversion), shocks (`build_shocks`), conditions
    (`conditions_prepare`), forecast quarter by quarter (`forecast`: `step`, then
@@ -93,7 +95,7 @@ quarters.
 | Toolbox folder | Contents |
 |---|---|
 | `toolbox/+hetlearn/` | Public functions (section 7) |
-| `+engine/` | `core`, `history`, `forecast`, `step`, `update_learning`, `facility`, `shares_for_mode`, `state_init`, `build_shocks`, `conditions_prepare`, `conditions_key`, `backward_simulate`, `solve_model`, `record`, `assemble`, `save_results`, `load_result` |
+| `+engine/` | `core`, `history` (with `history_db`, the databank of the history loop), `forecast`, `step`, `update_learning`, `facility`, `shares_for_mode`, `state_init`, `build_shocks`, `conditions_prepare`, `conditions_key`, `backward_simulate`, `solve_model`, `record`, `assemble`, `save_results`, `load_result` |
 | `+plm/` | PLM system (`build_system`), PLM blocks for the facility (`blocks`), companion matrix, BR forecast text and values, anchored-RE parameter names |
 | `+rls/update.m` | One RLS step (IJCB eq. 13) |
 | `+gain/` | Gain rules `constant` and `koz`; `gain.rule` names the function |
@@ -878,9 +880,18 @@ current beliefs and shares in it.
 |---|---|---|
 | `history.learn` | `true`, `false` | Learn beliefs and shares over the history; `false` = the initial beliefs apply at the origin |
 | `history.mode` | `'re_smoother'`, `'inversion'` | Learning on the RE-smoothed history; or the history backed out with the learning model, one quarter at a time (observables exogenised, shocks endogenised). `'inversion'` needs `history.learn = true`. `'hetero_filter'` is a planned hook: error `hetlearn:options:notImplemented` |
+| `history.re_states` | `'smoothed'`, `'filtered'` | `'re_smoother'` only. Source of the RE agents' forecasts, the learners' data and the realised values in the fitness errors: the two-sided Kalman smoother, or the one-sided filter (x_{t|t}, data up to t). With `'inversion'` it is an error |
 | `history.inversion.start` | `[]` | First inversion quarter; `[]` = `beliefs.init.date` |
 | `history.inversion.shocks` | `{}` | Shocks backed out; `{}` = every transition shock (at least as many as observables) |
 | `history.realtime` | `false`, `true` | RE filter on data up to the origin only (no look-ahead) |
+
+**RE states.** Under `'smoothed'` the RE agents' forecast made in t comes from states estimated
+with data after t, which helps them in the fitness race. `'filtered'` removes that hindsight. For
+an observed variable the two settings agree (SW07 inflation outside 2020Q1-Q3), so the option
+moves the RE forecasts and, in the 2020Q1-Q3 gap, the learners' data, where the filtered value is
+the RE prediction and the RE error is 0. The forecast still starts from the smoothed state;
+`history.realtime = true` makes that state real time too, so `'filtered'` with `realtime = true`
+is the fully real-time setup.
 
 ### 5.9 Shocks over the horizon
 
@@ -1180,6 +1191,10 @@ sessions. One PowerShell window per session, each with its own log file:
 
 A change of parameters, data or PLM spec gives a new key, so a stale cache is never used.
 Delete a file, or the folder, only to force a rebuild; the next run is slower.
+Since 2026-10-19 a filter cache also holds the filtered databank (`H.filtered`). A cache
+written before has none: the first run that reads it filters again and rewrites it under the
+same name, with the same smoothed history. Two sessions should not refresh the same file at
+once, so run one session first before parallel ones.
 
 ### 8.4 OneDrive
 
@@ -1199,8 +1214,8 @@ themselves; anything else needs `setup_paths` first.
 
 ### 8.6 Tests
 
-- `run_tests` runs the 17 suites in `tests/run_tests.m` (257 checks pass on 2026-10-18): more
-  than 9 min.
+- `run_tests` runs the 18 suites in `tests/run_tests.m` (269 checks pass on 2026-10-19; the
+  18th suite, `test_re_states`, was added that day): more than 9 min.
 - A subset: `run_tests({'test_options', 'test_rls', 'test_switching'})`.
 - Run `run_tests({'test_generator'})` in a MATLAB session of its own (README_PIPELINE).
 - `test_decompose`'s SW07 part reads outputs of `test_inversion` in `tests/output/results/`; run
@@ -1208,9 +1223,10 @@ themselves; anything else needs `setup_paths` first.
 - The tests never read `scenarios/` or `results/`: they use `tests/toy_nk/`,
   `tests/scenarios/tsw07_*.m` and `models/sw07/`, and write `tests/output/results/` and
   `tests/toy_nk/generated/`.
-- `tests/scenarios/make_reference.m` rewrites `tests/reference/tsw07_switch_pinf_iris.mat`. Run
-  it only after a deliberate change of the engine or the defaults, and record it in
-  `README_PIPELINE.md`.
+- `tests/scenarios/make_reference.m` rewrites `tests/reference/tsw07_switch_pinf_iris.mat` and
+  `tsw07_switch_pinf_fast.mat` (the default `'fast'` step, compared exactly by
+  `test_re_states`). Run it only after a deliberate change of the engine or the defaults, and
+  record it in `README_PIPELINE.md`.
 
 ### 8.7 Known caveats
 
