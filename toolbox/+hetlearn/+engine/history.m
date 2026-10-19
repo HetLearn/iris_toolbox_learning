@@ -37,12 +37,16 @@ function [S, rec, ev, dInv, hinfo] = history(ctx, S, H, rec, m)
 %            ctx.inv_snapshots and the origin)
 %
 %   history.mode = 're_smoother', history.learn = true: for t = init_date ..
-%     origin: f^RE_t(x) = H.smooth.<x>_exp1_RE(t); f^BR_t(x) =
+%     origin, with D = H.smooth (history.re_states = 'smoothed', default:
+%     the two-sided smoother) or D = H.filtered ('filtered': the one-sided
+%     filter, x_{t|t} from data up to t; hetlearn.engine.history_db):
+%     f^RE_t(x) = D.<x>_exp1_RE(t); f^BR_t(x) =
 %     hetlearn.plm.forecast_value(sys, phi_{t-1}, getLag, x) with
-%     getLag(name, k) = H.smooth.<name>(t+k): k <= -1 for beliefs.info =
+%     getLag(name, k) = D.<name>(t+k): k <= -1 for beliefs.info =
 %     'lagged'; k <= 0 for 'current', so the BR forecast made in t uses x_t
-%     from the smoothed history (sys.info; IJCB eq. 12); then
-%     hetlearn.engine.update_learning (no errors at t = init_date; FE_t
+%     from that history (sys.info; IJCB eq. 12); then
+%     hetlearn.engine.update_learning, whose realised x_t also comes from D
+%     (no errors at t = init_date; FE_t
 %     and the RLS update are the same for both information sets). The
 %     model is not simulated here, so under projection.facility 'alm' and
 %     'plm_alm' it is solved each period only to check the ALM of
@@ -51,7 +55,8 @@ function [S, rec, ev, dInv, hinfo] = history(ctx, S, H, rec, m)
 %     origin, the forecast model at the origin; the solve is skipped when
 %     every BR model share is 0. Under 'none' nothing is solved.
 %   history.learn = false: no loop; the initial beliefs and shares apply at
-%   the origin and f^i_origin come from the same formulas at t = origin.
+%   the origin and f^i_origin come from the same formulas at t = origin
+%   (from D as above).
 %
 %   history.mode = 'inversion' (DESIGN 15): learning on the RE-smoothed
 %   history over [init_date, inv_start - 1] (empty by default, inv_start =
@@ -68,7 +73,8 @@ function [S, rec, ev, dInv, hinfo] = history(ctx, S, H, rec, m)
 %   forecast with phi_{t-1} (1e-9); (5) hetlearn.engine.update_learning
 %   with the ALM check (first = true only when inv_start = init_date). The
 %   state before inv_start is the RE-smoothed one. Period t uses data up to
-%   t only.
+%   t only, so history.re_states does not apply: 'filtered' with
+%   'inversion' is an error (hetlearn.load_options; checked here too).
 
 if nargin < 5
     m = [];
@@ -77,15 +83,19 @@ lv = ctx.learnVars;
 sys = ctx.sys;
 ev = struct('date', {}, 'type', {}, 'variable', {}, 'detail', {});
 dInv = [];
-sm = H.smooth;
 if ~isfield(ctx, 'blocks') || isempty(ctx.blocks)
     ctx.blocks = hetlearn.plm.blocks(sys);
 end
 
 if strcmp(ctx.opts.history.mode, 'inversion')
+    if isfield(ctx.opts.history, 're_states') && strcmp(ctx.opts.history.re_states, 'filtered')
+        error('hetlearn:engine:history', ['history.re_states = ''filtered'' applies to history.mode = ' ...
+            '''re_smoother'' only (the inversion is one-sided by construction).']);
+    end
     [S, rec, ev, dInv, hinfo] = inversion(ctx, S, H, rec, m);
     return
 end
+sm = hetlearn.engine.history_db(ctx.opts, H);   % H.smooth, or H.filtered under history.re_states = 'filtered'
 
 hinfo = alm_info();
 if ~logical(ctx.opts.history.learn)
@@ -148,8 +158,9 @@ end
 
 
 function [S, rec, ev, h] = smoothed_loop(ctx, S, sm, rec, dates, k0, mH, mF, h)
-% Learning on the RE-smoothed history over dates (record indices k0 + k),
-% with the ALM check of each period's update when mH is given.
+% Learning on the RE history sm over dates (record indices k0 + k), with the
+% ALM check of each period's update when mH is given. sm = H.smooth, or
+% H.filtered under history.re_states = 'filtered' (never in the inversion).
 lv = ctx.learnVars;
 sys = ctx.sys;
 ev = struct('date', {}, 'type', {}, 'variable', {}, 'detail', {});
