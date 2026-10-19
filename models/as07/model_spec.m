@@ -1,7 +1,7 @@
 function spec = model_spec()
 % MODEL_SPEC  Package contract for the An-Schorfheide (2007) small NK model, Herbst-Schorfheide (2016) estimates.
 %
-% See docs/USER_GUIDE.md sec. 3 and README.md. Paths are relative to
+% See docs/USER_GUIDE.md sec. 4.6 and README.md. Paths are relative to
 % spec.folder. Needs IRIS on the path (qq).
 
 spec = struct();
