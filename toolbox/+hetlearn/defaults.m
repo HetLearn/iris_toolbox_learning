@@ -45,7 +45,9 @@ o.forecast = struct( ...
 o.expectations = struct( ...
     'mode', 'rational', ...    % 'rational' | 'learning' | 'fixed_shares' | 'switching'
     'variables', {{}}, ...     % cellstr of forward-looking variables, or 'all'
-    're_variant', 'anchored');   % 'anchored' (baseline since 2026-10-18) | 'model_consistent' (DESIGN 11)
+    're_variant', 'anchored', ...  % 'anchored' (baseline since 2026-10-18) | 'model_consistent' (DESIGN 11)
+    're_info', 'current');     % RE agents' information set for the learning variables: 'current' (E_t x_{t+1})
+                               %   | 'lagged' (E_{t-1} x_{t+1}, the RE counterpart of beliefs.info = 'lagged'; DESIGN 19)
 
 % Beliefs
 o.beliefs = struct();
