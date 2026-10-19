@@ -1,10 +1,11 @@
 function db = history_db(o, H)
-%HISTORY_DB  Databank the learners watch on the RE history (history.re_states, DESIGN 5.2).
+%HISTORY_DB  Databank the learners watch on the RE history (history.re_states, DESIGN 5.2, 19).
 %
 %   db = hetlearn.engine.history_db(opts, H)
 %
 %   Inputs
 %     opts  merged options (hetlearn.load_options); reads history.re_states
+%           and expectations.re_info
 %     H     RE filter output (hetlearn.re_filter)
 %
 %   Output
@@ -17,6 +18,15 @@ function db = history_db(o, H)
 %           for beliefs.init.method = 'training_ols'
 %           (hetlearn.engine.state_init). The forecast stage always starts
 %           from H.smooth (hetlearn.engine.build_shocks).
+%
+%   Lagged RE information (expectations.re_info = 'lagged', DESIGN 19):
+%   <x>_exp1_RE_t = E_{t-1} x_{t+1} is a function of the period-(t-1) state.
+%   Under 'filtered' the forecast made in t with data up to t-1 is then the
+%   filter's one-step prediction E[<x>_exp1_RE_t | data up to t-1] =
+%   E[x_{t+1} | data up to t-1] (H.predicted, written by hetlearn.re_filter
+%   for lagged models), not x_{t|t}, which would use data dated t: every
+%   <x>_exp1_RE series of db is taken from H.predicted. The learners' data and
+%   the realised values stay x_{t|t}. Under 'smoothed' nothing changes.
 
 db = H.smooth;
 if ~isfield(o, 'history') || ~isfield(o.history, 're_states') || ~strcmp(o.history.re_states, 'filtered')
@@ -28,4 +38,18 @@ if ~isfield(H, 'filtered') || ~isstruct(H.filtered) || isempty(fieldnames(H.filt
         'hetlearn.re_filter (written since 2026-10-19).']);
 end
 db = H.filtered;
+if ~(isfield(o, 'expectations') && isfield(o.expectations, 're_info') && strcmp(o.expectations.re_info, 'lagged'))
+    return
+end
+if ~isfield(H, 'predicted') || ~isstruct(H.predicted) || isempty(fieldnames(H.predicted))
+    error('hetlearn:engine:history', ...
+        ['history.re_states = ''filtered'' with expectations.re_info = ''lagged'' needs the predictions ' ...
+        'H.predicted of hetlearn.re_filter (filter of the lagged RE model).']);
+end
+f = fieldnames(db);
+for i = 1:numel(f)
+    if endsWith(f{i}, '_exp1_RE') && isfield(H.predicted, f{i})
+        db.(f{i}) = H.predicted.(f{i});
+    end
+end
 end
