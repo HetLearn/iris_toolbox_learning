@@ -14,7 +14,7 @@ function cfg = i1_re()
 %   Returns a PARTIAL option tree; hetlearn.run merges
 %       hetlearn.defaults()  <  config/master_options.m  <  this cfg.
 %   Commented lines show the knobs where IJCB's setup differs from the
-%   defaults; see scenarios/sw07/sw07_peak_re.m for the full list.
+%   defaults; see scenarios/sw07/base/sw07_re.m for the full list.
 %   Run with:  res = hetlearn.run(i1_re());
 %
 %   Output gap (models/ijcb3/data/README.md): yobs is the Hamilton gap with
