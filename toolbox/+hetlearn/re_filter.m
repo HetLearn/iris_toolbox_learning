@@ -26,9 +26,15 @@ function H = re_filter(spec, opts, varargin)
 %              'all'), to skip loading it again (hetlearn.evaluate)
 %
 %   Output H (struct)
-%     .smooth     databank from filter(m, d, range, 'output','smooth',
-%                 'meanOnly',true): smoothed transition and measurement
-%                 variables and shocks
+%     .smooth     smoothed databank (two-sided: data over the whole range)
+%                 of filter(m, d, range, 'output', 'filter,smooth',
+%                 'meanOnly', true): transition and measurement variables
+%                 and shocks
+%     .filtered   filtered databank of the same call (one-sided: x_{t|t},
+%                 data up to t), same names; series start one period before
+%                 the range (no presample lags). Read by the history stage
+%                 under history.re_states = 'filtered'
+%                 (hetlearn.engine.history_db)
 %     .range      filter range (date vector)
 %     .data       the input databank (hetlearn.load_database; clipped at
 %                 'end' when given)
@@ -48,7 +54,9 @@ function H = re_filter(spec, opts, varargin)
 %   extended model text, the parameters, spec.assign, the database file
 %   bytes and the filter range. With 'end': refilter_rt_<end>_<hash>.mat,
 %   hash over the same items but the clipped data values instead of the file
-%   bytes, so a data change after the end date does not touch it.
+%   bytes, so a data change after the end date does not touch it. A cache
+%   without .filtered (written before 2026-10-19) is not used: the filter is
+%   run again and the file rewritten under the same name (.cached = false).
 
 ip = inputParser;
 ip.addParameter('force', false);
@@ -105,16 +113,29 @@ end
 
 if ~ip.Results.force && exist(cacheFile, 'file') == 2
     L = load(cacheFile, 'H');
-    H = L.H;
-    H.model = m;
-    H.file = cacheFile;
-    H.cached = true;
-    H.realtime = realtime;
-    H.end_date = H.range(end);
-    return
+    if isfield(L.H, 'filtered')
+        H = L.H;
+        H.model = m;
+        H.file = cacheFile;
+        H.cached = true;
+        H.realtime = realtime;
+        H.end_date = H.range(end);
+        return
+    end
+    % a cache written before 2026-10-19 has no filtered databank: filter
+    % again (same inputs, same key; the smoothed history is unchanged) and
+    % rewrite the file below
 end
 
-[~, f] = filter(m, d, range, 'output', 'smooth', 'meanOnly', true);
+% One filter call, both outputs. IRIS 20230622 (model/filter -> hdataobj.hdatafinal):
+% with two outputs requested the databank is a struct with fields .filter and
+% .smooth (with one it is the databank itself); the smoothed output is the same
+% as with 'output', 'smooth' alone (checked: max diff 0 on SW07). The filter
+% databank has no presample lag rows; observed measurement variables equal the
+% data in both; where data are missing the filtered value is the prediction.
+[~, f] = filter(m, d, range, 'output', 'filter,smooth', 'meanOnly', true);
+ff = f.filter;
+f = f.smooth;
 
 % rebuild observables through the measurement equations: data on the left,
 % smoothed transition variables and shocks on the right
@@ -136,6 +157,7 @@ end
 
 H = struct();
 H.smooth = f;
+H.filtered = ff;
 H.range = range;
 H.data = d;
 H.fit_error = fitErr;
