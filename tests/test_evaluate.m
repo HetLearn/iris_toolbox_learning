@@ -263,6 +263,11 @@ try
     rt = toc(t);
     T = E.metrics(strcmp(E.metrics.sample, 'full') & strcmp(E.metrics.variable, 'pinfobs'), :);
     ids = {'tsw07_peak_re', 'tsw07_switch_pinf'};
+    % expected targets per horizon: origins whose target quarter has data (the SW07
+    % database has no observations in 2020Q1-Q3, user decision 2026-10-19)
+    db = hetlearn.load_database(hetlearn.load_spec('sw07'));
+    org = qq(2010, 1):qq(2024, 2);
+    nexp = arrayfun(@(h) sum(isfinite(db.pinfobs(org + h))), (1:8)');
     txt = '';
     ok = isempty(E.settings.failures) && E.settings.n_runs == 116;
     for v = 1:2
@@ -271,7 +276,7 @@ try
         fprintf('V4 %-22s inflation RMSE (annualised pp): h=1 %.3f, h=4 %.3f, h=8 %.3f (n %s)\n', ...
             ids{v}, r, mat2str(x.n([1 4 8])'));
         txt = sprintf('%s%s RMSE h1/h4/h8 %.3f/%.3f/%.3f; ', txt, ids{v}, r);
-        ok = ok && all(x.n == 58) && all(isfinite(x.rmse) & x.rmse > 0);
+        ok = ok && isequal(x.n(:), nexp) && all(isfinite(x.rmse) & x.rmse > 0);
     end
     rel = E.relative_rmse.relative_rmse(strcmp(E.relative_rmse.variant, 'tsw07_peak_re'));
     ok = ok && all(abs(rel - 1) < 1e-12 | isnan(rel));
