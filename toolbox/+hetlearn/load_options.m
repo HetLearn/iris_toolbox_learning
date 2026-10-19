@@ -30,14 +30,16 @@ function opts = load_options(cfg, master)
 %     enumerations (expectations.mode, expectations.re_variant,
 %     beliefs.update, beliefs.plm.default, beliefs.init.method,
 %     shares.structure, projection.facility ('plm_alm' | 'alm' | 'none'),
-%     history.mode,
+%     history.mode, history.re_states ('smoothed' | 'filtered'),
 %     shocks.source); gain.rule and switching.rule must name an existing
 %     function hetlearn.gain.<rule> / hetlearn.switching.<rule>; numeric
 %     ranges (gain.value in (0,1], switching.memory in [0,1),
 %     switching.intensity >= 0, shares.init_n2 in [0,1],
 %     forecast.horizon positive integer);
 %     cross-field: 'fixed_shares' needs shares.fixed_n2, 'universal'
-%     needs shares.master, 'training_ols' needs beliefs.init.training_range.
+%     needs shares.master, 'training_ols' needs beliefs.init.training_range,
+%     history.re_states = 'filtered' needs history.mode = 're_smoother'
+%     (the inversion is one-sided already).
 %     gain.koz.*: structure 'common' | 'per_variable', error 'rls' |
 %     'forecast', mu >= 0, error_scale > 0, Rg0 finite, bounds [lower
 %     upper] with 0 < lower <= upper <= 1, gamma0 [] or in (0, 1], master
@@ -228,6 +230,7 @@ o.shares.master = tocell(o.shares.master, 'shares.master');
 o.switching.rule = tochar(o.switching.rule, 'switching.rule');
 o.projection.facility = tochar(o.projection.facility, 'projection.facility');
 o.history.mode = tochar(o.history.mode, 'history.mode');
+o.history.re_states = tochar(o.history.re_states, 'history.re_states');
 o.history.inversion.shocks = tocell(o.history.inversion.shocks, 'history.inversion.shocks');
 o.engine.step = tochar(o.engine.step, 'engine.step');
 o.engine.conditions_weighting = tochar(o.engine.conditions_weighting, 'engine.conditions_weighting');
@@ -365,6 +368,13 @@ if strcmp(o.history.mode, 'hetero_filter')
         'history.mode = ''hetero_filter'' is a planned hook and is not implemented.');
 end
 enum(o.history.mode, {'re_smoother', 'inversion'}, 'history.mode');
+enum(o.history.re_states, {'smoothed', 'filtered'}, 'history.re_states');
+if strcmp(o.history.re_states, 'filtered') && strcmp(o.history.mode, 'inversion')
+    % an error rather than a silently ignored option: the run would equal the 'smoothed' one
+    error('hetlearn:options:value', ['history.re_states = ''filtered'' applies to history.mode = ' ...
+        '''re_smoother'' only. The inversion is one-sided by construction (period t uses data up to t); ' ...
+        'leave history.re_states at ''smoothed'' there.']);
+end
 enum(o.engine.step, {'fast', 'iris'}, 'engine.step');
 enum(o.engine.conditions_weighting, {'std', 'none'}, 'engine.conditions_weighting');
 enum(o.shocks.source, {'none', 'smoothed'}, 'shocks.source');
