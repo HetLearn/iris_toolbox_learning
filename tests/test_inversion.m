@@ -311,10 +311,23 @@ try
     fprintf('S1: max |shock - smoothed| %.3g, max |path - smoothed| %.3g, max observable miss %.3g\n', ...
         inv.shock_diff_vs_smoothed, inv.path_diff_vs_smoothed, inv.max_obs_miss);
     growth = growth_profile(r, c);
-    R = add(R, nm, inv.shock_diff_vs_smoothed < 1e-8 && inv.max_obs_miss < 1e-9, sprintf( ...
-        'shocks %.2g, paths %.2g, obs miss %.2g; %d periods in %.1f s; shock error by decade %s', ...
-        inv.shock_diff_vs_smoothed, inv.path_diff_vs_smoothed, inv.max_obs_miss, numel(inv.dates), ...
-        inv.runtime_s, growth));
+    % Compare with the smoother up to the first quarter with a missing observable: the
+    % SW07 database has no observations in 2020Q1-Q3 (user decision 2026-10-19). There the
+    % inversion has nothing to hit and backs out zero shocks, so from then on the two differ.
+    spec = hetlearn.load_spec(c.model);
+    H = hetlearn.re_filter(spec, hetlearn.load_options(c));
+    dts = inv.dates;
+    full = arrayfun(@(t) all(cellfun(@(o) isfinite(H.data.(o)(t)), spec.observables)), dts);
+    stop = find(~full, 1);
+    if isempty(stop), pre = dts; else, pre = dts(1:stop-1); end
+    wpre = 0;
+    for j = 1:numel(inv.shocks)
+        wpre = max([wpre; abs(r.paths.(inv.shocks{j})(pre) - H.smooth.(inv.shocks{j})(pre))]);
+    end
+    R = add(R, nm, wpre < 1e-8 && inv.max_obs_miss < 1e-9, sprintf( ...
+        ['shocks %.2g up to %s (all quarters %.2g), paths %.2g, obs miss %.2g; %d periods in %.1f s; ' ...
+        'shock error by decade %s'], wpre, char(dat2str(pre(end))), inv.shock_diff_vs_smoothed, ...
+        inv.path_diff_vs_smoothed, inv.max_obs_miss, numel(inv.dates), inv.runtime_s, growth));
 catch err
     R = add(R, nm, false, err.message);
 end
