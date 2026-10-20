@@ -11,6 +11,8 @@ function R = test_sw07()
 %      shares and the annualised inflation paths
 %   S3 tsw07_peak_re = one IRIS simulate of the ORIGINAL models/sw07/sw07.model
 %      from the smoothed state at 2022Q2 with zero shocks (< 1e-10)
+%   S5 option model_params = 'sw07_params_original' (2026-10-20): the model gets the published
+%      SW07 values, the RE filter cache key differs, a missing function is an error
 
 R = struct('name', {}, 'pass', {}, 'msg', {});
 here = fileparts(mfilename('fullpath'));
@@ -115,6 +117,36 @@ try
     fprintf('S3 tsw07_peak_re vs original model: max abs diff = %.3g\n', dmax);
 catch err
     R = add(R, 'sw07 S3: tsw07_peak_re = one IRIS simulate of the original sw07.model (all variables)', false, err.message);
+end
+
+% ---- S5: option model_params (2026-10-20) ---------------------------------------------------------
+nm = ['sw07 S5: model_params = ''sw07_params_original'' assigns the published SW07 mode (every value), ' ...
+    'has its own RE filter cache (fit < 1e-8); a name not in the package is an error'];
+try
+    oP = opts;
+    oP.model_params = 'sw07_params_original';
+    [mP, infoP] = hetlearn.load_model(spec, oP);
+    PP = feval_in(spec.folder, 'sw07_params_original');
+    dP = 0;
+    for f = fieldnames(PP)'
+        dP = max(dP, abs(mP.(f{1}) - PP.(f{1})));        % parameters and std_<shock> by name
+    end
+    pv = struct('crpi', mP.crpi);
+    HP = hetlearn.re_filter(spec, oP);
+    bad = false;
+    try
+        oB = opts;
+        oB.model_params = 'no_such_params';
+        hetlearn.load_model(spec, oB);
+    catch eB
+        bad = strcmp(eB.identifier, 'hetlearn:load_model:params');
+    end
+    ok = dP == 0 && isequal(infoP.params, PP) && ~strcmp(HP.hash, H.hash) && HP.fit_error < 1e-8 ...
+        && abs(PP.crpi - 2.02946740344113) < 1e-14 && bad;
+    R = add(R, nm, ok, sprintf('max |model - file| %.2g, crpi %.4f (swX1 %.4f), cache %s vs %s, fit %.2g, missing name error %d', ...
+        dP, pv.crpi, info.params.crpi, HP.hash(1:8), H.hash(1:8), HP.fit_error, bad));
+catch err
+    R = add(R, nm, false, err.message);
 end
 end
 
