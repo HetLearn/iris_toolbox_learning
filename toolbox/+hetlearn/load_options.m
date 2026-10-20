@@ -36,7 +36,9 @@ function opts = load_options(cfg, master)
 %     function hetlearn.gain.<rule> / hetlearn.switching.<rule>; numeric
 %     ranges (gain.value in (0,1], switching.memory in [0,1),
 %     switching.intensity >= 0, shares.init_n2 in [0,1],
-%     forecast.horizon positive integer);
+%     forecast.horizon positive integer); model_params '' or a valid
+%     function name (that the package folder has it is checked by
+%     hetlearn.load_model, 2026-10-20);
 %     cross-field: 'fixed_shares' needs shares.fixed_n2, 'universal'
 %     needs shares.master, 'training_ols' needs beliefs.init.training_range,
 %     history.re_states = 'filtered' needs history.mode = 're_smoother'
@@ -191,6 +193,7 @@ o.id = tochar(o.id, 'id');
 o.title = tochar(o.title, 'title');
 o.description = tochar(o.description, 'description');
 o.model = tochar(o.model, 'model');
+o.model_params = tochar(o.model_params, 'model_params');
 o.expectations.mode = tochar(o.expectations.mode, 'expectations.mode');
 o.expectations.re_variant = tochar(o.expectations.re_variant, 'expectations.re_variant');
 o.expectations.re_info = tochar(o.expectations.re_info, 'expectations.re_info');
@@ -277,6 +280,10 @@ end
 
 % -------------------------------------------------------------------------
 function validate(o)
+if ~isempty(o.model_params) && ~isvarname(o.model_params)
+    error('hetlearn:options:value', ['Option "model_params" = ''%s'' must be '''' (the package''s ' ...
+        'spec.params) or the name of a parameter function in the model package.'], o.model_params);
+end
 enum(o.expectations.mode, {'rational', 'learning', 'fixed_shares', 'switching'}, 'expectations.mode');
 enum(o.expectations.re_variant, {'model_consistent', 'anchored'}, 'expectations.re_variant');
 enum(o.expectations.re_info, {'current', 'lagged'}, 'expectations.re_info');
