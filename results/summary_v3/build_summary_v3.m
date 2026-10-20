@@ -2,9 +2,18 @@
 %
 %   run('results/summary_v3/build_summary_v3.m')      from the project root, after run_applications
 %
+%   Baseline since 2026-10-20 (config/master_options.m): published SW07 parameters (model_params =
+%   'sw07_params_original'), RE agents and learners on t-1 information, filtered RE states, KOZ gain
+%   from 0.05, chi 2, memory 0.8, no projection facility; app 4 with RE information 'current'. The RE
+%   checks C2 and C3b use the hand-written RE(t-1) reference tests/models/sw07_re_lagged_pinf.model
+%   (SW07 with E_{t-1} pinf_{t+1}; = Dynare, test_re_info T1-T2) at the same parameters, with its own
+%   Kalman smoother on the database, because under re_info = 'lagged' the RE benchmark is the RE(t-1)
+%   model, not models/sw07/sw07.model. A run without results (stopped with hetlearn:engine:noSolution
+%   under facility 'none') is listed in scenarios.csv with its error and left out of the tables.
+%
 %   Reads   results/<id>/results.mat (+ density.mat, decomposition.csv, decomposition_check.csv),
 %           results/run_log.csv, results/eval_sw07_v3/ (merged tables and parts), the database and
-%           the original SW07 model (models/sw07/sw07.model, for the RE checks). Runs, without saving,
+%           the RE(t-1) reference model above (for the RE checks). Runs, without saving,
 %           two 10-draw density checks, five model-consistent RE copies of the app-4 RE runs (check
 %           C12 against the saved a4_ramsey_<w>_re_mc runs) and ten impulse runs (app5_mechanism.csv).
 %   Writes  results/summary_v3/: scenarios.csv, paths_long.csv, learning_long.csv, events_long.csv,
@@ -35,12 +44,21 @@ gdir = fullfile(rdir, 'eval_sw07_v3');
 spec = hetlearn.load_spec('sw07');
 db = hetlearn.load_database(spec);
 sc = spec.report.scale;
-addpath(spec.folder);                            % sw07_params.m
-P = feval(spec.params);
-m0 = Model.fromFile(fullfile(spec.folder, spec.model_file), 'linear', spec.linear);
+addpath(spec.folder);                            % the package's parameter functions
+o0 = hetlearn.load_options(sw07_re());           % the project baseline (config/master_options.m) as the SW07 files get it
+pfun = spec.params;
+if ~isempty(o0.model_params)
+    pfun = o0.model_params;                      % 'sw07_params_original' since 2026-10-20
+end
+P = feval(pfun);
+% RE(t-1) reference (re_info = 'lagged' for {pinf}): hand-written model, its own smoother
+refFile = fullfile(root, 'tests', 'models', 'sw07_re_lagged_pinf.model');
+m0 = Model.fromFile(refFile, 'linear', spec.linear);
 m0 = assign(m0, P);
-[m0, flag0] = solve(m0); %#ok<ASGLU>
+[m0, flag0] = solve(m0);
+assert(hasSucceeded(flag0), 'build_summary_v3: the RE(t-1) reference does not solve at %s.', pfun);
 m0 = sstate(m0);
+[~, Sm0] = filter(m0, db, hetlearn.util.to_dates(spec.filter_range), 'output', 'smooth', 'meanOnly', true);
 SSv = struct('pinf', ss_value(m0, 'pinfobs', P.constepinf), 'r', ss_value(m0, 'robs', NaN));
 SSobs = struct('pinf', 'pinfobs', 'r', 'robs');
 rep = @(s, n) repmat({s}, n, 1);
@@ -86,11 +104,11 @@ SC = {
     'v2_reg', 'var2_plm', 'var2', 'Regression PLM (pinf, ygap, r)'
     'v2_var3', 'var2_plm', 'var2', 'VAR(1) PLM (pinf, ygap, r)'
     'v2_var12', 'var2_plm', 'var2', 'VAR(1) PLM (12 variables)'
-    'v3_all', 'var3_allvars', 'var3', 'All 12 variables (plm_alm)'
+    'v3_all', 'var3_allvars', 'var3', 'All 12 variables (none, the baseline)'
+    'v3_all_plm_alm', 'var3_allvars', 'var3', 'All 12 variables (plm_alm)'
     'v3_all_alm', 'var3_allvars', 'var3', 'All 12 variables (alm)'
-    'v3_all_none', 'var3_allvars', 'var3', 'All 12 variables (none)'
-    'v4_koz', 'var4_gain', 'var4', 'Endogenous gain (KOZ)'
-    'v4_koz_full', 'var4_gain', 'var4', 'Endogenous gain, history to 2026Q2'
+    'v4_const', 'var4_gain', 'var4', 'Constant gain 0.05'
+    'v4_const_full', 'var4_gain', 'var4', 'Constant gain 0.05, history to 2026Q2'
     'e01_re', 'eval', 'eval', 'RE'
     'e02_learn', 'eval', 'eval', 'Learning (inflation)'
     'e03_learn_mc', 'eval', 'eval', 'Learning, model-consistent RE'
@@ -405,14 +423,33 @@ mset = {'markup', 'markup', 'demand', 'demand', 'demand'};
 mvar = {'pinfobs', 'pinf_exp1', 'pinf_exp1_RE', 'pinf_exp1_BR', 'robs', 'dy', 'n2_model_pinf'};
 B = {};
 MECH = struct();
+MSTOP = {};                                      % impulse runs that stopped (noSolution, facility 'none')
 for s = 1:numel(mshk)
     for e = 1:2
         cf = feval(['a1_' ex{e, 1}]);
         cf.id = ['chk_irf_' mshk{s} '_' ex{e, 1}];
         cf.compare_with = {};
         cf.shocks.add = {{mshk{s}, hz(1), 1}};
-        rr = hetlearn.run(cf, 'save', false, 'quiet', true);
+        try
+            rr = hetlearn.run(cf, 'save', false, 'quiet', true);
+        catch err
+            % under projection.facility = 'none' the shocked run can lose the model solution: record the
+            % stop (date from the message) and leave its responses NaN
+            tk = regexp(err.message, 'Period (\d{4}Q\d) \((\w+) stage\)', 'tokens', 'once');
+            if isempty(tk)
+                tk = {'', ''};
+            end
+            MSTOP(end+1, :) = {mshk{s}, ex{e, 1}, tk{1}, regexprep(err.message, '\s+', ' ')}; %#ok<SAGROW>
+            rr = [];
+        end
         for v = 1:numel(mvar)
+            if isempty(rr)
+                dlt = NaN(nh, 1);
+                MECH.(mshk{s}).(ex{e, 1}).(mvar{v}) = dlt;
+                B{end+1} = {rep(mshk{s}, nh), rep(mset{s}, nh), rep(ex{e, 2}, nh), rep(mvar{v}, nh), ...
+                    (1:nh)', hs, dlt}; %#ok<SAGROW>
+                continue
+            end
             dlt = mech_v(rr, mvar{v}, hz, sc) - mech_v(R.(['a1_' ex{e, 1}]), mvar{v}, hz, sc);
             MECH.(mshk{s}).(ex{e, 1}).(mvar{v}) = dlt;
             B{end+1} = {rep(mshk{s}, nh), rep(mset{s}, nh), rep(ex{e, 2}, nh), rep(mvar{v}, nh), ...
@@ -456,7 +493,7 @@ write_cols(fullfile(out, 'app6_shocks_long.csv'), {'date', 'shock', 'smoothed', 
     cat_blocks(B));
 
 % ---- variant 3: facility table ---------------------------------------------------------------
-fids = {'a1_learn', 'v3_all', 'v3_all_alm', 'v3_all_none'};
+fids = {'a1_learn', 'v3_all', 'v3_all_plm_alm', 'v3_all_alm'};
 evT2 = [evT, {'explosive'}];
 fc = {};
 for a = 1:numel(evT2)
@@ -515,14 +552,17 @@ for v = 1:numel(obs)
 end
 CH(end+1, :) = {'C1 RE replay of the smoothed shocks = data (a2_re, 7 observables, 2022Q3-2026Q2, max abs, model units)', ...
     e1 < 1e-9, sprintf('%.3g', e1)};
-% C2 RE scenario with learning blocks = the RE model
-s0 = simulate(m0, R.a1_re.paths, hz, 'anticipate', false);
+% C2 RE scenario with learning blocks = the RE(t-1) model (re_info = 'lagged' since 2026-10-20): the
+% hand-written reference, smoothed on the same data by its own filter and simulated from its origin state
+d0 = ref_state(m0, Sm0, R.a1_re.dates.origin, hz);
+s0 = simulate(m0, d0, hz, 'anticipate', false, 'prependInput', true);
 e2 = 0;
 for v = 1:numel(obs)
     e2 = max(e2, max(abs(s0.(obs{v})(hz) - R.a1_re.paths.(obs{v})(hz))));
 end
-CH(end+1, :) = {'C2 RE scenario with the pinf learning block (a1_re) = original SW07 model simulated from the same state (max abs)', ...
-    e2 < 1e-9, sprintf('%.3g', e2)};
+CH(end+1, :) = {['C2 RE scenario with the pinf learning block (a1_re, RE information t-1) = the hand-written RE(t-1) ' ...
+    'SW07 model (tests/models/sw07_re_lagged_pinf.model, same parameters) smoothed by its own filter and simulated ' ...
+    'from its 2022Q2 state with zero shocks (7 observables, max abs)'], e2 < 1e-9, sprintf('%.3g', e2)};
 % C3 app 3 under RE: symmetric and linear
 asy = 0;
 for v = 1:numel(v3)
@@ -533,9 +573,9 @@ emT = R.a3_tight_re.paths.em(hz);
 dlin = 0;
 for k = 1:2
     nm = pairs{1, 2 + k};
-    d = R.a1_re.paths;
+    d = d0;                                       % the reference's own 2022Q2 state (C2)
     d.em(hz) = R.(nm).paths.em(hz);
-    s1 = simulate(m0, d, hz, 'anticipate', false);
+    s1 = simulate(m0, d, hz, 'anticipate', false, 'prependInput', true);
     for v = 1:numel(obs)
         dlin = max(dlin, max(abs(s1.(obs{v})(hz) - R.(nm).paths.(obs{v})(hz))));
     end
@@ -543,7 +583,7 @@ end
 msd = max(abs([A3.re.ms(1:4, 1) + 1, A3.re.ms(1:4, 2) - 1]), [], 'all');   % ms in report units (x4): -1 / +1
 CH(end+1, :) = {'C3a App 3 under RE is symmetric: max |loose + tight - 2 base| over 7 series (report units)', ...
     asy <= 1e-10, sprintf('%.3g', asy)};
-CH(end+1, :) = {'C3b App 3 under RE is linear: the original model hit by the backed-out em shocks reproduces both runs; em_loose = -em_tight; ms = base -/+ 0.25 in 2022Q3-2023Q2', ...
+CH(end+1, :) = {'C3b App 3 under RE is linear: the RE(t-1) reference model (C2) hit by the backed-out em shocks reproduces both runs; em_loose = -em_tight; ms = base -/+ 0.25 in 2022Q3-2023Q2', ...
     dlin < 1e-9 && max(abs(emL + emT)) < 1e-10 && msd < 1e-10, ...
     sprintf('simulation %.3g, em sum %.3g, ms target %.3g', dlin, max(abs(emL + emT)), msd)};
 % C4 losses rebuilt from the paths
@@ -638,15 +678,50 @@ CH(end+1, :) = {sprintf('C7a Evaluation parts partition the origins (%d parts; e
 CH(end+1, :) = {'C7b Merged errors = union of the part errors; merged tables = hetlearn.evaluate_tables on the merged errors (metrics, relative RMSE, DM; max abs)', ...
     all(okB) && height(TE) == height(PE) && e7a == 0 && all(e7b < 1e-12), ...
     sprintf('rows %d vs %d, errors %.3g, tables %.3g / %.3g / %.3g', height(TE), height(PE), e7a, e7b)};
-% C8 statuses
-bad = ids(~strcmp(stt, 'ok') & ~strcmp(ids, 'v3_all_none'));
-msg8 = 'every scenario ok';
-if ~isempty(bad)
-    msg8 = strjoin(cellfun(@(x) sprintf('%s: %s %s', x, stt{strcmp(ids, x)}, ems{strcmp(ids, x)}), bad, ...
-        'UniformOutput', false), '; ');
+% C8 statuses. Since 2026-10-20 the baseline has projection.facility = 'none': a quarter without a model
+% solution stops the run (hetlearn:engine:noSolution) and that stop is the recorded result. The check
+% passes if every run or evaluation origin that is not ok stopped that way under facility 'none'.
+isNoSol = @(m) contains(m, 'noSolution') || (contains(m, 'has no solution') && contains(m, 'restricts nothing'));
+bad = {};
+stops = {};
+STOP = struct();                                 % id -> struct(date, stage, n) for the key numbers
+for i = 1:nS
+    if strcmp(stt{i}, 'ok')
+        continue
+    end
+    if isEval(i)
+        fm = es.failures.message(strcmp(es.failures.variant, ids{i}));
+        fo = es.failures.origin(strcmp(es.failures.variant, ids{i}));
+        if ~isempty(fm) && all(cellfun(isNoSol, fm))
+            stops{end+1} = sprintf('%s: %d of %d origins (first %s)', ids{i}, numel(fm), numel(oS), fo{1}); %#ok<SAGROW>
+            STOP.(ids{i}) = struct('date', fo{1}, 'stage', 'evaluation', 'n', numel(fm));
+        else
+            bad{end+1} = sprintf('%s: %s %s', ids{i}, stt{i}, ems{i}); %#ok<SAGROW>
+        end
+        continue
+    end
+    fo = hetlearn.load_options(feval(ids{i}));
+    tk = regexp(ems{i}, 'Period (\d{4}Q\d) \((\w+) stage\)', 'tokens', 'once');
+    if strcmp(fo.projection.facility, 'none') && isNoSol(ems{i}) && ~isfield(R, ids{i})
+        if isempty(tk)
+            tk = {'', ''};
+        end
+        stops{end+1} = sprintf('%s: %s, %s stage', ids{i}, tk{1}, tk{2}); %#ok<SAGROW>
+        STOP.(ids{i}) = struct('date', tk{1}, 'stage', tk{2}, 'n', 1);
+    else
+        bad{end+1} = sprintf('%s: %s %s', ids{i}, stt{i}, ems{i}); %#ok<SAGROW>
+    end
 end
-CH(end+1, :) = {sprintf('C8 Every scenario except v3_all_none has status ok (%d scenarios incl. 10 evaluation variants; v3_all_none: %s)', ...
-    nS, stt{strcmp(ids, 'v3_all_none')}), isempty(bad), msg8};
+msg8 = 'every scenario ok';
+if ~isempty(stops)
+    msg8 = ['stopped with hetlearn:engine:noSolution under facility none (recorded as the result): ' strjoin(stops, '; ')];
+end
+if ~isempty(bad)
+    msg8 = [msg8 '; NOT OK: ' strjoin(bad, '; ')];
+end
+CH(end+1, :) = {sprintf(['C8 Every scenario has status ok or stopped with hetlearn:engine:noSolution under ' ...
+    'projection.facility = ''none'' (the baseline records such a stop as the result; %d scenarios incl. 10 evaluation variants)'], ...
+    nS), isempty(bad), msg8};
 % C9 inversion fits the data; C10 share timing
 e9 = NaN;
 if isfield(R.a6_inv_learn, 'inversion') && isfield(R.a6_inv_learn.inversion, 'max_obs_miss')
@@ -811,7 +886,10 @@ for c = [1 3]
     end
 end
 % variants
-for id = {'v1_mc_learn', 'v2_ar2', 'v2_ar1nc', 'v2_reg', 'v2_var3', 'v2_var12', 'v3_all', 'v3_all_alm', 'v3_all_none', 'v4_koz', 'a1_learn'}
+for id = {'v1_mc_learn', 'v2_ar2', 'v2_ar1nc', 'v2_reg', 'v2_var3', 'v2_var12', 'v3_all', 'v3_all_plm_alm', 'v3_all_alm', 'v4_const', 'a1_learn'}
+    if ~isfield(PS, id{1})
+        continue                                 % no results (stopped under facility 'none', C8)
+    end
     ps = PS.(id{1});
     t = find(strcmp(ps.dates, '2022Q2'));
     jp = find(strcmp(ps.targets, 'pinf'));
@@ -827,7 +905,10 @@ for id = {'v1_mc_learn', 'v2_ar2', 'v2_ar1nc', 'v2_reg', 'v2_var3', 'v2_var12', 
         K = addk(K, sprintf('ev_%s__%s', evCols{q}, id{1}), EVC(k, q), 'events', sprintf('%s events, %s', evCols{q}, id{1}));
     end
 end
-for id = {'v3_all', 'v3_all_alm', 'v3_all_none'}
+for id = {'v3_all', 'v3_all_plm_alm', 'v3_all_alm'}
+    if ~isfield(R, id{1})
+        continue
+    end
     lv = R.(id{1}).meta.learnVars;
     n0 = cellfun(@(x) R.(id{1}).learning.(x).n2(d22), lv);
     K = addk(K, ['n2_origin_mean_all__' id{1}], mean(n0), 'share', ['Average learners'' share over the 12 variables at 2022Q2, ' id{1}]);
@@ -835,22 +916,41 @@ for id = {'v3_all', 'v3_all_alm', 'v3_all_none'}
     E = R.(id{1}).events;
     K = addk(K, ['ev_explosive__' id{1}], sum(strcmp(E.type, 'explosive')), 'events', ['explosive events, ' id{1}]);
 end
-Lk = R.v4_koz_full.learning.pinf;
+% variant 4 (since 2026-10-20): the KOZ gain is the baseline (a1_learn in the forecast, a6_smooth_learn
+% over the history to 2026Q2); v4_const and v4_const_full hold the gain at 0.05
+Lk = R.a6_smooth_learn.learning.pinf;
 gk = Lk.gain(hd);
 [gmx, imx] = max(gk);
 [gmn, imn] = min(gk);
-K = addk(K, 'v4_gain_origin', R.v4_koz.learning.pinf.gain(d22), 'gain', 'KOZ gain used in 2022Q2 (v4_koz)');
-K = addk(K, 'v4_gain_2022Q3_2026Q2_mean', mean(R.v4_koz.learning.pinf.gain(hz)), 'gain', 'Average KOZ gain 2022Q3-2026Q2 (forecast, v4_koz)');
-K = addk(K, 'v4_gain_end_forecast', R.v4_koz.learning.pinf.gain(hz(end)), 'gain', 'KOZ gain in 2026Q2 (forecast, v4_koz)');
+K = addk(K, 'v4_gain_origin', R.a1_learn.learning.pinf.gain(d22), 'gain', 'KOZ gain used in 2022Q2 (a1_learn, the baseline)');
+K = addk(K, 'v4_gain_2022Q3_2026Q2_mean', mean(R.a1_learn.learning.pinf.gain(hz)), 'gain', 'Average KOZ gain 2022Q3-2026Q2 (forecast, a1_learn)');
+K = addk(K, 'v4_gain_end_forecast', R.a1_learn.learning.pinf.gain(hz(end)), 'gain', 'KOZ gain in 2026Q2 (forecast, a1_learn)');
 K = addk(K, 'v4_gain_hist_max', gmx, 'gain', ['Highest KOZ gain 1966Q1-2026Q2, at ' hds{imx}]);
 K = addk(K, 'v4_gain_hist_min', gmn, 'gain', ['Lowest KOZ gain 1966Q1-2026Q2, at ' hds{imn}]);
-K = addk(K, 'v4_gain_hist_mean', mean(gk), 'gain', 'Average KOZ gain 1966Q1-2026Q2');
-K = addk(K, 'v4_gain_2026Q2_full', Lk.gain(qq(2026, 2)), 'gain', 'KOZ gain in 2026Q2 on the RE-smoothed history');
-K = addk(K, 'v4_gain_bound_events', sum(strcmp(R.v4_koz_full.events.type, 'gain_bound')), 'events', 'gain_bound events 1966Q1-2026Q2');
+K = addk(K, 'v4_gain_hist_mean', mean(gk), 'gain', 'Average KOZ gain 1966Q1-2026Q2 (a6_smooth_learn)');
+K = addk(K, 'v4_gain_2026Q2_full', Lk.gain(qq(2026, 2)), 'gain', 'KOZ gain in 2026Q2 over the history (a6_smooth_learn)');
+K = addk(K, 'v4_gain_bound_events', sum(strcmp(R.a6_smooth_learn.events.type, 'gain_bound')), 'events', 'gain_bound events 1966Q1-2026Q2 (a6_smooth_learn)');
 for dq = {'1975Q1', '1980Q4', '1990Q1', '2008Q4', '2020Q2', '2021Q4', '2022Q2', '2023Q4'}
-    K = addk(K, ['v4_gain_' dq{1}], gk(strcmp(hds, dq{1})), 'gain', ['KOZ gain in ' dq{1} ' (RE-smoothed history)']);
+    K = addk(K, ['v4_gain_' dq{1}], gk(strcmp(hds, dq{1})), 'gain', ['KOZ gain in ' dq{1} ' (history, a6_smooth_learn)']);
 end
-K = addk(K, 'v4_n2_origin_koz', R.v4_koz.learning.pinf.n2(d22), 'share', 'Learners'' share at 2022Q2 with the KOZ gain');
+K = addk(K, 'v4_n2_origin_koz', R.a1_learn.learning.pinf.n2(d22), 'share', 'Learners'' share at 2022Q2 with the KOZ gain (a1_learn)');
+K = addk(K, 'v4_n2_origin_const', R.v4_const.learning.pinf.n2(d22), 'share', 'Learners'' share at 2022Q2 with the constant gain 0.05 (v4_const)');
+K = addk(K, 'v4_const_gain', R.v4_const.cfg.gain.value, 'gain', 'Constant gain of v4_const');
+Lc = R.v4_const_full.learning.pinf;
+K = addk(K, 'v4_n2_2026Q2_const_full', Lc.n2(qq(2026, 2)), 'share', 'Learners'' share at the end of 2026Q2, constant gain 0.05 (v4_const_full)');
+K = addk(K, 'v4_n2_hist_mean_const', mean(Lc.n2(hd)), 'share', 'Average learners'' share 1966Q1-2026Q2, constant gain 0.05');
+K = addk(K, 'v4_n2_hist_mean_koz', mean(Lk.n2(hd)), 'share', 'Average learners'' share 1966Q1-2026Q2, KOZ gain (a6_smooth_learn)');
+K = addk(K, 'v4_beta_maxdiff_hist', max(abs(Lc.beta_pinf(hd) - Lk.beta_pinf(hd))), 'coefficient', 'Largest |beta_pinf| difference KOZ vs constant 0.05, 1966Q1-2026Q2');
+K = addk(K, 'v4_n2_maxdiff_hist', max(abs(Lc.n2(hd) - Lk.n2(hd))), 'share', 'Largest |n2| difference KOZ vs constant 0.05, 1966Q1-2026Q2');
+% stops under facility 'none' (C8): one entry per scenario or evaluation variant that stopped
+sf = fieldnames(STOP);
+for k = 1:numel(sf)
+    K = addk(K, ['stop_n__' sf{k}], STOP.(sf{k}).n, 'runs', sprintf('Runs that stopped with noSolution (first %s, %s), %s', ...
+        STOP.(sf{k}).date, STOP.(sf{k}).stage, sf{k}));
+end
+for i = find(isEval)'
+    K = addk(K, ['ev_failures__' ids{i}], sum(strcmp(es.failures.variant, ids{i})), 'runs', ['Evaluation origins that failed, ' ids{i}]);
+end
 % evaluation
 Tm = EVT.metrics;
 Tr = EVT.relative_rmse;
@@ -897,11 +997,16 @@ for k = 1:4
     K = addk(K, ['a2_gap_pinf_' hs{k}], g2(k), 'pp annualised', ['Learning replay minus data, inflation, ' hs{k}]);
 end
 K = addk(K, 'a2_gap_pinf_absmax_after_2023Q2', max(abs(g2(5:end))), 'pp annualised', 'Largest absolute inflation gap of the learning replay after 2023Q2');
-Lm = R.v1_mc_learn.learning.pinf;
-for dq = {'2022Q4', '2024Q1', '2025Q2'}
-    K = addk(K, ['v1_n2_model_' dq{1}], 1 - Lm.n1_model(hz(strcmp(hs, dq{1}))), 'share', ['Learners'' share in force in ' dq{1} ', model-consistent RE']);
+if isfield(R, 'v1_mc_learn')                     % no results when it stopped under facility 'none' (C8)
+    Lm = R.v1_mc_learn.learning.pinf;
+    for dq = {'2022Q4', '2024Q1', '2025Q2'}
+        K = addk(K, ['v1_n2_model_' dq{1}], 1 - Lm.n1_model(hz(strcmp(hs, dq{1}))), 'share', ['Learners'' share in force in ' dq{1} ', model-consistent RE']);
+    end
 end
 for id = {'v1_mc_learn', 'v2_var3'}
+    if ~isfield(R, id{1})
+        continue
+    end
     E = R.(id{1}).events;
     sel = strcmp(E.type, 'projection_plm') & strcmp(E.stage, 'forecast');
     rt = cellfun(@(s) str2double(regexp(s, 'largest root ([0-9.]+)', 'tokens', 'once')), E.detail(sel));
@@ -928,20 +1033,26 @@ for s = 1:numel(mshk)
     K = addk(K, ['a5m_cumabs_ratio_' mshk{s}], sum(abs(b)) / sum(abs(a)), 'ratio', ['Sum of absolute inflation responses h = 1-16, learning / RE, ' mshk{s}]);
     K = addk(K, ['a5m_max_dn2_' mshk{s}], max(abs(MECH.(mshk{s}).learn.n2_model_pinf)), 'share', ['Largest change in n2_model, h = 1-16, ' mshk{s}]);
 end
-% variant 1 path (inflation, perceived mean)
-for dq = {'2022Q3', '2023Q2', '2024Q2', '2025Q2', '2026Q2'}
-    K = addk(K, ['v1_pinf_' dq{1}], R.v1_mc_learn.paths.pinfobs(hz(strcmp(hs, dq{1}))) * sc.pinfobs, '% annualised', ['Inflation in ' dq{1} ', model-consistent RE (v1_mc_learn)']);
+for k = 1:size(MSTOP, 1)
+    K = addk(K, sprintf('a5m_stop__%s_%s', MSTOP{k, 1}, MSTOP{k, 2}), 1, 'run', sprintf(['Impulse run with one unit of %s ' ...
+        'in 2022Q3 (%s) stopped with noSolution in %s: %s'], MSTOP{k, 1}, MSTOP{k, 2}, MSTOP{k, 3}, MSTOP{k, 4}));
 end
-ps = PS.v1_mc_learn;
-jp = find(strcmp(ps.targets, 'pinf'));
-[~, tf] = ismember(hs, ps.dates);
-pmv = sc.pinfobs * (ps.mu(tf, jp) + SSv.pinf);
-[pmx, imx] = max(pmv);
-[pmn, imn] = min(pmv);
-K = addk(K, 'v1_pmean_2022Q3', pmv(1), '% annualised', 'Perceived mean inflation in 2022Q3 (beliefs at the end of the quarter), v1_mc_learn');
-K = addk(K, 'v1_pmean_max', pmx, '% annualised', ['Highest perceived mean inflation over the forecast, v1_mc_learn, at ' hs{imx}]);
-K = addk(K, 'v1_pmean_min', pmn, '% annualised', ['Lowest perceived mean inflation over the forecast, v1_mc_learn, at ' hs{imn}]);
-K = addk(K, 'v1_pmean_2026Q2', pmv(end), '% annualised', 'Perceived mean inflation in 2026Q2, v1_mc_learn');
+% variant 1 path (inflation, perceived mean); none when v1_mc_learn stopped (C8)
+if isfield(R, 'v1_mc_learn')
+    for dq = {'2022Q3', '2023Q2', '2024Q2', '2025Q2', '2026Q2'}
+        K = addk(K, ['v1_pinf_' dq{1}], R.v1_mc_learn.paths.pinfobs(hz(strcmp(hs, dq{1}))) * sc.pinfobs, '% annualised', ['Inflation in ' dq{1} ', model-consistent RE (v1_mc_learn)']);
+    end
+    ps = PS.v1_mc_learn;
+    jp = find(strcmp(ps.targets, 'pinf'));
+    [~, tf] = ismember(hs, ps.dates);
+    pmv = sc.pinfobs * (ps.mu(tf, jp) + SSv.pinf);
+    [pmx, imx] = max(pmv);
+    [pmn, imn] = min(pmv);
+    K = addk(K, 'v1_pmean_2022Q3', pmv(1), '% annualised', 'Perceived mean inflation in 2022Q3 (beliefs at the end of the quarter), v1_mc_learn');
+    K = addk(K, 'v1_pmean_max', pmx, '% annualised', ['Highest perceived mean inflation over the forecast, v1_mc_learn, at ' hs{imx}]);
+    K = addk(K, 'v1_pmean_min', pmn, '% annualised', ['Lowest perceived mean inflation over the forecast, v1_mc_learn, at ' hs{imn}]);
+    K = addk(K, 'v1_pmean_2026Q2', pmv(end), '% annualised', 'Perceived mean inflation in 2026Q2, v1_mc_learn');
+end
 % AR(2): history facility events and the beliefs in force at the origin
 E = R.v2_ar2.events;
 sel = find(strcmp(E.type, 'projection_plm') & strcmp(E.stage, 'history'));
@@ -955,6 +1066,9 @@ K = addk(K, 'v2_ar2_belief_change_2021Q3_2022Q2', dchg, 'coefficient', 'Largest 
 % look-ahead: real-time evaluation forecasts from 2022Q2 vs the full-sample-filter runs, h = 1-8
 la = {'e01_re', 'a1_re'; 'e02_learn', 'a1_learn'; 'e03_learn_mc', 'v1_mc_learn'};
 for i = 1:size(la, 1)
+    if ~isfield(R, la{i, 2}) || ~any(strcmp(TE.variant, la{i, 1}) & strcmp(TE.origin, '2022Q2'))
+        continue                                 % a run or the 2022Q2 evaluation origin stopped (C8)
+    end
     for v = 1:numel(pv)
         sel = strcmp(TE.variant, la{i, 1}) & strcmp(TE.origin, '2022Q2') & strcmp(TE.variable, pv{v});
         fh = TE.h(sel);
@@ -1005,6 +1119,22 @@ catch
         v = real(s.(name));
     catch
     end
+end
+end
+
+
+function d0 = ref_state(m, S, origin, hz)
+% Databank for simulate(m, d0, hz, ..., 'prependInput', true): every variable and shock of m from the
+% smoothed databank S up to the origin, the shocks zero over hz.
+names = [cellstr(get(m, 'xList')), cellstr(get(m, 'yList')), cellstr(get(m, 'eList'))];
+d0 = struct();
+for i = 1:numel(names)
+    x = S.(names{i});
+    d0.(names{i}) = clip(x, x.Start, origin);
+end
+el = cellstr(get(m, 'eList'));
+for i = 1:numel(el)
+    d0.(el{i})(hz) = 0;
 end
 end
 
