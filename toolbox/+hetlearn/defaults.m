@@ -35,6 +35,8 @@ o.id = '';
 o.title = '';
 o.description = '';
 o.model = '';
+o.model_params = '';           % parameter function of the model package for this run, e.g. 'sw07_params_original';
+                               %   '' = the package's spec.params (2026-10-20; must be a .m file in the package folder)
 
 % Forecast
 o.forecast = struct( ...
