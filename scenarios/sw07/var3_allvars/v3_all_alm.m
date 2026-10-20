@@ -3,9 +3,10 @@ function cfg = v3_all_alm()
 %
 %   cfg = v3_all_alm()
 %
-%   As v3_all, but the PLMs are never restricted: explosive beliefs are
-%   allowed while the model stays stable; an unstable model reverts every
-%   belief (and, if needed, keeps last quarter's shares). Writes compare_v3_all.csv.
+%   As v3_all, but with projection.facility = 'alm': the PLMs are never
+%   restricted, explosive beliefs are allowed while the model stays stable;
+%   an unstable model reverts every belief (and, if needed, keeps last
+%   quarter's shares). Writes compare_v3_all.csv (if v3_all has results).
 
 cfg = v3_all();
 cfg.id = 'v3_all_alm';
