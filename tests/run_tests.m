@@ -9,6 +9,9 @@ function run_tests(only)
 %   evaluation; toy NK checks plus SW07 smoke tests) run after test_sw07,
 %   then test_anchored (anchored RE variant, backward simulator) and
 %   test_plm2 (VAR learning, derived regressors, AR(2); SW07 smoke runs).
+%   test_br_regression (last) compares against references frozen before the
+%   bounded-rationality extensions (tests/reference/br_freeze.mat): exact,
+%   so run it at the default thread count.
 %   Calls setup_paths, runs test_options, test_rls, test_switching,
 %   test_plm, test_generator, test_engine (toy NK engine) and test_sw07
 %   (SW07 package and template scenarios), prints a summary, and raises an error
@@ -36,8 +39,11 @@ suites = {'test_options', 'test_rls', 'test_switching', 'test_plm', 'test_genera
     'test_gain', ...   % test_gain: endogenous gain gain.rule = 'koz' (DESIGN 18; unit, toy, SW07 runs)
     'test_facility', ...  % test_facility: projection facility (DESIGN 4.4; unit systems and toy, about 30 s)
     'test_re_states', ... % test_re_states: history.re_states 'smoothed' | 'filtered' (DESIGN 5.2; toy + SW07 runs, about 2 min)
-    'test_re_info'};      % test_re_info: expectations.re_info 'current' | 'lagged' (DESIGN 19; about 8 min, or
-                          %   test_re_info('toy' | 'sw07_model' | 'sw07_runs' | 'sw07_stages') one part at a time)
+    'test_re_info', ...   % test_re_info: expectations.re_info (DESIGN 19; about 8 min, or one part: see below)
+    'test_br_regression'}; % test_br_regression: frozen regression gate of the bounded-rationality extensions
+% test_re_info: 'current' | 'lagged'; test_re_info('toy' | 'sw07_model' | 'sw07_runs' | 'sw07_stages') runs one
+%   part at a time. test_br_regression (docs/DESIGN_br_extensions.md 1.7): R1 generated files, R2 30 runs exact,
+%   about 2 min; references tests/reference/br_freeze.mat, made by tests/scenarios/make_br_freeze.m.
 if nargin >= 1 && ~isempty(only)
     suites = suites(ismember(suites, cellstr(only)));
 end
