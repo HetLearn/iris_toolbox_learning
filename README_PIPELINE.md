@@ -81,8 +81,18 @@ publisher wraps it). Published at https://claude.ai/artifact/BvM5vuFBTYm943Z8eBp
 
 Estimation report (step 8c; posterior modes only since 2026-10-20 12:30, while the MCMC is paused): `reports/sw07_estimation_report.html`,
 built by `python reports/build_estimation_report.py` from `results/estimation/tables/` (written by
-`est_06_post`, step 8b, and `est_06b_app1_post`, step 8e). Not published. Intermediate: `results/estimation/app1/e1_*/`,
+`est_06_post`, step 8b, and `est_06b_app1_post`, step 8e). Published as its own private artifact,
+https://claude.ai/artifact/H2xvqqwesp9ukDsakscBtw (version 2, 2026-10-20). Intermediate: `results/estimation/app1/e1_*/`,
 `estimation/models/sw07_est_*/generated/`.
+
+One-off application 1 run (out of band, final; asked by the user 2026-10-20): `results/app1_t1_filtered_koz/`.
+Filtered RE history for both types, RE agents and learners on t-1 information, AR(1) learners with the KOZ
+gain, against the RE benchmark with t-1 information; reference runs: constant gain, baseline a1_learn,
+KOZ mu x 10. Figures `fig1_forecast.png` (forecast panels and learners' share) and `fig2_learning.png`
+(share, perceived persistence and gain 1966-2026), tables `summary.csv`, `paths.csv`, `learning.csv`,
+`events.csv`, all runs in `runs.mat`. Rerun from the project root after `setup_paths`:
+`d = fullfile(pwd, 'results', 'app1_t1_filtered_koz'); addpath(d); app1_custom_run(d)` (about 45 s),
+then `python results/app1_t1_filtered_koz/make_figures.py`.
 
 Literature reviews (out of band, not produced by any pipeline step; final): research notes in
 `docs/lit_review/research_notes/<topic>/`, the synthesis in `docs/lit_review/reports/<topic>.md`. Topic 1
