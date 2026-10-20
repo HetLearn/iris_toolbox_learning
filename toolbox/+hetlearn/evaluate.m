@@ -142,7 +142,7 @@ for v = 1:nV
     M{v} = struct('spec', spec, 'm', m, 'info', info);
     cfgs{v} = c;
     optsV{v} = ov;
-    plmKey{v} = hetlearn.util.struct_key(ov.beliefs.plm);
+    plmKey{v} = [hetlearn.util.struct_key(ov.beliefs.plm) '|params=' ov.model_params];   % no shared filter across parameter sets
     if strcmp(ov.expectations.re_info, 'lagged')
         % DESIGN 19: the RE filter model of a lagged variant is the RE(t-1) model of its own
         % learning set and RE variant, so it shares a filter only with variants that match
