@@ -41,9 +41,17 @@ function L = run_applications(groups, varargin)
 %                             (results/<id>/decomposition.csv, decomposition_check.csv)
 %   var1   var1_re_variant    v1_mc_learn: model-consistent RE agents                     ~10 s
 %   var2   var2_plm           v2_ar2, v2_ar1nc, v2_reg, v2_var3, v2_var12: other PLMs    ~70 s
-%   var3   var3_allvars       v3_all, v3_all_alm, v3_all_none: learning on all 12        ~35 s
-%                             variables under each projection facility
-%   var4   var4_gain          v4_koz, v4_koz_full: endogenous gain (KOZ 2024)             ~10 s
+%   var3   var3_allvars       v3_all (baseline: no facility), v3_all_plm_alm,             ~35 s
+%                             v3_all_alm: learning on all 12 variables under each
+%                             projection facility (v3_all_plm_alm replaced
+%                             v3_all_none on 2026-10-20)
+%   var4   var4_gain          v4_const, v4_const_full: constant gain 0.05 against the    ~10 s
+%                             baseline KOZ gain (replaced v4_koz, v4_koz_full on 2026-10-20)
+%
+%   Baseline since 2026-10-20 (config/master_options.m): published SW07 parameters, KOZ gain
+%   from 0.05, chi 2, memory 0.8, RE and learners on t-1 information, filtered RE states, no
+%   projection facility; app 4 runs with RE information 'current' (Ramsey + 'lagged' is not
+%   supported). A run that stops with hetlearn:engine:noSolution is logged as an error.
 %   eval   eval               recursive real-time evaluation of e01_re ... e10_allvars:  ~2.7 hours
 %                             origins 1990Q1-2024Q2, horizon 8, benchmark e01_re, in
 %                             6 parts of 23 origins per variant, then the merge (per
@@ -146,8 +154,8 @@ G = {
     'app6', {'a6_smooth_re', 'a6_smooth_learn', 'a6_inv_learn'}
     'var1', {'v1_mc_learn'}
     'var2', {'v2_ar2', 'v2_ar1nc', 'v2_reg', 'v2_var3', 'v2_var12'}
-    'var3', {'v3_all', 'v3_all_alm', 'v3_all_none'}
-    'var4', {'v4_koz', 'v4_koz_full'}
+    'var3', {'v3_all', 'v3_all_plm_alm', 'v3_all_alm'}
+    'var4', {'v4_const', 'v4_const_full'}
     'eval', {}
     };
 end
