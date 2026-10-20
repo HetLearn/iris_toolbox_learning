@@ -8,7 +8,9 @@ function [m, info] = load_model(spec, opts)
 %     opts  options (merged or partial); always passed through
 %           hetlearn.load_options, so a res.cfg saved by an older version works;
 %           used: beliefs.plm, beliefs.info, expectations.variables,
-%           expectations.re_variant, expectations.re_info.
+%           expectations.re_variant, expectations.re_info, model_params (a
+%           parameter function in spec.folder used instead of spec.params;
+%           '' = spec.params; hetlearn:load_model:params if the file is missing).
 %
 %   Lagged RE information (expectations.re_info = 'lagged', DESIGN 19): the
 %   model comes from hetlearn.extend_model(spec, plm, 're_info', 'lagged')
@@ -44,7 +46,7 @@ function [m, info] = load_model(spec, opts)
 %                   learnVars, xList); checked to reproduce the BR forecast
 %                   equations the generator wrote for the learning variables
 %                   and to use only parameters declared in the model
-%       .params     struct returned by spec.params
+%       .params     struct returned by spec.params (or by opts.model_params)
 %       .toggles    struct of the br_<x> values used
 %       .assign     full assign struct passed to Model.fromFile (incl.
 %                   re_anchored)
@@ -89,6 +91,17 @@ end
 % by an older version (e.g. res.cfg of an earlier run) gets the options
 % added since; an up-to-date merged tree comes back unchanged.
 opts = hetlearn.load_options(opts);
+% Parameter set of this run (option model_params, 2026-10-20): another parameter function of the
+% same package replaces spec.params here and in everything below (generator checks, anchored
+% coefficients, policy discount, info.params and so the RE filter cache key)
+if ~isempty(opts.model_params)
+    if exist(fullfile(spec.folder, [opts.model_params '.m']), 'file') ~= 2
+        error('hetlearn:load_model:params', ['model_params = ''%s'': %s.m is not in the model package ' ...
+            '%s. Set model_params = '''' to use the package''s own parameters (spec.params = ''%s'').'], ...
+            opts.model_params, opts.model_params, spec.folder, spec.params);
+    end
+    spec.params = opts.model_params;
+end
 
 % ---- PLM spec: a VAR over the learning set needs the learning variables first ----
 plm = opts.beliefs.plm;
