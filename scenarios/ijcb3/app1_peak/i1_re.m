@@ -49,6 +49,20 @@ cfg.expectations.variables = {'pinf'};        % forward-looking variables: y, pi
 % cfg.expectations.re_variant = 'anchored';  % toolbox default since 2026-10-18; with every agent RE,
 %                                             % 'anchored' and 'model_consistent' give the same path
 
+% ---- settings pinned against the SW07 project baseline of 2026-10-20 ------------------------
+% config/master_options.m now sets the SW07 baseline (published SW07 parameters, KOZ gain, t-1
+% RE information, filtered RE states, no facility). This application keeps the settings it was
+% run with on 2026-10-18 (results/i1_re, i1_learn; report section 12), so they are written out:
+cfg.model_params = '';                        % the package's own parameters (ijcb3_params, IJCB Table 1)
+cfg.gain.rule = 'constant';
+cfg.expectations.re_info = 'current';
+cfg.history.re_states = 'smoothed';
+cfg.projection.facility = 'plm_alm';
+cfg.gain.value = 0.0585;                      % the previous master calibration (i1_learn sets its own values)
+cfg.switching.memory = 0.6;
+cfg.switching.intensity = 0.51;
+cfg.shares.init_n2 = 0.5;
+
 % ---- where IJCB's learning setup differs from the defaults (not switched on) ---------------
 % cfg.beliefs.info = 'current';               % IJCB eq. 12: t-timing, E_t x_{t+1} = alpha + beta*x_t
 % cfg.beliefs.plm.default = 'var1';           % IJCB eq. 12: VAR(1) PLM over y, pinf, r (all three learn there)
