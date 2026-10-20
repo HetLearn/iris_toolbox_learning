@@ -16,7 +16,12 @@ function outDir = save_results(res, spec, resultsDir)
 %     events.csv         date, type, variable, detail, stage
 %     compare_<id>.csv   for each res.cfg.compare_with id: this minus that,
 %                        observables, horizon (the other scenario is run
-%                        first if it has no results)
+%                        first if it has no results). If that run fails, for
+%                        example with hetlearn:engine:noSolution under
+%                        projection.facility = 'none', the file is not written
+%                        and a warning (hetlearn:save_results:compare) names the
+%                        error; this run's own files are kept and the run does
+%                        not fail (2026-10-20)
 %     density.mat, density_quantiles.csv, density_events.csv
 %                        when res.density exists (density.enabled;
 %                        hetlearn.density.write_outputs); res.density is not
@@ -96,7 +101,14 @@ fclose(fid);
 % comparisons
 for i = 1:numel(res.cfg.compare_with)
     oid = res.cfg.compare_with{i};
-    other = hetlearn.engine.load_result(oid, resultsDir, true);
+    try
+        other = hetlearn.engine.load_result(oid, resultsDir, true);
+    catch err
+        % the comparison target cannot be run (e.g. noSolution under facility 'none'): this
+        % run is complete and saved, so it is not failed for another scenario's error
+        warning('hetlearn:save_results:compare', 'compare_%s.csv not written for %s: %s', oid, id, err.message);
+        continue
+    end
     X = values(res.paths, obs, hz);
     Y = NaN(size(X));
     for j = 1:numel(obs)
