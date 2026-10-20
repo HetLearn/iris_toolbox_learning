@@ -69,13 +69,39 @@ catch err
     R = add(R, 'opt: merge order defaults < master < cfg', false, err.message);
 end
 
-% the real config/master_options.m is found and merges
+% the real config/master_options.m is found and merges (the test copy tests/scenarios/master_options.m,
+% which shadows it during the tests, is taken off the path for this check, 2026-10-20)
+ts = fullfile(fileparts(mfilename('fullpath')), 'scenarios');
+onp = any(strcmpi(strsplit(path, pathsep), ts));
 try
-    o = hetlearn.load_options(struct('id', 'x'));
-    R = add(R, 'opt: config/master_options.m loads', strcmp(o.id, 'x'), '');
+    if onp
+        rmpath(ts);
+    end
+    % the live baseline sets expectations.re_info = 'lagged' (2026-10-20), which needs a learning set
+    o = hetlearn.load_options(struct('id', 'x', 'expectations', struct('variables', {{'pinf'}})));
+    live = which('master_options');
+    if onp
+        addpath(ts);
+    end
+    R = add(R, 'opt: config/master_options.m loads', strcmp(o.id, 'x') ...
+        && contains(live, [filesep 'config' filesep 'master_options.m']), live);
 catch err
+    if onp
+        addpath(ts);
+    end
     R = add(R, 'opt: config/master_options.m loads', false, err.message);
 end
+% model_params (2026-10-20): '' by default, a function name, or an error for a bad name
+try
+    o = hetlearn.load_options(struct('model_params', "sw07_params_original"), struct());
+    d = hetlearn.defaults();
+    R = add(R, 'opt: model_params default '''' and string input becomes char', ...
+        ischar(o.model_params) && strcmp(o.model_params, 'sw07_params_original') && isempty(d.model_params), '');
+catch err
+    R = add(R, 'opt: model_params default '''' and string input becomes char', false, err.message);
+end
+R = expect_error(R, 'opt: model_params must be a function name', ...
+    @() hetlearn.load_options(struct('model_params', 'sw07 params'), struct()), 'model_params');
 
 % unknown fields
 R = expect_error(R, 'opt: typo beliefs.plm.defualt rejected with full path', ...
