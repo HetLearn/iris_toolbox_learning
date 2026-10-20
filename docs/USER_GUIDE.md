@@ -10,7 +10,8 @@ Other documents: `docs/DESIGN.md` (algorithms, timing, file contracts), `docs/FE
 (every feature, where it is set, whether you asked for it or it was ADDED during the build),
 `README_PIPELINE.md` (pipeline map and status).
 
-Checked against the code on 2026-10-19; run times measured on 2026-10-18. Line numbers are
+Checked against the code on 2026-10-19; the baseline (1.4) and the options it touches updated
+on 2026-10-20; run times measured on 2026-10-18. Line numbers are
 given as `file` line N. They move when a file is edited, so each one comes with the code it
 points to. All paths are relative to the project root
 `C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\iris_toolbox_learning`.
@@ -24,7 +25,7 @@ points to. All paths are relative to the project root
 | Path | What it is | Who edits it |
 |---|---|---|
 | `setup_paths.m` | Starts IRIS (folder set on line 12), then adds `toolbox/`, the IRIS patch, `config/` and `scenarios/` with every subfolder to the path | You, only if IRIS moves |
-| `config/master_options.m` | Project-wide option values: the learning calibration (lines 47-50) and commented knobs (lines 53-56) | You |
+| `config/master_options.m` | Project-wide option values: the SW07 baseline of 2026-10-20 (lines 86-97, the `o.*` lines; 1.4), a dated table of the previous values above them, and commented knobs (lines 100-102) | You |
 | `scenarios/sw07/<folder>/<id>.m` | The 52 SW07 scenario files, one function per file. Each calls its parent and sets what differs | You |
 | `scenarios/ijcb3/app1_peak/`, `scenarios/as07/app1_peak/` | Application 1 on the two other models: `i1_re`, `i1_learn`, `a1as_re`, `a1as_learn` | You |
 | `scenarios/sw07/INDEX.csv` | One row per SW07 scenario file (52 rows): folder, id, parent, options it sets, compare_with, has_results, title | `python scenarios/build_index.py` |
@@ -42,9 +43,10 @@ points to. All paths are relative to the project root
 | `toolbox/+hetlearn/` | The toolbox | Nobody, for a scenario or model change |
 | `toolbox/iris_patches/+model/Insertable.m` | Shadow copy of one IRIS file so that IRIS 20230622 optimal policy runs on R2025a; the IRIS installation is untouched | Nobody |
 | `models/<name>/generated/` | Extended model files and RE filter caches | The toolbox (delete a file to force a rebuild) |
-| `tests/` | `run_tests.m` (19 suites), toy NK package `tests/toy_nk/`, test scenarios `tests/scenarios/tsw07_*.m`, reference `tests/reference/`, test models of `test_re_info` `tests/models/` (hand-written SW07 RE(t-1) model, Dynare cross-check, closed-form Phillips curve) | Only when the toolbox changes |
+| `tests/` | `run_tests.m` (19 suites), toy NK package `tests/toy_nk/`, test scenarios `tests/scenarios/tsw07_*.m` and the test master options `tests/scenarios/master_options.m` (8.6), reference `tests/reference/`, test models of `test_re_info` `tests/models/` (hand-written SW07 RE(t-1) model, Dynare cross-check, closed-form Phillips curve) | Only when the toolbox changes |
 | `tests/output/` | Test runs | Disposable |
 | `archive/2026-10-18_rounds1-2/` | Round 1-2 scenarios, results, runners (`run_scenarios*.m`), report and code backups; `README.txt`. Not on the path | Nobody |
+| `archive/2026-10-20_swX1_baseline/` | The previous SW07 baseline (swX1, to 2026-10-19): `results/summary_v3/`, the 40 `results/<id>/` folders, `results/eval_sw07_v3/`, the run log, the report, and the files changed on 2026-10-20 at their previous version (`code_pre_2026-10-20/`); `README.txt`. Not on the path | Nobody |
 | `docs/` | This guide, `DESIGN.md`, `FEATURES.md` | |
 | `.git/` | Repository https://github.com/tolgaozden/iris_toolbox_learning (private, branch `main`) | You (8.8) |
 
@@ -55,7 +57,7 @@ The rule: you write model packages, scenario files and the master options; the t
 
 | Package | Model | Parameters | Observables, filter range | Forward-looking variables | `spec.policy` |
 |---|---|---|---|---|---|
-| `models/sw07/` | Smets-Wouters (2007), re-estimated | Dynare mode `swX1`, sample 1966Q1-2026Q2 (`sw07_params.m`) | `dy`, `dc`, `dinve`, `dw`, `labobs`, `pinfobs`, `robs`; 1965Q1-2026Q2; every observable NaN in 2020Q1-2020Q3 (covid quarters ignored, user decision 2026-10-19) | 12: `invef`, `rkf`, `pkf`, `cf`, `labf`, `inve`, `pinf`, `rk`, `pk`, `c`, `lab`, `w` | yes: Taylor rule by label; loss targets `pinf`, `ygap`, `r`, `dr` |
+| `models/sw07/` | Smets-Wouters (2007) | Two sets: the published SW07 posterior mode for 1966Q1-2004Q4 (`sw07_params_original.m`, the baseline since 2026-10-20 through `model_params`), and the Dynare re-estimate `swX1` on 1966Q1-2026Q2 (`sw07_params.m` = `spec.params`, the default and the previous baseline) | `dy`, `dc`, `dinve`, `dw`, `labobs`, `pinfobs`, `robs`; 1965Q1-2026Q2; every observable NaN in 2020Q1-2020Q3 (covid quarters ignored, user decision 2026-10-19) | 12: `invef`, `rkf`, `pkf`, `cf`, `labf`, `inve`, `pinf`, `rk`, `pk`, `c`, `lab`, `w` | yes: Taylor rule by label; loss targets `pinf`, `ygap`, `r`, `dr` |
 | `models/ijcb3/` | Three-equation NK model of IJCB (sec. 2.1) | IJCB Table 1, HE posterior means (`ijcb3_params.m`) | `yobs`, `pinfobs`, `robs`; 1960Q1-2026Q2; `robs` NaN in the 36 ELB quarters | `y`, `pinf` | no |
 | `models/as07/` | An and Schorfheide (2007) | Herbst and Schorfheide (2016) published posterior means; measurement errors fixed as in the book's code (`as07_params.m`) | `dy`, `pinfobs`, `robs`; 1965Q1-2026Q2; `robs` NaN in the 36 ELB quarters | `y`, `pinf` | no |
 
@@ -104,6 +106,59 @@ quarters.
 | `+policy/` | Ramsey setup, policy loss, `loss.csv` |
 | `+density/` | Draws, RE fast path, quantiles, density outputs |
 | `+util/` | Dates, MD5 hashes, CSV writer |
+
+### 1.4 The baseline (since 2026-10-20)
+
+User decision of 2026-10-20, in `config/master_options.m` lines 86-97, so every SW07 scenario
+inherits it. The defaults of `hetlearn.defaults()` did not change; they are the previous
+baseline, which the tests still use (8.6).
+
+| Option | Baseline | Default (= the previous baseline, 2026-10-18/19) |
+|---|---|---|
+| `model_params` | `'sw07_params_original'`: published SW07 mode, 1966Q1-2004Q4 | `''` = `spec.params` (`sw07_params`, swX1, 1966Q1-2026Q2) |
+| `gain.rule`, `gain.value` | `'koz'`, start gain 0.05 (other `gain.koz.*` at their defaults) | `'constant'`, 0.0585 |
+| `switching.intensity`, `switching.memory` | 2, 0.8 | 0.51, 0.6 |
+| `beliefs.plm.default`, `beliefs.info`, `shares.init_n2` | `'ar1'`, `'lagged'`, 0.5 | the same |
+| `expectations.re_info` | `'lagged'`: RE agents use E_{t-1} x_{t+1} for the learning set | `'current'` |
+| `expectations.re_variant` | `'anchored'` | the same |
+| `history.re_states` | `'filtered'`: the RE forecasts, the learners' data and the realised values in the fitness errors come from the one-sided filter | `'smoothed'` |
+| `projection.facility` | `'none'`: nothing is restricted; a quarter without a model solution stops the run with `hetlearn:engine:noSolution` | `'plm_alm'` |
+
+Where the baseline does not apply:
+
+- **Application 4** (`a4_rule_re.m` line 25, `a4_rule_learn.m` line 19, inherited by the other
+  twelve app-4 files): `expectations.re_info = 'current'`, because Ramsey policy is not supported
+  with `'lagged'` (`hetlearn:options:unsupported`). The only deviation; the report says so.
+- **`a6_inv_learn.m`** line 21: `history.re_states = 'smoothed'`, because `'filtered'` is an error
+  with `history.mode = 'inversion'`; the inversion is one-sided already.
+- **The other models** (`i1_re.m`, `a1as_re.m`): their files pin the previous settings and set
+  `model_params = ''`, so the SW07 baseline does not reach them; their results (report section 12)
+  date from 2026-10-18.
+- **The tests** read `tests/scenarios/master_options.m` (the previous values), not this file.
+
+Consequences to know:
+
+- With no facility a run can stop. Such a run is logged as `error` with the message, has no
+  `results/<id>/` folder, and the summary lists it (check C8 accepts a `noSolution` stop under
+  `'none'` as the result). On 2026-10-20 `v1_mc_learn` (model-consistent RE agents) stops in
+  2022Q3, and five evaluation origins stop (e03, e04).
+- Under `'lagged'` the RE benchmark of an application is the RE model with t-1 information for
+  inflation, not `models/sw07/sw07.model`; the summary checks the RE runs against the
+  hand-written RE(t-1) model `tests/models/sw07_re_lagged_pinf.model` (C2, C3b).
+- The published `constelab` (-0.103) is the 1966-2004 hours constant; `labobs` is demeaned over
+  1947Q2-2026Q2 here, so the constant is not comparable across samples
+  (`models/sw07/estimation/FINDINGS_estimates.md`).
+- The previous baseline and its results are in `archive/2026-10-20_swX1_baseline/`. To rerun a
+  scenario on it, set in that scenario `model_params = ''`, `gain.rule = 'constant'`,
+  `gain.value = 0.0585`, `switching.intensity = 0.51`, `switching.memory = 0.6`,
+  `expectations.re_info = 'current'`, `history.re_states = 'smoothed'`,
+  `projection.facility = 'plm_alm'` (the defaults).
+
+**`model_params`** (5.1) names a parameter function in the model package folder, used in place
+of `spec.params` for that run: by `hetlearn.load_model`, and through it by the generator checks,
+the anchored-RE coefficients, the policy discount and the RE filter, whose cache key hashes the
+parameter values, so each set has its own caches. A name that is not a file of the package stops
+the run (`hetlearn:load_model:params`). Example: `cfg.model_params = '';` runs a scenario on swX1.
 
 ---
 
@@ -172,17 +227,17 @@ baseline box and sections 1-11, `build_other_models.m` for section 12.
 
 | Report section | Scenario files | Call | Results | Summary tables, builder function |
 |---|---|---|---|---|
-| Baseline box | `scenarios/sw07/base/sw07_re.m`, `sw07_learn.m`; `config/master_options.m` lines 47-50 | none (parents of every SW07 file) | | reads the three files; `sec_baseline` |
+| Baseline box | `scenarios/sw07/base/sw07_re.m`, `sw07_learn.m`; `config/master_options.m` lines 86-97; `models/sw07/sw07_params_original.m`, `sw07_params.m` | none (parents of every SW07 file) | | reads the files; `sec_baseline` (the new-baseline paragraph at the top reads the archived master too) |
 | 1 Application 1: the 2022Q2 peak forecast | `scenarios/sw07/app1_peak/`: `a1_re`, `a1_learn` | `run_applications('app1')` | `results/a1_re/`, `results/a1_learn/` | `sec_app1` |
 | 2 Application 2: replay of the backed-out shocks | `app2_replay/`: `a2_re`, `a2_learn` | `run_applications('app2')` | `results/a2_re/`, `results/a2_learn/` | `sec_app2` |
 | 3 Application 3: policy 100 bp looser or tighter than the Taylor rule | `app3_policy/`: `a3_loose_re`, `a3_tight_re`, `a3_loose_learn`, `a3_tight_learn` | `run_applications('app3')` | `results/a3_*/` | `app3_policy.csv`; `sec_app3` |
 | 4 Application 4: Ramsey policy | `app4_ramsey/` (14 files): `a4_rule_re`, `a4_rule_learn`, `a4_ramsey_{balanced,hawk,dove,smooth}_{re,re_mc,learn}`; `_re_mc` = the RE Ramsey benchmark | `run_applications('app4')` | `results/a4_*/` (with `loss.csv`) | `app4_losses.csv` (its `RE_model_consistent` rows come from the `_re_mc` runs); `sec_app4` |
 | 5 Application 5: density forecasts | `app5_density/`: `a5_markup_re`, `a5_demand_re`, `a5_markup_learn`, `a5_demand_learn` | `run_applications('app5')` | `results/a5_*/` (with `density.mat`, `density_quantiles.csv`, `density_events.csv`) | `app5_density.csv`, `app5_widths.csv`; `sec_app5` |
 | 6 Application 6: history with the shocks backed out under learning | `app6_history/`: `a6_smooth_re`, `a6_smooth_learn`, `a6_inv_learn` | `run_applications('app6')` (runs the decompositions too; `run_applications('decompose')` runs only them) | `results/a6_*/` (with `decomposition.csv`, `decomposition_check.csv`) | `app6_decomp_long.csv`, `app6_shocks_long.csv`; `sec_app6` |
-| 7 Model variant 1: anchored vs model-consistent RE | `var1_re_variant/`: `v1_mc_learn` | `run_applications('var1')` | `results/v1_mc_learn/` | `events_long.csv`, `eval_relative.csv`; `sec_var1` |
+| 7 Model variant 1: anchored vs model-consistent RE | `var1_re_variant/`: `v1_mc_learn` | `run_applications('var1')` | `results/v1_mc_learn/` (none on 2026-10-20: the run stops, 1.4) | `scenarios.csv` (its error), `events_long.csv`, `eval_relative.csv`; `sec_var1` (`sec_var1_stopped` when the run stopped) |
 | 8 Model variant 2: perceived laws of motion | `var2_plm/`: `v2_ar2`, `v2_ar1nc`, `v2_reg`, `v2_var3`, `v2_var12` | `run_applications('var2')` | `results/v2_*/` | `sec_var2` |
-| 9 Model variant 3: learning on inflation only vs on all 12 variables | `var3_allvars/`: `v3_all`, `v3_all_alm`, `v3_all_none` | `run_applications('var3')` | `results/v3_*/` | `v3_facility.csv`; `sec_var3` |
-| 10 Model variant 4: endogenous gain | `var4_gain/`: `v4_koz`, `v4_koz_full` | `run_applications('var4')` | `results/v4_koz/`, `results/v4_koz_full/` | `sec_var4` |
+| 9 Model variant 3: learning on inflation only vs on all 12 variables | `var3_allvars/`: `v3_all` (no facility, the baseline), `v3_all_plm_alm`, `v3_all_alm` | `run_applications('var3')` | `results/v3_*/` | `v3_facility.csv`; `sec_var3` |
+| 10 Model variant 4: endogenous gain (baseline) vs a constant gain | `var4_gain/`: `v4_const`, `v4_const_full` (gain held at 0.05); the endogenous-gain side is `a1_learn` and `a6_smooth_learn` | `run_applications('var4')` | `results/v4_const/`, `results/v4_const_full/` | `sec_var4` |
 | 11 Forecast evaluation | `eval/`: `e01_re` ... `e10_allvars`; settings in `run_applications.m` lines 156-170 | `run_applications('eval')`; in parallel: `run_applications('eval_part', variants, parts)`, then `run_applications('eval_merge')` | `results/eval_sw07_v3/` | `eval_metrics.csv`, `eval_relative.csv`, `eval_dm.csv`; `sec_eval` |
 | 12 Application 1 on two other models | `scenarios/ijcb3/app1_peak/`: `i1_re`, `i1_learn`; `scenarios/as07/app1_peak/`: `a1as_re`, `a1as_learn` | `res = hetlearn.run(feval(id))` for each id, then `run('results/summary_v3/build_other_models.m')` | `results/i1_re/`, `results/i1_learn/`, `results/a1as_re/`, `results/a1as_learn/` | `other_models_paths_long.csv`, `other_models_learning_long.csv`, `other_models_key_numbers.csv`, `other_models_checks.txt`; `sec_other` |
 | 13 Caveats | | | | the Notes section of `FINDINGS_v3.md`; `sec_caveats` |
@@ -198,14 +253,17 @@ Then run steps 3-5 of 2.3. Points to know:
   `hetlearn.run` directly shows `missing`, and check C8 fails.
 - **The other-model runs are not in `run_applications`.** Run them with `hetlearn.run`
   (step 2 of 2.3); `run_applications('i1_re')` also works and logs the run under group `single`.
-- **The report date is a fixed string**: `REPORT_DATE = "2026-10-19"`, `build_report_v3.py`
-  line 28. Change it when you rebuild on another day.
+- **The report date is a fixed string**: `REPORT_DATE = "2026-10-20"`, `build_report_v3.py`
+  line 28 (with `BASELINE_DATE` and `ARCHIVE` below it). Change it when you rebuild on another day.
 - **The memo is not regenerated.** `FINDINGS_v3.md` quotes `key_numbers.csv`; after a rerun its
   numbers stay as they are until you edit them. The report uses only its Notes section.
-- **Results on this machine** (2026-10-19): 40 runs and 10 evaluation variants ok, checks 15 of
-  15 (`checks_v3.txt`) and 11 of 11 (`other_models_checks.txt`). The summary tables and the
-  report were rebuilt on 2026-10-19 (report published as version 5 at
-  https://claude.ai/artifact/BvM5vuFBTYm943Z8eBpZR8).
+- **Results on this machine** (2026-10-20, the new baseline, 1.4): 39 of 40 runs ok and
+  `v1_mc_learn` stopped (no model solution in 2022Q3); the evaluation ran 1380 runs, of which 5
+  stopped (3 origins of `e03_learn_mc`, 2 of `e04_learn_all_learners`); checks 15 of 15
+  (`checks_v3.txt`, C8 accepts such stops) and 11 of 11 (`other_models_checks.txt`, not rerun).
+  The summary tables and the report were rebuilt on 2026-10-20; the published report
+  (https://claude.ai/artifact/BvM5vuFBTYm943Z8eBpZR8) is republished by the main session. The
+  previous baseline's results: `archive/2026-10-20_swX1_baseline/`.
 - **One summary file is not in the report:** `app4_targets_long.csv` (6.5). The report reads the
   app-4 loss totals from `app4_losses.csv`; `app5_mechanism.csv` feeds the app-5 mechanism table.
 
@@ -280,10 +338,10 @@ sw07_re                          base: every option listed, commented at its def
                 e08_var3
             v2_var12
                 e09_var12
-            v3_all
-                v3_all_alm, v3_all_none, e10_allvars
-            v4_koz
-                v4_koz_full
+            v3_all               no facility (the baseline)
+                v3_all_plm_alm, v3_all_alm, e10_allvars
+            v4_const             constant gain 0.05 (the baseline gain is endogenous)
+                v4_const_full
 i1_re                            model ijcb3 (starts from struct(), not from sw07_re)
     i1_learn
 a1as_re                          model as07
@@ -298,15 +356,16 @@ shocks, conditions, density and comparisons (4.4.13).
 
 | Assumption | Where (file, line) | Reaches | Rerun |
 |---|---|---|---|
-| Gain, intensity of choice, memory, initial share | `config/master_options.m` lines 47-50 | every SW07 scenario; not `i1_learn` (lines 36-38) or `a1as_learn` (lines 38-41), which set their own | all groups (4.4.1) |
-| Forecast origin, horizon | `scenarios/sw07/base/sw07_re.m` lines 29-35 | every SW07 file except the `a6_*` files and `v4_koz_full` (their own origin and horizon) and the evaluation (set by the runner) | app1-app5, var1-var4 (4.4.2) |
-| Expectations mode | `sw07_re.m` line 38 (`'rational'`), `sw07_learn.m` line 18 (`'switching'`), `e04_learn_all_learners.m` line 15 (`'learning'`) | children | per file |
-| Variables that learn | `sw07_re.m` line 39 (`{'pinf'}`); `v3_all.m` line 15 (`'all'`) | children | 4.4.3 |
+| The baseline: parameter set, gain rule and start gain, intensity of choice, memory, initial share, PLM, information sets, RE states, facility | `config/master_options.m` lines 86-97 (1.4) | every SW07 scenario; not the other models (`i1_re.m`, `a1as_re.m` pin the previous settings) | all groups (4.4.1) |
+| Forecast origin, horizon | `scenarios/sw07/base/sw07_re.m` lines 38-44 | every SW07 file except the `a6_*` files and `v4_const_full` (their own origin and horizon) and the evaluation (set by the runner) | app1-app5, var1-var4 (4.4.2) |
+| Expectations mode | `sw07_re.m` line 47 (`'rational'`), `sw07_learn.m` line 23 (`'switching'`), `e04_learn_all_learners.m` line 15 (`'learning'`) | children | per file |
+| Variables that learn | `sw07_re.m` line 48 (`{'pinf'}`); `v3_all.m` line 19 (`'all'`) | children | 4.4.3 |
 | RE variant | default `'anchored'` (`hetlearn.defaults`); `v1_mc_learn.m` line 15; `a4_ramsey_<w>_re_mc.m` line 18 | children | 4.4.4 |
-| Projection facility | default `'plm_alm'`; `master_options.m` line 55 (commented); `v3_all_alm.m` line 14, `v3_all_none.m` line 17 | | 4.4.5 |
+| Projection facility | baseline `'none'` (`master_options.m` line 97; default `'plm_alm'`); `v3_all_plm_alm.m` line 17, `v3_all_alm.m` line 15 | | 4.4.5 |
+| RE information set, RE states of the history | baseline `'lagged'` and `'filtered'` (`master_options.m` lines 94, 96); app 4: `a4_rule_re.m` line 25 and `a4_rule_learn.m` line 19 set `re_info = 'current'`; `a6_inv_learn.m` line 21 sets `re_states = 'smoothed'` | children | 4.4.7 |
 | PLM | `v2_ar2.m` line 13, `v2_ar1nc.m` line 14, `v2_reg.m` lines 15-16, `v2_var3.m` lines 14-15, `v2_var12.m` lines 15-17 | the matching `e05`-`e09` | var2, eval (4.4.6) |
-| Information timing | default `'lagged'`; `master_options.m` line 54 (commented) | | 4.4.7 |
-| Endogenous gain | `v4_koz.m` lines 20-21 | `v4_koz_full` | var4 (4.4.8) |
+| Information timing of the learners | `'lagged'` (`master_options.m` line 93, = the default) | | 4.4.7 |
+| Endogenous gain | baseline `gain.rule = 'koz'` (`master_options.m` line 87); the constant-gain variant `v4_const.m` lines 17-18 | `v4_const_full` | var4 (4.4.8) |
 | Policy deviation: size, dates | `a3_loose_re.m` lines 17-19; sign: `a3_tight_re.m` line 12, `a3_tight_learn.m` line 12 | all four app3 files | app3 (4.4.9) |
 | Ramsey loss weights | `a4_ramsey_balanced_re.m` line 18; `a4_ramsey_{hawk,dove,smooth}_re.m` line 12; `build_summary_v3.m` line 291 | the matching `_re_mc` and `_learn` files | app4 (4.4.10) |
 | Loss horizon (80 quarters) | `a4_rule_re.m` line 16, `a4_rule_learn.m` line 13 | every app4 file | app4 |
@@ -316,31 +375,44 @@ shocks, conditions, density and comparisons (4.4.13).
 | Decomposition: groups, scenarios, range, variables | `run_applications.m` lines 196-199 and 204 | | `run_applications('decompose')` (4.4.12) |
 | Evaluation: variants, benchmark, origins, horizon, parts, subsamples | `run_applications.m` lines 159-169 | | eval (4.4.13) |
 | Run groups | `run_applications.m` lines 137-152 | | |
-| Model parameters, data | `models/<name>/<name>_params.m`; `models/<name>/data/build_database.m` | every scenario of that model | all; the RE filter cache key includes both, so the next run refilters |
+| Model parameters, data | `models/<name>/<name>_params.m` (`spec.params`), or another parameter file of the package named by `model_params` (SW07 baseline: `sw07_params_original.m`, `master_options.m` line 86); `models/<name>/data/build_database.m` | every scenario of that model | all; the RE filter cache key includes both, so the next run refilters |
 
 ### 4.4 Worked examples
 
 #### 4.4.1 Learning calibration (gain, intensity of choice, memory, initial share)
 
 ```matlab
-% config/master_options.m, lines 47-50
-o.gain.value = 0.0585;            % constant gain (IJCB eq. 13)
-o.switching.intensity = 0.51;     % chi, intensity of choice (IJCB eq. 15; IJCB estimate, quarterly data)
-o.switching.memory = 0.6;         % omega, memory in the fitness measure (IJCB eq. 14)
-o.shares.init_n2 = 0.5;           % initial share of BR (learning) agents
+% config/master_options.m, lines 86-97 (the baseline since 2026-10-20, 1.4)
+o.model_params = 'sw07_params_original';   % published SW07 (2007) mode, models/sw07/sw07_params_original.m
+o.gain.rule = 'koz';                       % endogenous gain, Kostyshyna, Ozden and Zhang (2024) eq. 9
+o.gain.value = 0.05;                       % initial (KOZ start) gain; was 0.0585 (IJCB constant gain)
+o.switching.intensity = 2;                 % chi, intensity of choice (IJCB eq. 15); was 0.51
+o.switching.memory = 0.8;                  % omega, memory in the fitness measure (IJCB eq. 14); was 0.6
+o.shares.init_n2 = 0.5;                    % initial share of BR (learning) agents (unchanged)
+o.beliefs.plm.default = 'ar1';             % AR(1) PLM with constant (unchanged)
+o.beliefs.info = 'lagged';                 % learners see data up to t-1 (unchanged)
+o.expectations.re_info = 'lagged';         % RE agents: E_{t-1} x_{t+1} for the learning set; was 'current'
+o.expectations.re_variant = 'anchored';    % (unchanged)
+o.history.re_states = 'filtered';          % RE forecasts and learners' data from the one-sided filter; was 'smoothed'
+o.projection.facility = 'none';            % no projection facility; was 'plm_alm'
 ```
 
 - Edit a value here and every SW07 scenario gets it on its next run. No SW07 scenario file sets
-  these four options.
-- Keep the four lines uncommented with plain numbers: `sec_baseline` reads them with regular
-  expressions (`build_report_v3.py` lines 468-471) and the build stops if one is missing.
+  these options, except application 4 (`re_info`), `a6_inv_learn` (`re_states`), the facility
+  variants of V3 and the constant gain of V4 (1.4).
+- Keep the `o.*` lines uncommented with plain values: the report reads them with regular
+  expressions (`mopt` in `build_report_v3.py`) and the build stops if one is missing.
 - One scenario and its children only: set it in the file, e.g. in `a1_learn.m` add
   `cfg.switching.intensity = 1;`.
-- The other models set their own values, so the master file does not reach them:
-  `i1_learn.m` lines 36-38 (memory 0.62, IJCB Table 1) and `a1as_learn.m` lines 38-41.
+- The other models pin their own values, so the master file does not reach them: `i1_re.m` and
+  `a1as_re.m` (the settings of 2026-10-18 and `model_params = ''`), `i1_learn.m` lines 36-38
+  (memory 0.62, IJCB Table 1) and `a1as_learn.m` lines 38-41.
+- `re_info = 'lagged'` needs a learning set, so `hetlearn.load_options(struct())` with this master
+  is an error; every SW07 scenario gets `{'pinf'}` from `sw07_re.m`.
 - Units: chi multiplies squared forecast errors. IJCB's data and the three packages' model
-  variables are in percent per quarter, so 0.51 applies as estimated. For annualised data use
-  0.51/16 for the same switching (`master_options.m` lines 43-45).
+  variables are in percent per quarter, so IJCB's 0.51 applied as estimated; the baseline's 2 is
+  the user's choice. For annualised data divide chi by 16 for the same switching (the note on
+  units in `master_options.m`).
 - Rerun all groups. The RE runs keep their paths (all agents are RE); their learning
   diagnostics change.
 
@@ -359,7 +431,7 @@ T = hetlearn.compare({'a1_re', 'sweep_chi025', 'sweep_chi100'}, {'pinfobs'});
 #### 4.4.2 Forecast origin and horizon
 
 ```matlab
-% scenarios/sw07/base/sw07_re.m, lines 29-35
+% scenarios/sw07/base/sw07_re.m, lines 38-44
 spec = hetlearn.load_spec(cfg.model);
 db = hetlearn.load_database(spec);
 origin = hetlearn.find_peak(db, 'pinfobs', qq(2020, 1), qq(2024, 4));
@@ -374,7 +446,7 @@ cfg.forecast.horizon = 16;                    % quarters: 2022Q3-2026Q2
   `sw07_re`, so a failing assert stops every SW07 run, the evaluation included.
 - Horizon: line 35. Conditions must lie inside the horizon (app 3 uses 2022Q3-2023Q2).
 - Files with their own origin: `a6_smooth_re.m` lines 15-16, `a6_smooth_learn.m` lines 15-16
-  (`qq(2026, 2)`, horizon 4; `a6_inv_learn` inherits), `v4_koz_full.m` lines 14-15. The other
+  (`qq(2026, 2)`, horizon 4; `a6_inv_learn` inherits), `v4_const_full.m` lines 15-16. The other
   models: `i1_re.m` lines 38-44, `a1as_re.m` lines 39-45.
 - The evaluation sets its own origins and horizon (4.4.13).
 - Rerun: `run_applications({'app1', 'app2', 'app3', 'app4', 'app5', 'var1', 'var2', 'var3', 'var4'})`.
@@ -384,7 +456,7 @@ cfg.forecast.horizon = 16;                    % quarters: 2022Q3-2026Q2
 #### 4.4.3 Learning on other variables
 
 ```matlab
-cfg.expectations.variables = {'pinf', 'w'};   % a subset (baseline: sw07_re.m line 39, {'pinf'})
+cfg.expectations.variables = {'pinf', 'w'};   % a subset (baseline: sw07_re.m line 48, {'pinf'})
 cfg.expectations.variables = 'all';           % all 12 forward-looking variables (v3_all.m line 15)
 ```
 
@@ -397,7 +469,7 @@ cfg.expectations.variables = 'all';           % all 12 forward-looking variables
   `[m, info] = hetlearn.load_model(spec, opts)` lists the candidates in `info.meta.forward_vars`.
 - With anchored RE and every forward-looking variable learning, the model has no leads; how
   the facility treats that case is in 5.7.
-- Change line 39 of `sw07_re.m` to change the baseline for every scenario.
+- Change line 48 of `sw07_re.m` to change the baseline for every scenario.
 
 #### 4.4.4 RE variant: anchored or model-consistent
 
@@ -419,12 +491,14 @@ cfg.expectations.re_variant = 'model_consistent';
 #### 4.4.5 Projection facility
 
 ```matlab
-% scenarios/sw07/var3_allvars/v3_all_alm.m, line 14
-cfg.projection.facility = 'alm';      % 'plm_alm' (default), 'alm' or 'none'
+% scenarios/sw07/var3_allvars/v3_all_alm.m, line 15
+cfg.projection.facility = 'alm';      % 'plm_alm' (default), 'alm' or 'none' (the baseline)
 ```
 
-`v3_all_none.m` line 17 sets `'none'`. Project-wide: uncomment `master_options.m` line 55. What
-each value does: 5.7.
+The baseline sets `'none'` project-wide (`master_options.m` line 97); `v3_all_plm_alm.m` line 17
+sets `'plm_alm'` and `v3_all_alm.m` line 15 `'alm'`. Under `'none'` a run that loses the model
+solution stops and is logged as an error; it is not moved to another facility. What each value
+does: 5.7.
 
 #### 4.4.6 Perceived law of motion (PLM)
 
@@ -450,7 +524,7 @@ cfg.beliefs.plm.var = struct('variables', {{'pinf', 'ygap', 'r'}}, 'lags', 1, 'c
 #### 4.4.7 Information timing of the learners
 
 ```matlab
-cfg.beliefs.info = 'current';    % default 'lagged'; project-wide: master_options.m line 54
+cfg.beliefs.info = 'current';    % default and baseline 'lagged'; project-wide: master_options.m line 93
 ```
 
 - `'lagged'`: learners see data up to t-1; AR(1) forecast `alpha + beta*(alpha + beta*x{-1})`.
@@ -458,12 +532,13 @@ cfg.beliefs.info = 'current';    % default 'lagged'; project-wide: master_option
   holds both forms behind the toggle `br_info_current`.
 - The belief updates are the same under both; the forecasts, and so the shares, change.
 
-The RE agents have the same choice (added 2026-10-19, DESIGN 19):
+The RE agents have the same choice (added 2026-10-19, DESIGN 19; `'lagged'` is the baseline since
+2026-10-20, `master_options.m` line 94, and application 4 sets `'current'`):
 
 ```matlab
 cfg = a1_learn();
 cfg.id = 'a1_learn_reinfo';
-cfg.expectations.re_info = 'lagged';     % default 'current'; RE agents forecast with data up to t-1
+cfg.expectations.re_info = 'current';    % baseline 'lagged' (default 'current'); RE agents forecast with data up to t
 res = hetlearn.run(cfg, 'save', false);
 ```
 
@@ -481,21 +556,25 @@ res = hetlearn.run(cfg, 'save', false);
 #### 4.4.8 Endogenous gain (Kostyshyna, Özden and Zhang 2024)
 
 ```matlab
-% scenarios/sw07/var4_gain/v4_koz.m, lines 20-21
-cfg.gain.rule = 'koz';
-cfg.gain.koz.error_scale = 1;                 % quarterly units, as the data and chi (user decision 2026-10-19; was 4)
+% config/master_options.m, lines 87-88: the baseline since 2026-10-20
+o.gain.rule = 'koz';
+o.gain.value = 0.05;                          % the KOZ start gain (gain.koz.gamma0 = [] takes it)
+% scenarios/sw07/var4_gain/v4_const.m, lines 17-18: variant 4, the constant gain at the same value
+cfg.gain.rule = 'constant';
+cfg.gain.value = 0.05;
 ```
 
-- `error_scale` multiplies the signed error before it drives the gain. With 1 the errors are in
-  model units, percent per quarter: the units of the SW07 data and of chi (user decision
-  2026-10-19). The first SW07 runs used 4 (annualised percent). mu acts with the square of the
-  factor, so 4 instead of 1 works like a 16 times larger mu. With 1 the SW07 gain stays within
-  0.058-0.065 (`README_PIPELINE.md`, 2026-10-19).
-- Other knobs, all in 5.4: `gain.koz.mu` (0.001), `.bounds` ([0.001 0.25]), `.error`
-  (`'rls'` or `'forecast'`), `.structure` (`'common'` or `'per_variable'`), `.master`,
-  `.gamma0`, `.Rg0`.
+- `gain.koz.error_scale` (default 1) multiplies the signed error before it drives the gain. With
+  1 the errors are in model units, percent per quarter: the units of the SW07 data and of chi
+  (user decision 2026-10-19). The first SW07 runs used 4 (annualised percent). mu acts with the
+  square of the factor, so 4 instead of 1 works like a 16 times larger mu. On the 2026-10-20
+  baseline the gain stays within 0.047-0.052 over 1966Q1-2026Q2 (`key_numbers.csv`).
+- Other knobs, all in 5.4 and all at their defaults in the baseline: `gain.koz.mu` (0.001),
+  `.bounds` ([0.001 0.25]), `.error` (`'rls'` or `'forecast'`), `.structure` (`'common'` or
+  `'per_variable'`), `.master`, `.gamma0`, `.Rg0`.
 - With `mu = 0` the run equals the constant gain bit for bit.
-- `v4_koz_full` inherits the gain settings. Rerun: `run_applications('var4')`.
+- `v4_const_full` inherits the constant gain; the baseline's history to 2026Q2 is
+  `a6_smooth_learn`. Rerun: `run_applications('var4')`.
 
 #### 4.4.9 Policy deviation: size and dates
 
@@ -778,7 +857,7 @@ rebuild the report and reread its text.
 | App 4 | weight sets `W` line 291; loss horizons 16 and 80 (lines 300, 331); the `_re_mc` ids are built from the weight-set names (line 330) | weights read from the scenario files; `RE_model_consistent` rows as the RE benchmark (lines 716-736) |
 | App 5 | quantiles 0.05 and 0.95 (lines 378-379); impulse shocks of `app5_mechanism.csv` (lines 403-404) | `ndraws` and `seed` read from `a5_markup_re.m` |
 | Evaluation | folder `results/eval_sw07_v3` (line 34); samples line 858 | `SAMPLES` line 1320 |
-| Calibration | | four lines of `master_options.m` read by regex (lines 468-471) |
+| Calibration and baseline | `pfun` from `model_params` of the merged SW07 options (line 48); RE checks C2, C3b on `tests/models/sw07_re_lagged_pinf.model` (re_info `'lagged'`) | the `o.*` lines of `master_options.m` read by regex (`mopt`); the previous baseline from `archive/2026-10-20_swX1_baseline/code_pre_2026-10-20/config/master_options.m` and `defaults.m` |
 | Other models | `build_other_models.m`: `MD` lines 46-47; origin 2022Q2 (lines 55, 137) | |
 
 Every number in the report text is read from the summary files at build time, but the sentences
@@ -801,6 +880,7 @@ as a commented line at its default.
 | `id` | text | Results folder name; use the scenario function name |
 | `title`, `description` | text | Shown in the summary and the report |
 | `model` | text | Model folder under `models/`, or a folder path |
+| `model_params` | `''` | Parameter function of the model package for this run, a `.m` file in the package folder, used instead of `spec.params` by `hetlearn.load_model` (and so by the anchored coefficients, the policy discount and the RE filter, whose cache key hashes the values). `''` = `spec.params`. A name that is not a file of the package stops the run (`hetlearn:load_model:params`). SW07 baseline since 2026-10-20: `'sw07_params_original'` (1.4) |
 | `forecast.origin` | date (required) | Last quarter of data used; the forecast starts the quarter after |
 | `forecast.horizon` | `16` | Quarters; a positive integer |
 | `compare_with` | `{}` | Scenario ids; writes `compare_<id>.csv` (this minus that, observables, horizon) |
@@ -813,7 +893,7 @@ as a commented line at its default.
 | `expectations.mode` | `'rational'`, `'learning'`, `'fixed_shares'`, `'switching'` | All RE (BR share 0); all learners (BR share 1); fixed shares (`shares.fixed_n2`); shares switch on forecast performance |
 | `expectations.variables` | `{}`, cellstr, `'all'` | Forward-looking variables whose expectations are the RE/BR mix; the rest stay RE. `'all'` = every forward-looking variable (SW07: 12) |
 | `expectations.re_variant` | `'anchored'`, `'model_consistent'` | RE agents use the pure-RE forecast at the current state (IJCB sec. 2.3.1; the baseline since 2026-10-18), or forecast the heterogeneous economy, re-solved every quarter |
-| `expectations.re_info` | `'current'`, `'lagged'` | RE agents' information set for the learning variables: E_t x_{t+1}, or E_{t-1} x_{t+1} (data up to t-1, the RE counterpart of `beliefs.info = 'lagged'`). With `'lagged'` the RE benchmark, the anchored forecast and the RE history use the RE model with t-1 information (4.4.7, DESIGN 19). Not with Ramsey policy; learning variables need a maximum lead of 1 |
+| `expectations.re_info` | `'current'`, `'lagged'` | RE agents' information set for the learning variables: E_t x_{t+1}, or E_{t-1} x_{t+1} (data up to t-1, the RE counterpart of `beliefs.info = 'lagged'`). With `'lagged'` the RE benchmark, the anchored forecast and the RE history use the RE model with t-1 information (4.4.7, DESIGN 19). Not with Ramsey policy; learning variables need a maximum lead of 1; needs a non-empty learning set. SW07 baseline since 2026-10-20: `'lagged'` (application 4: `'current'`) |
 | `beliefs.info` | `'lagged'`, `'current'` | Learners see data up to t-1, or up to t (IJCB eq. 12). The belief updates are the same; the forecasts, and so the shares, differ |
 
 In mode `'rational'` the learning variables keep their blocks with RE share 1: the run is
@@ -838,11 +918,11 @@ exactly RE, and beliefs and shares are tracked as diagnostics.
 | Option | Values | Meaning |
 |---|---|---|
 | `gain.rule` | `'constant'`, `'koz'` | Constant gain, or the endogenous gain of Kostyshyna, Özden and Zhang (2024), eq. (9) (DESIGN 18). The name must be a function in `toolbox/+hetlearn/+gain/` |
-| `gain.value` | `0.0585` | Constant gain (IJCB posterior mean; set in `master_options.m`); also the start of `'koz'`. In (0, 1] |
+| `gain.value` | `0.0585` | Constant gain (IJCB posterior mean); also the start of `'koz'`. In (0, 1]. SW07 baseline: 0.05 with `gain.rule = 'koz'` (`master_options.m`) |
 | `gain.by_var.<x>` | number | Gain of one variable (`'constant'`; with `'koz'` the start value under `'per_variable'`, ignored with a warning under `'common'`) |
 | `gain.koz.mu` | `0.001` | Step size of the gain process ("gain on the gain"); 0 gives the constant gain exactly |
 | `gain.koz.error` | `'rls'`, `'forecast'` | Signed error that drives the gain: the one-step PLM residual, or the learners' expectation error x_t - f^BR_{t-1} |
-| `gain.koz.error_scale` | `1` | Factor on the error; 1 = model units (percent per quarter). mu is scale dependent, effectively with the square of the factor. `v4_koz` sets 1, the units of the SW07 data and of chi (user decision 2026-10-19; the first SW07 runs used 4, annualised) |
+| `gain.koz.error_scale` | `1` | Factor on the error; 1 = model units (percent per quarter), the units of the SW07 data and of chi (user decision 2026-10-19; the first SW07 runs used 4, annualised). mu is scale dependent, effectively with the square of the factor |
 | `gain.koz.bounds` | `[0.001 0.25]` | The gain stays inside, with 0 < lower <= upper <= 1; a `gain_bound` event each quarter a bound binds. The start gain must lie inside |
 | `gain.koz.structure` | `'common'`, `'per_variable'` | One gain process for all PLM equations, driven by `gain.koz.master`, or one per equation driven by its own error |
 | `gain.koz.master` | `''` | `'common'` only: `''` = the first learning variable; a list = the mean of their scaled errors |
@@ -858,7 +938,7 @@ RLS moment matrix: to use it, set `beliefs.init.method = 'user'` and only
 |---|---|---|
 | `shares.structure` | `'per_variable'`, `'universal'` | One BR share per learning variable, driven by its own errors; or one share for all, driven by `shares.master` |
 | `shares.master` | name or cellstr | `'universal'` only (required there): variables whose squared errors drive the share (a list sums them, as IJCB does for inflation and the output gap). Each must learn |
-| `shares.init_n2` | `0.5` | Initial BR share at `beliefs.init.date` (set in `master_options.m`) |
+| `shares.init_n2` | `0.5` | Initial BR share at `beliefs.init.date` (also set in `master_options.m`) |
 | `shares.fixed_n2` | number, or struct by variable | Mode `'fixed_shares'` (required there): the BR share |
 
 ### 5.6 Switching
@@ -866,8 +946,8 @@ RLS moment matrix: to use it, set `beliefs.init.method = 'user'` and only
 | Option | Values | Meaning |
 |---|---|---|
 | `switching.rule` | `'discrete_choice'` | IJCB eqs. (14)-(15); the name must be a function in `toolbox/+hetlearn/+switching/` |
-| `switching.intensity` | `0.51` | Intensity of choice chi, IJCB's estimate as published. IJCB's data are in percent per quarter, the units of SW07, so no conversion applies (user decision 2026-10-18; the earlier 8 = 0.51 x 16 assumed annualised data). For annualised data use 0.51/16 for the same switching. Must be >= 0 |
-| `switching.memory` | `0.6` | Memory omega of the fitness measure (IJCB sec. 4 text; Table 1 mean 0.62). In [0, 1) |
+| `switching.intensity` | `0.51` | Intensity of choice chi, IJCB's estimate as published. IJCB's data are in percent per quarter, the units of SW07, so no conversion applies (user decision 2026-10-18; the earlier 8 = 0.51 x 16 assumed annualised data). For annualised data divide by 16 for the same switching. Must be >= 0. SW07 baseline since 2026-10-20: 2 (`master_options.m`) |
+| `switching.memory` | `0.6` | Memory omega of the fitness measure (IJCB sec. 4 text; Table 1 mean 0.62). In [0, 1). SW07 baseline since 2026-10-20: 0.8 |
 
 The squared errors enter unscaled. With zero future shocks both fitness measures decay, so the
 BR shares drift toward 0.5 by construction (there is no cost term for RE).
@@ -905,7 +985,7 @@ current beliefs and shares in it.
 |---|---|---|
 | `history.learn` | `true`, `false` | Learn beliefs and shares over the history; `false` = the initial beliefs apply at the origin |
 | `history.mode` | `'re_smoother'`, `'inversion'` | Learning on the RE-smoothed history; or the history backed out with the learning model, one quarter at a time (observables exogenised, shocks endogenised). `'inversion'` needs `history.learn = true`. `'hetero_filter'` is a planned hook: error `hetlearn:options:notImplemented` |
-| `history.re_states` | `'smoothed'`, `'filtered'` | `'re_smoother'` only. Source of the RE agents' forecasts, the learners' data and the realised values in the fitness errors: the two-sided Kalman smoother, or the one-sided filter (x_{t|t}, data up to t). With `'inversion'` it is an error |
+| `history.re_states` | `'smoothed'`, `'filtered'` | `'re_smoother'` only. Source of the RE agents' forecasts, the learners' data and the realised values in the fitness errors: the two-sided Kalman smoother, or the one-sided filter (x_{t|t}, data up to t). With `'inversion'` it is an error. SW07 baseline since 2026-10-20: `'filtered'` (`a6_inv_learn` sets `'smoothed'`) |
 | `history.inversion.start` | `[]` | First inversion quarter; `[]` = `beliefs.init.date` |
 | `history.inversion.shocks` | `{}` | Shocks backed out; `{}` = every transition shock (at least as many as observables) |
 | `history.realtime` | `false`, `true` | RE filter on data up to the origin only (no look-ahead) |
@@ -1103,7 +1183,7 @@ From `build_summary_v3.m` (report units unless stated):
 | `app5_mechanism.csv` | shock, case, expectations, variable, h, date, response: one unit of each density shock (`epinf`, `ew`, `eb`, `eg`, `eqs`) added in 2022Q3 to `a1_re` and `a1_learn` (ten unsaved runs); response = the difference from the saved run without it; variables `pinfobs`, `pinf_exp1`, `pinf_exp1_RE`, `pinf_exp1_BR`, `robs`, `dy`, `n2_model_pinf` (expectations x 4) |
 | `app6_decomp_long.csv` | case (re_smooth, learn_smooth, learn_inv), date, variable, component (`intercept_channel` = toolbox `beliefs_constants`), value, label |
 | `app6_shocks_long.csv` | date, shock, smoothed, inversion, diff, diff_sd (difference in model std units) |
-| `v3_facility.csv` | scenario (`a1_learn`, `v3_all`, `v3_all_alm`, `v3_all_none`), facility, variables, status, error_message, error_date, event counts by type and stage (`explosive` included), average `pinfobs`, `robs`, `dy` over 2022Q3-2026Q2 |
+| `v3_facility.csv` | scenario (`a1_learn`, `v3_all`, `v3_all_plm_alm`, `v3_all_alm`), facility, variables, status, error_message, error_date, event counts by type and stage (`explosive` included), average `pinfobs`, `robs`, `dy` over 2022Q3-2026Q2 |
 | `eval_metrics.csv`, `eval_relative.csv`, `eval_dm.csv` | the merged evaluation tables with a `label` column |
 | `key_numbers.csv` | name, value, unit, description (1,314 rows): every number the memo and the report quote |
 | `checks_v3.txt` | checks C1-C12 (15 lines), PASS or FAIL with the value; C12: the saved `_re_mc` runs equal the unsaved model-consistent copies |
@@ -1256,7 +1336,17 @@ themselves; anything else needs `setup_paths` first.
 
 ### 8.6 Tests
 
-- `run_tests` runs the 19 suites in `tests/run_tests.m` (293 checks pass on 2026-10-19, 24 of
+- **The tests do not read the project baseline.** `tests/scenarios/master_options.m` holds the
+  values `config/master_options.m` had until 2026-10-19 (= `hetlearn.defaults()`); `run_tests`
+  and the SW07 suites put `tests/scenarios/` first on the path, and `run_tests` stops if
+  `master_options` resolves elsewhere. A suite run on its own needs `addpath('tests/scenarios')`.
+  The test scenarios `tsw07_*` also pin the settings the baseline changed (`model_params = ''`,
+  constant gain, `re_info = 'current'`, `re_states = 'smoothed'`, facility `'plm_alm'`).
+- **Exact references and threads.** `test_inversion` S3b, `test_gain` G14, `test_re_states` S1
+  and `test_re_info` T6b compare with `tests/reference/` exactly. The references were made at the
+  default thread count; with `maxNumCompThreads(2)` the runs differ by about 1e-12 and those four
+  checks fail. Run them at the default thread count (2026-10-20: all pass that way).
+- `run_tests` runs the 19 suites in `tests/run_tests.m` (296 checks on 2026-10-20, all pass; 293 on 2026-10-19, 24 of
   them in the 19th suite, `test_re_info`, added that evening): more than 9 min.
 - A subset: `run_tests({'test_options', 'test_rls', 'test_switching'})`. `test_re_info` alone
   takes about 8 min; `test_re_info('toy')`, `('sw07_model')`, `('sw07_runs')`,
