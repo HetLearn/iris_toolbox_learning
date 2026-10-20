@@ -50,6 +50,21 @@ cfg.expectations.variables = {'pinf'};        % forward-looking variables: y, pi
 % cfg.expectations.re_variant = 'anchored';  % toolbox default since 2026-10-18; with every agent RE,
 %                                             % 'anchored' and 'model_consistent' give the same path
 
+% ---- settings pinned against the SW07 project baseline of 2026-10-20 ------------------------
+% config/master_options.m now sets the SW07 baseline (published SW07 parameters, KOZ gain, t-1
+% RE information, filtered RE states, no facility). This application keeps the settings it was
+% run with on 2026-10-18 (results/a1as_re, a1as_learn; report section 12), so they are written out
+% (a1as_learn sets the gain value, memory, chi and initial share itself):
+cfg.model_params = '';                        % the package's own parameters (as07_params, published means)
+cfg.gain.rule = 'constant';
+cfg.expectations.re_info = 'current';
+cfg.history.re_states = 'smoothed';
+cfg.projection.facility = 'plm_alm';
+cfg.gain.value = 0.0585;                      % the previous master calibration (a1as_learn repeats it)
+cfg.switching.memory = 0.6;
+cfg.switching.intensity = 0.51;
+cfg.shares.init_n2 = 0.5;
+
 % ---- shocks over the horizon ----------------------------------------------------------------
 % cfg.shocks.source = 'none';                 % zero shocks over the horizon
 
