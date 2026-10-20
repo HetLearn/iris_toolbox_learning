@@ -1131,6 +1131,22 @@ the reviewer's pass).
 - Report units = model units x scale: the summary CSVs, `errors_long.csv`, `value_report`
   columns. Learning fields are in model units.
 
+### 6.8 The estimation module (separate; not adopted)
+
+`estimation/` estimates SW07 by Bayesian methods, under rational expectations and with the
+a1_learn learning block (the 36 SW07 parameters plus the gain, the memory and the intensity of
+choice), on 1966Q1-2026Q2 with the covid quarters missing. It is a separate module: nothing in
+`toolbox/`, `models/` or `scenarios/` uses it, every scenario of this guide keeps the published
+swX1 parameters, and it runs against a frozen copy of the toolbox (it also passes its gates
+against the live toolbox). Run order, file formats and the final pass after the chains finish:
+`estimation/README.md`. In short, from `estimation/`, one `matlab -batch` process per step:
+the gates (`est_00_gates`), the modes, Hessians and chains (`est_01` to `est_05`), then
+`est_06_post('final')` (or `'interim'` while the learning chains run), which writes
+`results/estimation/tables/*.csv` and runs application 1 at the estimates
+(`estimation/scenarios/e1_*.m` on the generated packages `estimation/models/sw07_est_*`).
+The report is `reports/sw07_estimation_report.html`, built by
+`python reports/build_estimation_report.py`; it is separate from the report of 6.6.
+
 ---
 
 ## 7. Functions
