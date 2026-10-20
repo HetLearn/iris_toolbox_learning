@@ -7,6 +7,9 @@ results/summary_v3/*
 **/generated/
 tests/output/
 reports/*.html
+# estimation packages and scenarios at the posterior modes, written by est_06_post
+estimation/models/
+estimation/scenarios/
 
 # Round 1-2 material and code backups, kept locally only
 archive/
