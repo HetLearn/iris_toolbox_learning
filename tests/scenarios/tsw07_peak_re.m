@@ -20,4 +20,12 @@ cfg.gain.value = 0.0585;             % calibration of config/master_options.m (2
 cfg.switching.intensity = 0.51;      % IJCB estimate (user decision 2026-10-18)
 cfg.switching.memory = 0.6;
 cfg.shares.init_n2 = 0.5;
+% Settings the project baseline changed on 2026-10-20, pinned at their previous values (= the
+% defaults), so the references hold even with the live config/master_options.m on the path
+% (the tests normally read tests/scenarios/master_options.m instead)
+cfg.model_params = '';               % swX1 (spec.params), not the published SW07 mode
+cfg.gain.rule = 'constant';
+cfg.expectations.re_info = 'current';
+cfg.history.re_states = 'smoothed';
+cfg.projection.facility = 'plm_alm';
 end
