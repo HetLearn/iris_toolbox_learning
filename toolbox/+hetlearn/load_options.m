@@ -58,6 +58,37 @@ function opts = load_options(cfg, master)
 %     is an error. Names and expressions are checked against the model by
 %     hetlearn.extend_model / hetlearn.plm.build_system.
 %
+%   Bounded-rationality extensions (docs/DESIGN_br_extensions.md, schema of
+%   phase P0, 2026-10-20; every option defaults to off)
+%     expectations.types: a struct array or a cell array of structs,
+%     normalised to a 1xN struct array with every field (missing ones []);
+%     unknown fields, names that are not letters and digits or not unique,
+%     an unknown kind, fields that do not apply to the kind, missing
+%     required fields (rule; base and k), bad values, variables outside a
+%     cellstr learning set and a type 'RE' of another kind are errors
+%     (hetlearn:options:types). A type's gain is merged over gain and
+%     checked like it. expectations.transforms: normalised the same way
+%     (types [] = 'all', scope [] = 'learning', profile [] = 'geometric'
+%     for a multiplier, factor completed for a wedge); kind, types (names of
+%     the population, 'RE' always allowed), scope entries ('x' or
+%     'x@<label>'), values by kind, wedge factors and unique wedge shocks
+%     are checked (hetlearn:options:transforms). shares.init, shares.fixed,
+%     switching.costs: structs by type name (population: the types, or RE
+%     and BR when none are given; an unlisted RE type takes share 0), shares
+%     in [0, 1] summing to 1 per share group where the groups are known,
+%     costs >= 0 and not also set in the type. switching.inertia in [0, 1),
+%     switching.fitness 'normalized' | 'unnormalized' (memory may be 1 only
+%     with 'unnormalized'), switching.intensity also 'model:<rule>';
+%     beliefs.update also 'sac' | 'kf', beliefs.kf.gamma [] or in (0, 1),
+%     beliefs.kf.s2 're_moments' or > 0; gain.rule also 'decreasing',
+%     gain.decreasing.n0 >= 1; history.mode also 'kalman' (history.re_states
+%     must then stay 'smoothed', as with 'inversion'), history.kalman.init
+%     'stochastic' | 'smoothed'; 'fixed_shares' takes shares.fixed_n2 or
+%     shares.fixed (not both). Until the engine reads them, setting one of
+%     these features stops with hetlearn:options:notImplemented, which
+%     lists every such option of the run with the phase that builds it
+%     (function not_implemented: each phase deletes its own lines).
+%
 %   See also hetlearn.defaults.
 
 if nargin < 1 || isempty(cfg)
@@ -125,7 +156,8 @@ function base = merge(base, over, path)
 % Recursive merge with name checking.
 FREE = {'beliefs.init.values', 'beliefs.plm.by_var', 'beliefs.plm.derived', 'gain.by_var', ...
     'shares.fixed_n2', 'shocks.add', 'report'};
-REPLACE = {'conditions', 'policy.loss'};
+REPLACE = {'conditions', 'policy.loss', ...
+    'expectations.types', 'expectations.transforms', 'shares.init', 'shares.fixed', 'switching.costs'};   % BR (P0)
 if ~isstruct(over) || ~isscalar(over)
     error('hetlearn:options:type', 'Option "%s" must be a scalar struct.', strip_path(path));
 end
@@ -252,6 +284,140 @@ o.compare_with = tocell(o.compare_with, 'compare_with');
 if isfield(o.report, 'variables')
     o.report.variables = tocell(o.report.variables, 'report.variables');
 end
+% bounded-rationality extensions (DESIGN_br_extensions, schema of phase P0)
+o.switching.fitness = tochar(o.switching.fitness, 'switching.fitness');
+if isstring(o.switching.intensity) && isscalar(o.switching.intensity)
+    o.switching.intensity = char(o.switching.intensity);
+end
+if isstring(o.beliefs.kf.s2) && isscalar(o.beliefs.kf.s2)
+    o.beliefs.kf.s2 = char(o.beliefs.kf.s2);
+end
+o.history.kalman.init = tochar(o.history.kalman.init, 'history.kalman.init');
+o.expectations.types = normalise_types(o.expectations.types);
+o.expectations.transforms = normalise_transforms(o.expectations.transforms);
+end
+
+
+% -------------------------------------------------------------------------
+function T = normalise_types(T)
+% expectations.types (DESIGN_br_extensions 1.1): -> 1xN struct array with every field
+F = {'name', 'kind', 'variant', 'info', 'plm', 'update', 'gain', 'rule', 'base', 'k', 'variables', 'cost'};
+T = struct_list(T, F, 'expectations.types', 'hetlearn:options:types');
+for i = 1:numel(T)
+    for f = {'name', 'kind', 'variant', 'info', 'update', 'base', 'plm', 'rule'}
+        if isstring(T(i).(f{1})) && isscalar(T(i).(f{1}))
+            T(i).(f{1}) = char(T(i).(f{1}));
+        end
+    end
+    T(i).variables = cell_or_empty(T(i).variables);
+end
+end
+
+
+function X = normalise_transforms(X)
+% expectations.transforms (DESIGN_br_extensions 1.3): -> 1xN struct array, defaults filled in
+F = {'kind', 'types', 'scope', 'exclude', 'profile', 'value', 'factor'};
+X = struct_list(X, F, 'expectations.transforms', 'hetlearn:options:transforms');
+for i = 1:numel(X)
+    for f = {'kind', 'profile'}
+        if isstring(X(i).(f{1})) && isscalar(X(i).(f{1}))
+            X(i).(f{1}) = char(X(i).(f{1}));
+        end
+    end
+    X(i).types = all_or_cell(X(i).types, 'all', {'all'});
+    X(i).scope = all_or_cell(X(i).scope, 'learning', {'learning', 'all'});
+    X(i).exclude = cell_or_empty(X(i).exclude);
+    if isempty(X(i).exclude)
+        X(i).exclude = {};
+    end
+    if isempty(X(i).profile)
+        X(i).profile = '';
+        if ischar(X(i).kind) && strcmp(X(i).kind, 'multiplier')
+            X(i).profile = 'geometric';
+        end
+    end
+    if ischar(X(i).kind) && strcmp(X(i).kind, 'wedge')
+        fac = X(i).factor;
+        if isempty(fac)
+            fac = struct();
+        end
+        if isstruct(fac) && isscalar(fac)
+            def = struct('rho', 0, 'std', 0, 'mean', 0, 'loadings', [], 'shock', '');
+            for g = fieldnames(def)'
+                if ~isfield(fac, g{1})
+                    fac.(g{1}) = def.(g{1});
+                elseif isstring(fac.(g{1})) && isscalar(fac.(g{1}))
+                    fac.(g{1}) = char(fac.(g{1}));
+                end
+            end
+        end
+        X(i).factor = fac;
+    end
+end
+end
+
+
+function S = struct_list(X, F, name, id)
+% a struct array or a cell array of scalar structs -> 1xN struct array with fields F (missing = []);
+% empty -> the 0x0 struct array of hetlearn.defaults
+S = repmat(cell2struct(cell(numel(F), 1), F, 1), 0, 0);
+if isempty(X)
+    return
+end
+if isstruct(X)
+    C = num2cell(reshape(X, 1, []));
+elseif iscell(X) && all(cellfun(@(c) isstruct(c) && isscalar(c), X(:)))
+    C = reshape(X, 1, []);
+else
+    error(id, 'Option "%s" must be a struct array or a cell array of structs.', name);
+end
+S = repmat(cell2struct(cell(numel(F), 1), F, 1), 1, numel(C));
+for i = 1:numel(C)
+    f = fieldnames(C{i});
+    bad = setdiff(f, F);
+    if ~isempty(bad)
+        error(id, 'Unknown field(s) in option "%s(%d)": %s (fields: %s).', name, i, ...
+            strjoin(bad', ', '), strjoin(F, ', '));
+    end
+    for j = 1:numel(f)
+        S(i).(f{j}) = C{i}.(f{j});
+    end
+end
+end
+
+
+function v = cell_or_empty(v)
+% [] or a cellstr row; char -> {char}; strings -> cellstr; {} -> []
+if isstring(v)
+    v = cellstr(v);
+end
+if ischar(v) && ~isempty(v)
+    v = {v};
+end
+if isempty(v)
+    v = [];
+elseif iscell(v)
+    v = reshape(v, 1, []);
+end
+end
+
+
+function v = all_or_cell(v, dflt, words)
+% [] -> dflt; one of words stays char; another char -> {char}; strings -> char or cellstr
+if isstring(v)
+    if isscalar(v)
+        v = char(v);
+    else
+        v = cellstr(v);
+    end
+end
+if isempty(v)
+    v = dflt;
+elseif ischar(v) && ~any(strcmp(v, words))
+    v = {v};
+elseif iscell(v)
+    v = reshape(v, 1, []);
+end
 end
 
 
@@ -305,7 +471,16 @@ if strcmp(o.expectations.re_info, 'lagged')
             'derived or tested (DESIGN 19). Use policy.mode = ''rule'' or re_info = ''current''.']);
     end
 end
-enum(o.beliefs.update, {'rls', 'fixed'}, 'beliefs.update');
+enum(o.beliefs.update, {'rls', 'fixed', 'sac', 'kf'}, 'beliefs.update');   % 'sac', 'kf': DESIGN_br_extensions 1.5 (P5)
+kf = o.beliefs.kf;
+if ~isempty(kf.gamma)
+    num(kf.gamma, @(x) x > 0 && x < 1, 'beliefs.kf.gamma', 'in (0, 1), or [] (= gain.value)');
+end
+if ischar(kf.s2)
+    enum(kf.s2, {'re_moments'}, 'beliefs.kf.s2');
+else
+    num(kf.s2, @(x) x > 0 && isfinite(x), 'beliefs.kf.s2', '> 0, or ''re_moments''');
+end
 enum(o.beliefs.info, {'lagged', 'current'}, 'beliefs.info');
 d = o.beliefs.plm.default;
 if ~ischar(d)
@@ -347,8 +522,11 @@ end
 if ~isstruct(o.beliefs.init.values)
     error('hetlearn:options:type', 'Option "beliefs.init.values" must be a struct.');
 end
-fn(o.gain.rule, 'gain');
+if ~strcmp(o.gain.rule, 'decreasing')      % 'decreasing': planned (P5), reported by not_implemented
+    fn(o.gain.rule, 'gain');
+end
 num(o.gain.value, @(x) x > 0 && x <= 1, 'gain.value', 'in (0, 1]');
+num(o.gain.decreasing.n0, @(x) x >= 1 && isfinite(x), 'gain.decreasing.n0', '>= 1');
 if ~isstruct(o.gain.by_var)
     error('hetlearn:options:type', 'Option "gain.by_var" must be a struct.');
 end
@@ -364,9 +542,13 @@ if strcmp(o.shares.structure, 'universal') && isempty(o.shares.master)
 end
 num(o.shares.init_n2, @(x) x >= 0 && x <= 1, 'shares.init_n2', 'in [0, 1]');
 f2 = o.shares.fixed_n2;
-if strcmp(o.expectations.mode, 'fixed_shares') && isempty(f2)
+if strcmp(o.expectations.mode, 'fixed_shares') && isempty(f2) && isempty(o.shares.fixed)
     error('hetlearn:options:missing', ...
-        'expectations.mode = ''fixed_shares'' needs shares.fixed_n2.');
+        'expectations.mode = ''fixed_shares'' needs shares.fixed_n2 (or, with N types, shares.fixed).');
+end
+if ~isempty(f2) && ~isempty(o.shares.fixed)
+    error('hetlearn:options:value', ['Options "shares.fixed_n2" and "shares.fixed" are both set; use one ' ...
+        '(fixed_n2 is the two-type shorthand of shares.fixed).']);
 end
 if ~isempty(f2)
     if isnumeric(f2)
@@ -382,17 +564,32 @@ if ~isempty(f2)
     end
 end
 fn(o.switching.rule, 'switching');
-num(o.switching.intensity, @(x) x >= 0, 'switching.intensity', '>= 0');
-num(o.switching.memory, @(x) x >= 0 && x < 1, 'switching.memory', 'in [0, 1)');
+if ischar(o.switching.intensity)       % 'model:<rule>', computed from the RE limit (P2)
+    if isempty(regexp(o.switching.intensity, '^model:[A-Za-z]\w*$', 'once'))
+        error('hetlearn:options:value', ['Option "switching.intensity" must be a numeric scalar >= 0 or ' ...
+            '''model:<rule>'' (e.g. ''model:bma''); got ''%s''.'], o.switching.intensity);
+    end
+else
+    num(o.switching.intensity, @(x) x >= 0, 'switching.intensity', '>= 0');
+end
+enum(o.switching.fitness, {'normalized', 'unnormalized'}, 'switching.fitness');
+if strcmp(o.switching.fitness, 'unnormalized')
+    % cumulative errors without forgetting (memory 1) are the Bayesian model averaging case (variant 27)
+    num(o.switching.memory, @(x) x >= 0 && x <= 1, 'switching.memory', 'in [0, 1] (fitness ''unnormalized'')');
+else
+    num(o.switching.memory, @(x) x >= 0 && x < 1, 'switching.memory', 'in [0, 1)');
+end
+num(o.switching.inertia, @(x) x >= 0 && x < 1, 'switching.inertia', 'in [0, 1) (0 = off)');
 enum(o.projection.facility, {'plm_alm', 'alm', 'none'}, 'projection.facility');
 if ~(islogical(o.history.learn) || isnumeric(o.history.learn)) || ~isscalar(o.history.learn)
     error('hetlearn:options:type', 'Option "history.learn" must be true or false.');
 end
 if strcmp(o.history.mode, 'hetero_filter')
-    error('hetlearn:options:notImplemented', ...
-        'history.mode = ''hetero_filter'' is a planned hook and is not implemented.');
+    error('hetlearn:options:notImplemented', ['history.mode = ''hetero_filter'' is a planned hook and is ' ...
+        'not implemented: the Kalman history of the heterogeneous-expectations model is history.mode = ' ...
+        '''kalman'' (docs/DESIGN_br_extensions.md sec. 5, phase P1).']);
 end
-enum(o.history.mode, {'re_smoother', 'inversion'}, 'history.mode');
+enum(o.history.mode, {'re_smoother', 'inversion', 'kalman'}, 'history.mode');
 enum(o.history.re_states, {'smoothed', 'filtered'}, 'history.re_states');
 if strcmp(o.history.re_states, 'filtered') && strcmp(o.history.mode, 'inversion')
     % an error rather than a silently ignored option: the run would equal the 'smoothed' one
@@ -400,6 +597,12 @@ if strcmp(o.history.re_states, 'filtered') && strcmp(o.history.mode, 'inversion'
         '''re_smoother'' only. The inversion is one-sided by construction (period t uses data up to t); ' ...
         'leave history.re_states at ''smoothed'' there.']);
 end
+if strcmp(o.history.re_states, 'filtered') && strcmp(o.history.mode, 'kalman')
+    error('hetlearn:options:value', ['history.re_states = ''filtered'' applies to history.mode = ' ...
+        '''re_smoother'' only. The Kalman history is one-sided by construction (forecasts from the ' ...
+        'predicted and filtered states of the ALM); leave history.re_states at ''smoothed'' there.']);
+end
+enum(o.history.kalman.init, {'stochastic', 'smoothed'}, 'history.kalman.init');
 enum(o.engine.step, {'fast', 'iris'}, 'engine.step');
 enum(o.engine.conditions_weighting, {'std', 'none'}, 'engine.conditions_weighting');
 enum(o.shocks.source, {'none', 'smoothed'}, 'shocks.source');
@@ -412,6 +615,471 @@ end
 num(o.forecast.horizon, @(x) x >= 1 && x == round(x), 'forecast.horizon', 'a positive integer');
 if ~isstruct(o.conditions)
     error('hetlearn:options:type', 'Option "conditions" must be a struct array.');
+end
+% bounded-rationality extensions (DESIGN_br_extensions, schema of phase P0)
+validate_types(o);
+validate_transforms(o);
+validate_by_type(o);
+not_implemented(o);
+end
+
+
+% -------------------------------------------------------------------------
+function not_implemented(o)
+% Options of docs/DESIGN_br_extensions.md that are validated but that the engine does not read
+% yet. A phase deletes its own lines when it lands (section 6 of the design).
+T = o.expectations.types;
+L = {};
+if strcmp(o.history.mode, 'kalman')
+    L(end+1, :) = {'history.mode = ''kalman''', 'P1'};
+end
+if ~isempty(T)
+    L(end+1, :) = {'expectations.types (N agent types)', 'P2'};
+end
+if ~isempty(o.shares.init)
+    L(end+1, :) = {'shares.init', 'P2'};
+end
+if ~isempty(o.shares.fixed)
+    L(end+1, :) = {'shares.fixed', 'P2'};
+end
+if o.switching.inertia ~= 0
+    L(end+1, :) = {'switching.inertia', 'P2'};
+end
+c = [struct2cell_or_empty(o.switching.costs); {T.cost}'];
+if any(cellfun(@(v) ~isempty(v) && v ~= 0, c))
+    L(end+1, :) = {'switching costs (switching.costs, expectations.types.cost)', 'P2'};
+end
+if strcmp(o.switching.fitness, 'unnormalized')
+    L(end+1, :) = {'switching.fitness = ''unnormalized''', 'P2'};
+end
+if ischar(o.switching.intensity)
+    L(end+1, :) = {sprintf('switching.intensity = ''%s''', o.switching.intensity), 'P2'};
+end
+if ~isempty(o.expectations.transforms)
+    L(end+1, :) = {'expectations.transforms', 'P3'};
+end
+kinds = {T.kind};
+if any(strcmp(kinds, 'level'))
+    L(end+1, :) = {'types of kind ''level''', 'P4'};
+end
+if any(strcmp(kinds, 're_mean'))
+    L(end+1, :) = {'types of kind ''re_mean''', 'P4, P5'};
+end
+if any(cellfun(@(e) ~isempty(regexp(e, '\<re1\s*\(', 'once')), arrayfun(@rule_expr, T, 'UniformOutput', false)))
+    L(end+1, :) = {'rule term re1(...)', 'P4'};
+end
+ups = [{o.beliefs.update}, {T.update}];
+for u = {'sac', 'kf'}
+    if any(strcmp(ups, u{1}))
+        L(end+1, :) = {sprintf('beliefs.update = ''%s''', u{1}), 'P5'}; %#ok<AGROW>
+    end
+end
+gr = {o.gain.rule};
+for i = 1:numel(T)
+    if isstruct(T(i).gain) && isfield(T(i).gain, 'rule')
+        gr{end+1} = T(i).gain.rule; %#ok<AGROW>
+    end
+end
+if any(strcmp(gr, 'decreasing'))
+    L(end+1, :) = {'gain.rule = ''decreasing''', 'P5'};
+end
+if ~isempty(L)
+    items = cellfun(@(a, b) sprintf('%s (phase %s)', a, b), L(:, 1), L(:, 2), 'UniformOutput', false);
+    error('hetlearn:options:notImplemented', ['Not implemented yet: %s. These options of ' ...
+        'docs/DESIGN_br_extensions.md are validated, but the engine does not use them before the phase ' ...
+        'named (section 6 of the design); leave them at their defaults until then.'], strjoin(items, '; '));
+end
+end
+
+
+function e = rule_expr(t)
+e = '';
+if ischar(t.rule)
+    e = t.rule;
+elseif isstruct(t.rule) && isscalar(t.rule) && isfield(t.rule, 'expr') && ischar(t.rule.expr)
+    e = t.rule.expr;
+end
+end
+
+
+function c = struct2cell_or_empty(s)
+c = cell(0, 1);
+if isstruct(s) && isscalar(s)
+    c = struct2cell(s);
+end
+end
+
+
+% -------------------------------------------------------------------------
+function validate_types(o)
+% expectations.types (DESIGN_br_extensions 1.1); model-dependent checks (forward-looking variables,
+% share groups of 'all', mode semantics) are left to the engine
+T = o.expectations.types;
+if isempty(T)
+    return
+end
+ID = 'hetlearn:options:types';
+kinds = {'re', 'plm', 'rule', 'level', 're_mean'};
+applies = struct('re', {{'variant', 'info', 'variables', 'cost'}}, ...
+    'plm', {{'info', 'plm', 'update', 'gain', 'variables', 'cost'}}, ...
+    'rule', {{'info', 'rule', 'update', 'gain', 'variables', 'cost'}}, ...
+    'level', {{'variant', 'info', 'base', 'k', 'variables', 'cost'}}, ...
+    're_mean', {{'variant', 'info', 'update', 'gain', 'variables', 'cost'}});
+optional = {'variant', 'info', 'plm', 'update', 'gain', 'rule', 'base', 'k', 'variables', 'cost'};
+names = cell(1, numel(T));
+for i = 1:numel(T)
+    t = T(i);
+    if ~(ischar(t.name) && ~isempty(regexp(t.name, '^[A-Za-z][A-Za-z0-9]*$', 'once')))
+        error(ID, 'Option "expectations.types(%d).name" must be letters and digits, starting with a letter.', i);
+    end
+    names{i} = t.name;
+end
+dup = unique(names(cellfun(@(n) sum(strcmp(names, n)) > 1, names)));
+if ~isempty(dup)
+    error(ID, 'Option "expectations.types": type names must be unique; repeated: %s.', strjoin(dup, ', '));
+end
+lv = o.expectations.variables;
+for i = 1:numel(T)
+    t = T(i);
+    p = sprintf('expectations.types(%d) (''%s'')', i, t.name);
+    if ~(ischar(t.kind) && any(strcmp(t.kind, kinds)))
+        error(ID, 'Option "%s.kind" must be one of: %s.', p, strjoin(kinds, ', '));
+    end
+    if strcmp(t.name, 'RE') && ~strcmp(t.kind, 're')
+        error(ID, ['Option "%s": the type named RE is the always-generated RE type and must be of kind ''re'' ' ...
+            '(name the other type differently).'], p);
+    end
+    given = optional(cellfun(@(f) ~isempty(t.(f)), optional));
+    bad = setdiff(given, applies.(t.kind));
+    if ~isempty(bad)
+        error(ID, 'Option "%s": field(s) %s do not apply to kind ''%s''.', p, strjoin(bad, ', '), t.kind);
+    end
+    if ~isempty(t.variant)
+        check_enum(t.variant, {'anchored', 'model_consistent'}, [p '.variant'], ID);
+    end
+    if ~isempty(t.info)
+        check_enum(t.info, {'lagged', 'current'}, [p '.info'], ID);
+    end
+    if ~isempty(t.update)
+        check_enum(t.update, {'rls', 'fixed', 'sac', 'kf'}, [p '.update'], ID);
+    end
+    if ~isempty(t.plm)
+        check_type_plm(t.plm, [p '.plm'], ID);
+    end
+    if ~isempty(t.gain)
+        check_type_gain(o, t.gain, [p '.gain'], ID);
+    end
+    if strcmp(t.kind, 'rule')
+        check_rule(t.rule, [p '.rule'], ID);
+    end
+    if strcmp(t.kind, 'level')
+        if ~(ischar(t.base) && any(strcmp(t.base, [names, {'RE'}])) && ~strcmp(t.base, t.name))
+            error(ID, 'Option "%s.base" must name another type of the list (or ''RE'').', p);
+        end
+        if ~(isnumeric(t.k) && isscalar(t.k) && isreal(t.k) && t.k >= 1 && t.k == round(t.k))
+            error(ID, 'Option "%s.k" must be an integer >= 1.', p);
+        end
+    end
+    if ~isempty(t.variables)
+        v = t.variables;
+        if ~(iscellstr(v) && all(cellfun(@isvarname, v)))
+            error(ID, 'Option "%s.variables" must be a cellstr of variable names, or [] (every learning variable).', p);
+        end
+        if iscell(lv) && ~all(ismember(v, lv))
+            error(ID, 'Option "%s.variables": %s not in expectations.variables (%s).', p, ...
+                strjoin(setdiff(v, lv), ', '), strjoin(lv, ', '));
+        end
+    end
+    if ~isempty(t.cost)
+        if ~(isnumeric(t.cost) && isscalar(t.cost) && isreal(t.cost) && isfinite(t.cost) && t.cost >= 0)
+            error(ID, 'Option "%s.cost" must be a number >= 0 (Brock-Hommes cost), or [].', p);
+        end
+        if isstruct(o.switching.costs) && isfield(o.switching.costs, t.name)
+            error(ID, 'The cost of type %s is set twice, in "%s.cost" and in "switching.costs.%s"; use one.', ...
+                t.name, p, t.name);
+        end
+    end
+end
+end
+
+
+function check_enum(v, allowed, name, id)
+if ~(ischar(v) && any(strcmp(v, allowed)))
+    error(id, 'Option "%s" must be one of: %s.', name, strjoin(allowed, ', '));
+end
+end
+
+
+function check_type_plm(p, name, id)
+% a PLM shorthand or a partial beliefs.plm subtree (names checked against the defaults)
+if ischar(p)
+    check_enum(p, {'ar1', 'ar2', 'ar1_noconst', 'var1'}, name, id);
+    return
+end
+d = hetlearn.defaults();
+try
+    q = merge(d.beliefs.plm, p, '.beliefs.plm');
+catch err
+    error(id, 'Option "%s": %s', name, err.message);
+end
+if ~ischar(q.default)
+    error(id, 'Option "%s.default" must be a shorthand string.', name);
+end
+check_enum(q.default, {'ar1', 'ar2', 'ar1_noconst', 'var1'}, [name '.default'], id);
+if ~isstruct(q.by_var) || ~isstruct(q.derived) || ~isstruct(q.var)
+    error(id, 'Option "%s": by_var, derived and var must be structs.', name);
+end
+end
+
+
+function check_type_gain(o, g, name, id)
+% a partial gain subtree, merged over gain and checked as gain
+if ~(isstruct(g) && isscalar(g))
+    error(id, 'Option "%s" must be a partial gain subtree (a struct), or [].', name);
+end
+try
+    q = merge(o.gain, g, '.gain');
+    q.rule = tochar(q.rule, 'gain.rule');
+    q.koz.structure = tochar(q.koz.structure, 'gain.koz.structure');
+    q.koz.error = tochar(q.koz.error, 'gain.koz.error');
+    q.koz.master = tocell(q.koz.master, 'gain.koz.master');
+    if ~strcmp(q.rule, 'decreasing')
+        fn(q.rule, 'gain');
+    end
+    num(q.value, @(x) x > 0 && x <= 1, 'gain.value', 'in (0, 1]');
+    num(q.decreasing.n0, @(x) x >= 1 && isfinite(x), 'gain.decreasing.n0', '>= 1');
+    ot = o;
+    ot.gain = q;
+    validate_gain(ot);
+catch err
+    error(id, 'Option "%s": %s', name, err.message);
+end
+end
+
+
+function check_rule(r, name, id)
+% 'rule' types: the expression, or struct('expr', ..., 'params', struct of numbers)
+if isstruct(r) && isscalar(r)
+    bad = setdiff(fieldnames(r), {'expr', 'params'});
+    if ~isempty(bad)
+        error(id, 'Unknown field(s) in option "%s": %s (fields: expr, params).', name, strjoin(bad', ', '));
+    end
+    if ~isfield(r, 'expr')
+        error(id, 'Option "%s" needs the field expr.', name);
+    end
+    e = r.expr;
+    if isfield(r, 'params') && ~isempty(r.params)
+        pr = r.params;
+        if ~(isstruct(pr) && isscalar(pr) && all(cellfun(@(f) isnumeric(pr.(f)) && isscalar(pr.(f)) ...
+                && isreal(pr.(f)) && isfinite(pr.(f)), fieldnames(pr))))
+            error(id, 'Option "%s.params" must be a struct of finite numbers.', name);
+        end
+    end
+else
+    e = r;
+end
+if isstring(e) && isscalar(e)
+    e = char(e);
+end
+if ~(ischar(e) && ~isempty(strtrim(e)) && ~isempty(regexp(e, '^[\w\s\.\+\-\*/\(\)\{\},]+$', 'once')))
+    error(id, ['Option "%s" must hold the rule expression (names, numbers, + - * / ( ) and lags x{-k}), ' ...
+        'e.g. ''0.65*x{-1} + 0.35*self{-1}'', or struct(''expr'', ..., ''params'', ...).'], name);
+end
+end
+
+
+% -------------------------------------------------------------------------
+function validate_transforms(o)
+% expectations.transforms (DESIGN_br_extensions 1.3); equation labels and variables are checked
+% against the model by the generator
+X = o.expectations.transforms;
+if isempty(X)
+    return
+end
+ID = 'hetlearn:options:transforms';
+kinds = {'multiplier', 'diagnostic', 'myopia_anchoring', 'partial_adjustment', 'wedge'};
+pop = population(o);
+shocks = {};
+for i = 1:numel(X)
+    x = X(i);
+    p = sprintf('expectations.transforms(%d)', i);
+    if ~(ischar(x.kind) && any(strcmp(x.kind, kinds)))
+        error(ID, 'Option "%s.kind" must be one of: %s.', p, strjoin(kinds, ', '));
+    end
+    p = sprintf('%s (''%s'')', p, x.kind);
+    if iscell(x.types)
+        if ~iscellstr(x.types) || ~all(ismember(x.types, [pop, {'RE'}]))
+            error(ID, 'Option "%s.types" must be ''all'' or names of the population (%s).', p, ...
+                strjoin(unique([pop, {'RE'}], 'stable'), ', '));
+        end
+    elseif ~strcmp(x.types, 'all')
+        error(ID, 'Option "%s.types" must be ''all'' or a cellstr of type names.', p);
+    end
+    if iscell(x.scope)
+        ok = iscellstr(x.scope) && all(cellfun(@(s) ~isempty(regexp(s, '^[A-Za-z]\w*(@.*\S.*)?$', 'once')), x.scope));
+        if ~ok
+            error(ID, ['Option "%s.scope" must be ''learning'', ''all'' or a cellstr of variables and ' ...
+                '''x@<exact equation label>'' entries.'], p);
+        end
+    elseif ~any(strcmp(x.scope, {'learning', 'all'}))
+        error(ID, 'Option "%s.scope" must be ''learning'', ''all'' or a cellstr.', p);
+    end
+    if ~isempty(x.exclude) && ~(iscellstr(x.exclude) && all(cellfun(@isvarname, x.exclude)))
+        error(ID, 'Option "%s.exclude" must be a cellstr of variable names.', p);
+    end
+    if strcmp(x.kind, 'multiplier')
+        check_enum(x.profile, {'geometric', 'flat', 'hyperbolic'}, [p '.profile'], ID);
+    elseif ~isempty(x.profile)
+        error(ID, 'Option "%s.profile" applies to kind ''multiplier'' only.', p);
+    end
+    v = x.value;
+    isnum = @(v, n) isnumeric(v) && isreal(v) && numel(v) == n && all(isfinite(v(:)));
+    switch x.kind
+        case 'multiplier'
+            ok = isnum(v, 1) && v >= 0;
+            what = 'a number >= 0 (m or lambda; alpha for ''hyperbolic'')';
+        case 'diagnostic'
+            ok = isnum(v, 1);
+            what = 'a number (theta; 0 = identity)';
+        case 'myopia_anchoring'
+            ok = isnum(v, 2);
+            what = '[omega_f, b] ([1 0] = identity)';
+        case 'partial_adjustment'
+            ok = isnum(v, 1) && v >= 0 && v <= 1;
+            what = 'a number g in [0, 1] (1 = identity)';
+        otherwise    % wedge
+            ok = isempty(v);
+            what = 'empty (a wedge is set by its factor)';
+    end
+    if ~ok
+        error(ID, 'Option "%s.value" must be %s.', p, what);
+    end
+    if strcmp(x.kind, 'wedge')
+        shocks = check_factor(x.factor, [p '.factor'], ID, shocks);
+    elseif ~isempty(x.factor)
+        error(ID, 'Option "%s.factor" applies to kind ''wedge'' only.', p);
+    end
+end
+end
+
+
+function shocks = check_factor(f, name, id, shocks)
+if ~(isstruct(f) && isscalar(f))
+    error(id, 'Option "%s" must be a struct (rho, std, mean, loadings, shock).', name);
+end
+bad = setdiff(fieldnames(f), {'rho', 'std', 'mean', 'loadings', 'shock'});
+if ~isempty(bad)
+    error(id, 'Unknown field(s) in option "%s": %s (fields: rho, std, mean, loadings, shock).', name, strjoin(bad', ', '));
+end
+isModel = @(v, sign) ischar(v) && ~isempty(regexp(v, ['^' sign 'model:[A-Za-z]\w*$'], 'once'));
+fin = @(v) isnumeric(v) && isscalar(v) && isreal(v) && isfinite(v);
+if ~(fin(f.rho) && abs(f.rho) < 1)
+    error(id, 'Option "%s.rho" must be a number in (-1, 1).', name);
+end
+if ~((fin(f.std) && f.std >= 0) || isModel(f.std, ''))
+    error(id, 'Option "%s.std" must be a number >= 0 or ''model:<rule>''.', name);
+end
+if ~(fin(f.mean) || isModel(f.mean, '-?'))
+    error(id, 'Option "%s.mean" must be a number or ''model:<rule>'' (''-model:<rule>'' for minus that value).', name);
+end
+L = f.loadings;
+okL = isempty(L) || isModel(L, '') || (isstruct(L) && isscalar(L) && all(cellfun(@(g) fin(L.(g)), fieldnames(L))));
+if ~okL
+    error(id, 'Option "%s.loadings" must be [] (1 for every variable), a struct of numbers by variable or ''model:<rule>''.', name);
+end
+s = f.shock;
+if ~(ischar(s) && (isempty(s) || isvarname(s)))
+    error(id, 'Option "%s.shock" must be a shock name, or '''' for a constant wedge.', name);
+end
+if isempty(s) && ~(fin(f.std) && f.std == 0)
+    error(id, 'Option "%s": a wedge with std other than 0 needs factor.shock (the name of its new shock).', name);
+end
+if ~isempty(s)
+    if any(strcmp(shocks, s))
+        error(id, 'Option "%s.shock" = ''%s'' is used by another wedge; use one name per factor.', name, s);
+    end
+    shocks{end+1} = s;
+end
+end
+
+
+function pop = population(o)
+% type names of the population: the listed types, or the default pair
+T = o.expectations.types;
+if isempty(T)
+    pop = {'RE', 'BR'};
+else
+    pop = {T.name};
+end
+end
+
+
+% -------------------------------------------------------------------------
+function validate_by_type(o)
+% shares.init, shares.fixed, switching.costs: structs by type name (DESIGN_br_extensions 1.1-1.2)
+ID = 'hetlearn:options:value';
+T = o.expectations.types;
+pop = population(o);
+known = unique([pop, {'RE'}], 'stable');
+for nm = {'init', 'fixed'}
+    s = o.shares.(nm{1});
+    p = ['shares.' nm{1}];
+    if isempty(s)
+        continue
+    end
+    if ~(isstruct(s) && isscalar(s))
+        error(ID, 'Option "%s" must be a struct by type name, or [].', p);
+    end
+    f = fieldnames(s)';
+    bad = setdiff(f, known);
+    if ~isempty(bad)
+        error(ID, 'Option "%s": %s not a type of the population (%s).', p, strjoin(bad, ', '), strjoin(known, ', '));
+    end
+    for j = 1:numel(f)
+        num(s.(f{j}), @(x) x >= 0 && x <= 1, sprintf('%s.%s', p, f{j}), 'in [0, 1]');
+    end
+    miss = setdiff(pop, f);
+    if ~isempty(miss)
+        error(ID, 'Option "%s" gives no share for type(s) %s.', p, strjoin(miss, ', '));
+    end
+    % share groups: all types forecast every learning variable, or per variable of a cellstr set
+    lv = o.expectations.variables;
+    hasVars = ~isempty(T) && any(arrayfun(@(t) ~isempty(t.variables), T));
+    if ~hasVars
+        groups = {f};
+        gname = {'all learning variables'};
+    elseif iscell(lv)
+        groups = cell(1, numel(lv));
+        gname = lv;
+        for j = 1:numel(lv)
+            mem = arrayfun(@(t) isempty(t.variables) || any(strcmp(t.variables, lv{j})), T);
+            groups{j} = intersect(f, [{T(mem).name}, setdiff({'RE'}, pop)]);
+        end
+    else
+        groups = {};    % types with own variables and expectations.variables = 'all': checked by the engine
+        gname = {};
+    end
+    for j = 1:numel(groups)
+        tot = sum(cellfun(@(n) double(s.(n)), groups{j}));
+        if abs(tot - 1) > 1e-10
+            error(ID, 'Option "%s": the shares of %s (%s) sum to %.12g, not 1.', p, gname{j}, ...
+                strjoin(groups{j}, ', '), tot);
+        end
+    end
+end
+c = o.switching.costs;
+if ~isempty(c)
+    if ~(isstruct(c) && isscalar(c))
+        error(ID, 'Option "switching.costs" must be a struct by type name, or [].');
+    end
+    f = fieldnames(c)';
+    bad = setdiff(f, known);
+    if ~isempty(bad)
+        error(ID, 'Option "switching.costs": %s not a type of the population (%s).', strjoin(bad, ', '), strjoin(known, ', '));
+    end
+    for j = 1:numel(f)
+        num(c.(f{j}), @(x) x >= 0 && isfinite(x), ['switching.costs.' f{j}], '>= 0');
+    end
 end
 end
 
