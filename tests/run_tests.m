@@ -20,6 +20,14 @@ addpath(root);
 setup_paths();
 addpath(here);
 addpath(fullfile(here, 'scenarios'));     % test scenarios (tsw07_*) and reference helpers, independent of scenarios/
+% tests/scenarios/master_options.m (the calibration of 2026-10-18/19 = the defaults) shadows the
+% project's config/master_options.m, so the project baseline (changed 2026-10-20) does not reach
+% the tests. A suite run on its own outside run_tests needs addpath('tests/scenarios') first; the
+% SW07 suites add it themselves.
+mo = which('master_options');
+if ~startsWith(mo, fullfile(here, 'scenarios'))
+    error('run_tests:master', 'master_options resolves to %s, not to tests/scenarios/master_options.m.', mo);
+end
 
 suites = {'test_options', 'test_rls', 'test_switching', 'test_plm', 'test_generator', ...
     'test_engine', 'test_sw07', 'test_density', 'test_evaluate', 'test_anchored', 'test_plm2', ...
