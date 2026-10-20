@@ -1,5 +1,43 @@
 # Findings, SW07 with anchored RE and learning on inflation (2026-10-18)
 
+> **2026-10-20: new baseline.** The project baseline changed on 2026-10-20 (user decision,
+> `config/master_options.m`): the published Smets-Wouters (2007) parameters (1966Q1-2004Q4 mode,
+> `models/sw07/sw07_params_original.m`), t-1 information for both RE agents and learners, filtered RE
+> values in the history, the KOZ endogenous gain from 0.05, chi 2, memory 0.8 and no projection
+> facility; application 4 runs with period-t RE information (Ramsey policy is not supported with t-1
+> RE information). Every SW07 run, the evaluation and `build_summary_v3.m` were rerun:
+> `key_numbers.csv`, `checks_v3.txt` (15 of 15 pass) and the report describe the new baseline. The
+> sections from "App 1" to "Before and after" below were written for the previous swX1 baseline and
+> are kept as they were, marked [previous baseline]; this memo and every file of that baseline are in
+> `archive/2026-10-20_swX1_baseline/results/summary_v3/`. The Notes section is current (the report's
+> caveats read it). Headlines of the new baseline, from `key_numbers.csv`:
+>
+> - App 1: average inflation 2022Q3-2026Q2 is 3.45% with learning and 2.59% under RE with t-1
+>   information (+0.86 pp; the gap peaks at +3.54 pp in 2023Q1 and turns negative in 2024Q4). The
+>   learners' end-of-quarter share is 0.527 at the end of 2019Q4, 0.467 at the end of 2021Q2 and
+>   0.591 at the end of 2022Q2; their AR(1) coefficient is 1.061 at the origin, so their PLM is
+>   explosive there.
+> - App 2: the learning replay of the RE-smoothed shocks misses the data by 1.62 pp RMS on inflation
+>   (average 4.64% against 3.21% in the data).
+> - App 3: 100 bp looser policy raises inflation by up to 0.72 pp under learning (2024Q1, RE 0.67 pp
+>   in 2023Q3); the largest asymmetry is 0.014 pp.
+> - App 4 (period-t RE information): the model-consistent RE Ramsey plan has a loss of 127.7 against
+>   230.1 for the rule (balanced weights, 80 quarters).
+> - App 5: average 90% inflation band 10.85 pp with learning against 4.76 pp under RE with mark-up
+>   shocks, 1.16 against 1.18 pp with demand shocks; 23 of the 500 learning mark-up draws stop with
+>   no model solution.
+> - App 6: the learners' share at the end of 2022Q2 is 0.811 in the inversion and 0.591 on the RE
+>   history.
+> - Variant 1 (model-consistent RE agents): the forecast stops in 2022Q3 with no model solution.
+> - Variant 2: average inflation 2.56-3.69% across the six PLMs; every PLM has a largest root of 1 or
+>   more at the origin.
+> - Variant 3: learning on all 12 variables gives 33.48% average inflation (explosive in 12 of the 16
+>   forecast quarters); 2.72% with `plm_alm`, 14.50% with `alm`.
+> - Variant 4: a constant gain of 0.05 gives 3.50% against 3.45% with the KOZ gain, which stays
+>   within 0.0471-0.0521 over 1966Q1-2026Q2.
+> - Evaluation: 5 of 1380 runs stop (model-consistent RE 3 origins, every agent a learner 2); baseline
+>   learning has a relative RMSE for inflation of 0.753 / 1.000 / 1.030 at h = 1 / 4 / 8.
+
 Track H1, 2026-10-18. SW07 (swX1 mode), RE agents anchored (`re_variant = 'anchored'`), learning on
 inflation only, switching with chi = 0.51, gain 0.0585, memory 0.6, BR information `'lagged'`,
 projection facility `'plm_alm'`; forecasts from the 2022Q2 inflation peak (asserted with
@@ -28,7 +66,7 @@ discrete-choice share computed at the end of a quarter (in force in the next one
 | Learners' share at the end of 2022Q2 (`n2`), RE-smoothed history / inversion (app 6) | | 0.494 / 0.506 |
 | Inflation RMSE relative to RE, full sample, h = 1 / 4 / 8 (evaluation) | 1 | 1.000 / 1.005 / 1.007 |
 
-## App 1. Forecast from the 2022Q2 peak: does learning raise the inflation path?
+## App 1. Forecast from the 2022Q2 peak: does learning raise the inflation path? [previous baseline]
 
 Yes: by 0.37 pp on average over the 16 quarters, front-loaded, with the gap positive through 2025Q1.
 
@@ -54,7 +92,7 @@ Yes: by 0.37 pp on average over the 16 quarters, front-loaded, with the gap posi
   so the facility keeps them: the beliefs in force at the origin are those of the end of 2021Q4. No
   events in the forecast. With the covid quarters in the data there were none.
 
-## App 2. Replay of the RE-smoothed shocks: how far is the learning replay from the data?
+## App 2. Replay of the RE-smoothed shocks: how far is the learning replay from the data? [previous baseline]
 
 - Under RE the replay reproduces the data (max abs error 3e-13, check C1).
 - With learning, the same shocks give, over 2022Q3-2026Q2: inflation RMS gap 0.73 pp, largest +2.20 pp
@@ -66,7 +104,7 @@ Yes: by 0.37 pp on average over the 16 quarters, front-loaded, with the gap posi
 - The learners' share in force (`n2_model`) is 0.494 in 2022Q3 and 0.502 in 2026Q2; in between it
   goes down to 0.437 and up to 0.508.
 
-## App 3. Policy 100 bp a year looser or tighter in 2022Q3-2023Q2: is the response asymmetric?
+## App 3. Policy 100 bp a year looser or tighter in 2022Q3-2023Q2: is the response asymmetric? [previous baseline]
 
 - Under RE the responses are exactly symmetric (largest |loose + tight| over 7 series 5e-14) and
   linear: the original SW07 model hit by the backed-out em shocks reproduces both runs to 3e-13
@@ -85,7 +123,7 @@ Yes: by 0.37 pp on average over the 16 quarters, front-loaded, with the gap posi
   2023Q2 under RE) and enlarges the rate effect (1.90 vs 1.78 pp). The delay has the timing reason
   given in app 5: the learners' expectation reacts to the policy deviation only a quarter later.
 
-## App 4. Taylor rule vs Ramsey policy: losses by weight set
+## App 4. Taylor rule vs Ramsey policy: losses by weight set [previous baseline]
 
 Discounted losses (pinf 4*pinf, ygap y - yf, r 4*r, dr 4*(r - r{-1}); discount 0.99756), 80 quarters
 (16 in brackets). The RE Ramsey benchmark is `a4_ramsey_<w>_re_mc`: the `a4_ramsey_<w>_re` files with
@@ -120,7 +158,7 @@ in-script diagnostic exactly, check C12).
   1 - `n2_model` = 0.506 in 2022Q3) carry the same exploitable forecast, so these losses and their
   ratios are not read as the gain from optimal policy.
 
-## App 5. Density forecasts: how does learning change the inflation bands?
+## App 5. Density forecasts: how does learning change the inflation bands? [previous baseline]
 
 500 normal draws, calibrated sigma, seed 0; 500 used, none explosive; learning on the general path
 (0.47-0.59 s per draw), RE on the fast path (equal to the general path to 1.8e-12 on a 10-draw check,
@@ -146,7 +184,7 @@ C5). The RE bands do not change with the covid treatment (they do not depend on 
   `beliefs.info = 'lagged'` (the user's spec); the same one-quarter delay explains the later inflation
   peak in app 3 (2023Q3 vs 2023Q2).
 
-## App 6. History backed out with the learning model
+## App 6. History backed out with the learning model [previous baseline]
 
 - Covid quarters in the inversion: with no observable in 2020Q1-Q3 there is nothing to exogenise, so
   the engine simulates those quarters with every backed-out shock at exactly 0 (the RE smoother instead
@@ -186,7 +224,7 @@ C5). The RE bands do not change with the covid treatment (they do not depend on 
   the inversion the history is the RE-smoothed one and is decomposed with the RE model. All three
   decompositions rebuild their paths (C6: 1.7e-13 to 1.1e-12).
 
-## Variant 1. Anchored vs model-consistent RE agents
+## Variant 1. Anchored vs model-consistent RE agents [previous baseline]
 
 - With model-consistent RE agents learning raises average inflation by 2.62 pp over RE instead of
   0.37 pp: 5.87% vs 3.61% (anchored) and 3.24% (RE); policy rate 6.30% vs 4.32%; output growth
@@ -203,7 +241,7 @@ C5). The RE bands do not change with the covid treatment (they do not depend on 
 - In the evaluation it is still the weakest inflation variant (relative RMSE 1.148 / 1.396 / 1.174 at
   h = 1 / 4 / 8, p 0.33-0.36) and worse on output growth at h = 1 (1.082, p 0.055).
 
-## Variant 2. Perceived laws of motion (learning on inflation; the other VAR members are auxiliary)
+## Variant 2. Perceived laws of motion (learning on inflation; the other VAR members are auxiliary) [previous baseline]
 
 | PLM | Avg inflation | `n2`, end of 2022Q2 | Largest root 2022Q2 | Perceived mean 2022Q2 | Coefficients at 2022Q2 | Facility events (history / forecast) |
 |---|---|---|---|---|---|---|
@@ -225,7 +263,7 @@ C5). The RE bands do not change with the covid treatment (they do not depend on 
   quarters (candidate roots 1.0006-1.015); no model shares are kept now (5 quarters before). Its
   `n2_model` stays between 0.476 and 0.501. Read its path with that in mind.
 
-## Variant 3. Learning on all 12 variables, and the projection facility options
+## Variant 3. Learning on all 12 variables, and the projection facility options [previous baseline]
 
 - Inflation only: 3.61% average inflation. All 12 variables: 4.40% (`'plm_alm'`), 4.53% (`'alm'`),
   4.53% (`'none'`).
@@ -241,7 +279,7 @@ C5). The RE bands do not change with the covid treatment (they do not depend on 
 - The facility moves average inflation by about 0.1 pp here. The `'plm_alm'` run depends on 146
   PLM-block events.
 
-## Variant 4. Endogenous gain (KOZ 2024, errors in quarterly units)
+## Variant 4. Endogenous gain (KOZ 2024, errors in quarterly units) [previous baseline]
 
 - The errors enter in model units, percent per quarter (`gain.koz.error_scale = 1`, user decision
   2026-10-19; the first version used 4, annualised, and mu effectively scales with the square of the
@@ -256,7 +294,7 @@ C5). The RE bands do not change with the covid treatment (they do not depend on 
   output growth -0.07% in both; `n2` at the end of 2022Q2 0.495 vs 0.494, `n2_model` 0.499 in 2026Q2
   in both. Three PLM-block events in the history (1974Q3, 2022Q1, 2022Q2; two with the constant gain).
 
-## Evaluation. Real-time forecasts, 1990Q1-2024Q2, H = 8
+## Evaluation. Real-time forecasts, 1990Q1-2024Q2, H = 8 [previous baseline]
 
 1380 runs (10 variants x 138 origins), no failures; benchmark RE; DM with the uniform kernel and the HLN
 correction. With the covid quarters missing, every target dated 2020Q1-Q3 drops out: 1,680 of 77,280
@@ -427,7 +465,7 @@ units and perceived_mean_report annualised), `other_models_key_numbers.csv`, `ot
 Report units are model units x `spec.report.scale`: ijcb3 inflation and rate x 4, output gap x 1; as07
 output growth x 4, inflation and rate x 1 (already annualised).
 
-## Before and after ignoring the covid quarters (SW07, 2026-10-19)
+## Before and after ignoring the covid quarters (SW07, 2026-10-19) [previous baseline]
 
 "Before" = every observable in the data (the results of the morning of 2026-10-19, kept in
 `results/summary_v3/pre_covid_nan/` and `results/eval_sw07_v3_preCovidNaN/`); "after" = 2020Q1-Q3 NaN.
@@ -462,36 +500,43 @@ shares and beliefs: average inflation moves by at most 0.03 pp under baseline le
 
 ## Notes
 
+- Baseline (2026-10-20, `config/master_options.m`): published SW07 parameters, t-1 information for
+  RE agents and learners, filtered RE values in the history, KOZ gain from 0.05, chi 2, memory 0.8,
+  no projection facility. Two scenario files differ: application 4 sets `expectations.re_info =
+  'current'` (Ramsey policy is not supported with t-1 RE information; the only deviation), and
+  `a6_inv_learn` sets `history.re_states = 'smoothed'`, the only value the option check accepts with
+  the inversion, which is one-sided already. Under t-1 RE information the RE benchmark is the RE
+  model with E_{t-1} pinf_{t+1}, not `models/sw07/sw07.model` (checks C2 and C3b use the hand-written
+  RE(t-1) model).
+- Parameters: the published mode was estimated on 1966Q1-2004Q4 and is applied here to data to
+  2026Q2. Its hours constant `constelab` (-0.103) belongs to the authors' hours series; `labobs` is
+  demeaned over 1947Q2-2026Q2 in this database (the swX1 estimate on it is -3.00), so the RE filter
+  puts part of that level difference into the hours states. The filter still fits every observable.
 - Covid quarters (user decision 2026-10-19): every SW07 observable is NaN in 2020Q1-2020Q3, so the
-  RE filter treats them as missing; the swX1 parameters, estimated with those quarters, are unchanged.
-  The learners learn on the smoothed values there; the evaluation drops the 2020Q1-Q3 targets (1,680
-  errors); the inversion backs out zero shocks in those quarters and catches up in 2020Q4.
+  RE filter treats them as missing. The learners learn on the filtered values there (the filter's
+  prediction); the evaluation drops those targets (1,680 errors, plus the 280 errors of the five
+  stopped origins); the inversion backs out zero shocks in those quarters and catches up in 2020Q4.
 - Share drift to 0.5 with zero shocks: with no new errors both fitness measures decay towards zero,
   so the discrete-choice shares tend to 0.5 by construction (no cost term for RE). The shares near 0.5
-  in the zero-shock forecasts are this mechanism, not a finding.
-- The peak forecasts start from the full-sample smoothed state. Against the real-time evaluation
-  forecasts from the same origin (2022Q2), the largest difference over h = 1-8 is 0.109 / 0.215 / 0.511 /
-  0.706 pp under RE (inflation, rate, output growth, consumption growth), 0.096 / 0.203 / 0.529 /
-  0.715 pp with learning, and up to 0.74 pp (consumption growth) with model-consistent RE agents.
-  Before the covid treatment these were at most 0.12 pp (0.29 pp for model-consistent RE): with
-  2020Q1-Q3 missing, the data after 2022Q2 move the smoothed state at the origin more. The evaluation
-  itself uses real-time filters.
-- chi = 0.51 is IJCB's estimate on quarterly data (the user confirmed on 2026-10-18 that IJCB's data
-  are in percent per quarter). Rounds 1-2 used chi = 8, 16 times stronger switching: the learners'
-  end-of-2022Q2 share `n2` was 0.005 then and is 0.494 now, so shares are not comparable with the
-  archived results.
-- Results that lean on the projection facility: every learning run built on `a1_learn` (the inflation
-  beliefs are kept in 2022Q1-2022Q2, so the 2021Q4 beliefs are in force at the origin), `v2_var3`
-  (beliefs kept in 13 of 16 forecast quarters), `v3_all` (131 history and 15 forecast PLM-block
-  events), `v2_var12` (51 history, 7 forecast), `v2_reg` (18 history, 6 forecast), `v2_ar2` (beliefs
-  kept in the three quarters before the origin, so the 2021Q3 beliefs are in force at 2022Q2),
-  `v1_mc_learn` (3 forecast quarters). In the evaluation the event totals over 138 runs (all types;
-  `hetlearn.evaluate` does not record types) are 13215 for all 12 variables, 5381 for VAR(1) in 12
-  variables, 1926 for the regression PLM, 1265 for VAR(1) in 3 variables, 168 for AR(2), 158 for AR(1)
-  without constant, 34 for model-consistent RE, 28 for all agents learn and 19 each for RE and
-  baseline learning (diagnostic events in the RE runs). No scenario kept model shares.
+  at the end of the zero-shock forecasts are this mechanism, not a finding.
+- The peak forecasts start from the full-sample smoothed state. (The report computes this caveat
+  from the look-ahead key numbers.)
+- chi = 2 and memory 0.8 are the user's choice of 2026-10-20. The previous baseline used IJCB's
+  estimates, 0.51 and 0.6; with chi = 2 the shares respond about four times as strongly to the same
+  gap in squared errors, so shares are not comparable with the archived results.
+- No projection facility: nothing restricts beliefs or shares. The learners' AR(1) coefficient in
+  `a1_learn` is 1.061 at the 2022Q2 origin (above 1 in 1974Q3, 2022Q1 and 2022Q2), so every learning
+  run built on it starts from an explosive PLM, and every PLM of variant 2 has a largest root of 1 or
+  more there. Runs that lose the model solution stop and are reported as such: `v1_mc_learn` in
+  2022Q3, 3 origins of `e03_learn_mc` and 2 of `e04_learn_all_learners`, 23 of the 500 learning
+  mark-up density draws, and the application 5 impulse run with one unit of the price mark-up shock
+  (2022Q4). Learning on all 12 variables (`v3_all`) has no leads and is simulated as it is: it is
+  explosive in 12 of the 16 forecast quarters.
 - App 4: the Ramsey losses with anchored RE agents (RE and learning) rest on the open design question
-  above; only the model-consistent runs `a4_ramsey_<w>_re_mc` are RE Ramsey plans.
+  above; only the model-consistent runs `a4_ramsey_<w>_re_mc` are RE Ramsey plans. All of application
+  4 uses period-t RE information.
+- Section 12 (ijcb3, as07) was not rerun: its scenario files pin the settings of 2026-10-18 (constant
+  gain, period-t RE information, smoothed RE values, `plm_alm`, each model's published parameters).
 
 ## Files (`results/summary_v3/`)
 
