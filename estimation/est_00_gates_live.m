@@ -1,15 +1,17 @@
-function R = est_00_gates_live(root)
-%EST_00_GATES_LIVE  Gates G3, G4 and a reduced G5 against another copy of the hetlearn toolbox.
+function R = est_00_gates_live(root, gates)
+%EST_00_GATES_LIVE  Gates G3, G4, a reduced G5 and the mode values against a copy of the hetlearn toolbox.
 %
-%   R = est_00_gates_live()        % root = the project folder, i.e. the live toolbox/
-%   R = est_00_gates_live(root)    % any folder with setup_paths.m, toolbox/, config/, scenarios/, models/sw07
+%   R = est_00_gates_live()               % root = the project folder, i.e. the live toolbox/
+%   R = est_00_gates_live(root)           % any folder with setup_paths.m, toolbox/, config/, scenarios/, models/sw07
+%   R = est_00_gates_live(root, {'L0', 'L1'})   % a subset of the gates (default: all five)
 %
-%   The estimation runs against the frozen snapshot of est_config().toolbox_root; this function
-%   checks whether the estimator also works with another toolbox copy, without changing
-%   est_config.m. Run it in a fresh MATLAB process: it puts <root>/setup_paths on the path
+%   Checks that the estimator works with the toolbox in root. Since 2026-10-20 est_config.m
+%   points at the live toolbox (c.project), so the default root is also the configured one; the
+%   modes, Hessians and chains of 2026-10-19/20 were computed against a frozen snapshot that has
+%   been retired. Run it in a fresh MATLAB process: it puts <root>/setup_paths on the path
 %   itself and refuses to run if hetlearn already comes from somewhere else.
-%   Gates (the code of est_00_gates, copied verbatim; est_00_gates.m could not be edited while
-%   the learning chains ran):
+%   Gates (G3 and G4: the code of est_00_gates, copied verbatim; est_00_gates.m could not be
+%   edited while the learning chains ran):
 %     G3   learning filter in its RE special cases = RE filter; anchored coefficients, RE moments
 %          and the fast RE ALM vs the toolbox functions (1e-8 / 1e-10)
 %     G4   (a1) learning filter started from the engine's 1965Q4 state with P = 0 = the engine's
@@ -18,12 +20,17 @@ function R = est_00_gates_live(root)
 %     G5r  fast solver = IRIS solve in every quarter at the calibration and 5 prior draws, for
 %          'lagged' and 'current' (1e-9)
 %     L0   log likelihoods at the RE and learning modes = the values stored in mode.mat (1e-8)
-%   Appends "# live toolbox check <date> (toolbox root <root>)" and one line per gate to
+%     L1   log posteriors and log likelihoods at the four modes (re, learn, learn_current,
+%          learn_calib, each under its own problem) = the values stored in their mode.mat (1e-8)
+%   Appends "# live toolbox check <date> (toolbox root <root>; ...)" and one line per gate to
 %   results/estimation/gates.txt; details in results/estimation/gates/live_<gate>.mat.
 
 c = est_config();
 if nargin < 1 || isempty(root)
     root = c.project;
+end
+if nargin < 2 || isempty(gates)
+    gates = {'G3', 'G4', 'G5r', 'L0', 'L1'};
 end
 root = char(root);
 w = which('hetlearn.load_model');
@@ -48,7 +55,7 @@ pbR = hlest.problem('re');
 pbL = hlest.problem('learn');
 lines = {};
 R = struct();
-G = {'G3', 'G4', 'G5r', 'L0'};
+G = cellstr(gates);
 for k = 1:numel(G)
     g = G{k};
     t0 = tic;
@@ -58,6 +65,8 @@ for k = 1:numel(G)
             case 'G4', r = gate4(pbR, pbL);
             case 'G5r', r = gate5r(pbL, 5);
             case 'L0', r = gate_l0(c, pbR, pbL);
+            case 'L1', r = gate_l1(c, pbR, pbL);
+            otherwise, error('est_00_gates_live:gate', 'Unknown gate %s.', g);
         end
     catch err
         r = struct('pass', false, 'text', sprintf('ERROR %s', err.message), 'err', getReport(err));
@@ -75,8 +84,18 @@ for k = 1:numel(G)
 end
 allPass = all(cellfun(@(g) R.(g).pass, G));
 fid = fopen(fullfile(c.results, 'gates.txt'), 'a');
-fprintf(fid, '\n# live toolbox check %s (toolbox root %s; est_00_gates_live; G3, G4 degenerate-start, G5 reduced to the calibration + 5 prior draws)\n', ...
-    datestr(now, 'yyyy-mm-dd HH:MM:SS'), root); %#ok<TNOW1,DATST>
+if isequal(G, {'G3', 'G4', 'G5r', 'L0'})
+    what = 'G3, G4 degenerate-start, G5 reduced to the calibration + 5 prior draws';
+else
+    what = ['gates ' strjoin(G, ', ') '; G4 degenerate-start, G5 reduced to the calibration + 5 prior draws, ' ...
+        'L1 log posteriors at the four modes'];
+end
+cfgNote = '';
+if strcmpi(c.toolbox_root, root)
+    cfgNote = '; est_config toolbox_root = this root';
+end
+fprintf(fid, '\n# live toolbox check %s (toolbox root %s; est_00_gates_live; %s%s)\n', ...
+    datestr(now, 'yyyy-mm-dd HH:MM:SS'), root, what, cfgNote); %#ok<TNOW1,DATST>
 fprintf(fid, '%s\n', lines{:});
 if allPass
     fprintf(fid, '# live toolbox check: all pass; the estimator works with this toolbox unchanged\n');
@@ -134,6 +153,26 @@ dL = abs(llL - ML.ll);
 r = struct('pass', dR < 1e-8 && dL < 1e-8 && strcmp(oL.sig, ML.out.sig), 'text', sprintf(['log likelihood at the ' ...
     'RE mode %.10f (stored %.10f, diff %.2g), at the learning mode %.10f (stored %.10f, diff %.2g), facility events ' ...
     '%s (stored %s) (tol 1e-8)'], llR, MR.ll, dR, llL, ML.ll, dL, oL.sig, ML.out.sig));
+end
+
+
+function r = gate_l1(c, pbR, pbL)
+% Log posteriors (and likelihoods) at the four modes with this toolbox = the stored values.
+cases = {'re', pbR; 'learn', pbL; 'learn_current', hlest.problem('learn', 'info', 'current'); ...
+    'learn_calib', hlest.problem('learn', 'priors', 'calib')};
+txt = cell(1, size(cases, 1));
+pass = true;
+dmax = 0;
+for k = 1:size(cases, 1)
+    M = load(fullfile(c.results, cases{k, 1}, 'mode.mat'), 'xm', 'lp', 'll');
+    [lp, ll] = hlest.logpost(cases{k, 2}, M.xm);
+    dp = abs(lp - M.lp);
+    dl = abs(ll - M.ll);
+    dmax = max([dmax, dp, dl]);
+    pass = pass && dp < 1e-8 && dl < 1e-8;
+    txt{k} = sprintf('%s %.10f (stored %.10f, diff %.2g; likelihood diff %.2g)', cases{k, 1}, lp, M.lp, dp, dl);
+end
+r = struct('pass', pass, 'text', sprintf('log posterior at the modes: %s (tol 1e-8)', strjoin(txt, '; ')), 'dmax', dmax);
 end
 
 
