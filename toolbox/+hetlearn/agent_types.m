@@ -7,9 +7,12 @@ function A = agent_types(opts)
 %     opts  merged options (hetlearn.load_options)
 %
 %   Output A (struct)
-%     .ntype         true when expectations.types is set: the model comes from
-%                    the N-type writer of hetlearn.extend_model (generator
-%                    version 6, <name>_ext_n<hash>.model)
+%     .ntype         true when expectations.types or expectations.transforms is
+%                    set: the model comes from the N-type writer of
+%                    hetlearn.extend_model (generator version 6, 7 with
+%                    transforms; <name>_ext_n<hash>.model). Transforms without
+%                    types (phase P3) spell out the default pair RE ('re') and
+%                    BR ('plm'), every other field inherited.
 %     .engine        true when the engine takes its N-type path: N types, or the
 %                    default pair RE/BR with any of switching.inertia ~= 0,
 %                    nonzero costs, switching.fitness = 'unnormalized',
@@ -56,6 +59,12 @@ function A = agent_types(opts)
 T = opts.expectations.types;
 sw = opts.switching;
 A = struct();
+hasTF = isfield(opts.expectations, 'transforms') && ~isempty(opts.expectations.transforms);
+if isempty(T) && hasTF
+    % forecast transforms (DESIGN_br_extensions 1.3, phase P3) are written by the N-type writer: without
+    % expectations.types the population is the default pair, spelled out (RE kind 're', BR kind 'plm')
+    T = default_pair_types();
+end
 A.ntype = ~isempty(T);
 costsOn = false;
 if isstruct(sw.costs) && ~isempty(sw.costs)
@@ -174,6 +183,18 @@ end
 
 
 % -------------------------------------------------------------------------
+function T = default_pair_types()
+% RE (kind 're') and BR (kind 'plm') with every other field inherited, as hetlearn.load_options
+% normalises a listed type (the same struct array as expectations.types spelled out)
+F = {'name', 'kind', 'variant', 'info', 'plm', 'update', 'gain', 'rule', 'base', 'k', 'variables', 'cost'};
+T = repmat(cell2struct(cell(numel(F), 1), F, 1), 1, 2);
+T(1).name = 'RE';
+T(1).kind = 're';
+T(2).name = 'BR';
+T(2).kind = 'plm';
+end
+
+
 function b = re_type(b, t, opts, inpop)
 b.name = t.name;
 b.kind = 're';
