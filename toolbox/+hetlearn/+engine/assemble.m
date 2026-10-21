@@ -29,6 +29,15 @@ function res = assemble(ctx, d, rec, recDates, ev, S, H)
 %     .dates     .origin, .horizon, .init_date, .record, .full
 %     .meta      learnVars, model, model_hash, refilter hash and fit, IRIS
 %                version
+%
+%   N agent types (ctx.nt, docs/DESIGN_br_extensions.md 1.1): .paths
+%   <x>_exp1_<k> of 'plm' and 'rule' types hold the type's forecasts over the
+%   record dates (NaN before), as <x>_exp1_BR above; .learning.<target>__<k>
+%   holds the PLM series of each learning type (with .type and .variable),
+%   and .learning.<x> the per-variable series of every type k: n_<k>,
+%   n_model_<k>, U_<k>, FE_<k>, f_<k> (plus .types). .meta.types (name, kind,
+%   variant, info, variables, cost, population) and .meta.model_values
+%   ('model:<rule>' values, e.g. bma.sigma2 and the intensities used).
 
 o = ctx.opts;
 hz = ctx.horizon;
@@ -39,36 +48,41 @@ names = [ctx.xList(:); ctx.yList(:); ctx.eList(:)]';
 for i = 1:numel(names)
     paths.(names{i}) = clip(d.(names{i}), full(1), full(end));
 end
-for i = 1:numel(ctx.learnVars)
-    x = ctx.learnVars{i};
-    s = Series(full, NaN(numel(full), 1));
-    s(recDates) = rec.var.(x).fBR(:);
-    paths.([x '_exp1_BR']) = s;
-end
+isNT = isfield(ctx, 'nt') && ~isempty(ctx.nt);
+if isNT
+    [paths, learning] = nt_outputs(ctx, paths, rec, recDates, full);     % N agent types
+else
+    for i = 1:numel(ctx.learnVars)
+        x = ctx.learnVars{i};
+        s = Series(full, NaN(numel(full), 1));
+        s(recDates) = rec.var.(x).fBR(:);
+        paths.([x '_exp1_BR']) = s;
+    end
 
-learning = struct();
-sys = ctx.sys;
-vf = {'n1', 'n2', 'n1_model', 'zetaRE', 'zetaBR', 'FE_RE', 'FE_BR', 'fRE', 'fBR'};
-for i = 1:numel(sys.eq)
-    e = sys.eq(i);
-    L = struct('isAux', e.isAux, 'params', {e.param_names});
-    for j = 1:numel(e.param_names)
-        L.(e.param_names{j}) = Series(recDates, rec.eq(i).phi(j, :)');
-    end
-    for j = 1:numel(e.param_names)
-        L.(['R_' e.param_names{j}]) = Series(recDates, rec.eq(i).Rdiag(j, :)');
-    end
-    L.gain = Series(recDates, rec.eq(i).gain(:));
-    xf = setdiff(fieldnames(rec.eq), {'phi', 'Rdiag', 'gain'}, 'stable');   % gain-rule series
-    for j = 1:numel(xf)
-        L.(xf{j}) = Series(recDates, rec.eq(i).(xf{j})(:));
-    end
-    if isfield(rec.var, e.target)
-        for j = 1:numel(vf)
-            L.(vf{j}) = Series(recDates, rec.var.(e.target).(vf{j})(:));
+    learning = struct();
+    sys = ctx.sys;
+    vf = {'n1', 'n2', 'n1_model', 'zetaRE', 'zetaBR', 'FE_RE', 'FE_BR', 'fRE', 'fBR'};
+    for i = 1:numel(sys.eq)
+        e = sys.eq(i);
+        L = struct('isAux', e.isAux, 'params', {e.param_names});
+        for j = 1:numel(e.param_names)
+            L.(e.param_names{j}) = Series(recDates, rec.eq(i).phi(j, :)');
         end
+        for j = 1:numel(e.param_names)
+            L.(['R_' e.param_names{j}]) = Series(recDates, rec.eq(i).Rdiag(j, :)');
+        end
+        L.gain = Series(recDates, rec.eq(i).gain(:));
+        xf = setdiff(fieldnames(rec.eq), {'phi', 'Rdiag', 'gain'}, 'stable');   % gain-rule series
+        for j = 1:numel(xf)
+            L.(xf{j}) = Series(recDates, rec.eq(i).(xf{j})(:));
+        end
+        if isfield(rec.var, e.target)
+            for j = 1:numel(vf)
+                L.(vf{j}) = Series(recDates, rec.var.(e.target).(vf{j})(:));
+            end
+        end
+        learning.(e.target) = L;
     end
-    learning.(e.target) = L;
 end
 
 if isempty(ev)
@@ -110,5 +124,61 @@ meta.refilter_fit_error = H.fit_error;
 meta.refilter_end = H.range(end);       % last data date the RE filter used
 meta.refilter_realtime = isfield(H, 'realtime') && logical(H.realtime);
 meta.iris_version = char(string(iris.release()));
+if isNT
+    nt = ctx.nt;
+    meta.types = struct('name', {nt.types.name}, 'kind', {nt.types.kind}, 'variant', {nt.types.variant}, ...
+        'info', {nt.types.info}, 'variables', {nt.types.vars}, 'cost', {nt.types.cost}, ...
+        'population', {nt.types.inpop});
+    mv = nt.model_values;
+    if isfield(mv, 'bma')
+        mv.bma.chi = [ctx.groups.chi];      % intensity of each share group
+    end
+    meta.model_values = mv;
+end
 res.meta = meta;
+end
+
+
+% =========================================================================
+function [paths, learning] = nt_outputs(ctx, paths, rec, recDates, full)
+% paths and learning series of an N-type run (DESIGN_br_extensions 1.1)
+nt = ctx.nt;
+for i = 1:numel(ctx.learnVars)
+    x = ctx.learnVars{i};
+    b = nt.byvar.(x);
+    for jj = 1:numel(b.types)
+        if any(strcmp(nt.types(b.types(jj)).kind, {'plm', 'rule'}))
+            s = Series(full, NaN(numel(full), 1));
+            s(recDates) = rec.var.(x).(['f_' b.names{jj}])(:);
+            paths.(b.fvars{jj}) = s;
+        end
+    end
+end
+learning = struct();
+sys = ctx.sys;
+for i = 1:numel(sys.eq)
+    e = sys.eq(i);
+    L = struct('isAux', e.isAux, 'params', {e.param_names}, 'type', e.type, 'variable', e.var);
+    for j = 1:numel(e.param_names)
+        L.(e.param_names{j}) = Series(recDates, rec.eq(i).phi(j, :)');
+    end
+    for j = 1:numel(e.param_names)
+        L.(['R_' e.param_names{j}]) = Series(recDates, rec.eq(i).Rdiag(j, :)');
+    end
+    L.gain = Series(recDates, rec.eq(i).gain(:));
+    xf = setdiff(fieldnames(rec.eq), {'phi', 'Rdiag', 'gain'}, 'stable');
+    for j = 1:numel(xf)
+        L.(xf{j}) = Series(recDates, rec.eq(i).(xf{j})(:));
+    end
+    learning.(e.target) = L;
+end
+for i = 1:numel(ctx.learnVars)
+    x = ctx.learnVars{i};
+    L = struct('types', {nt.byvar.(x).names});
+    f = fieldnames(rec.var.(x));
+    for j = 1:numel(f)
+        L.(f{j}) = Series(recDates, rec.var.(x).(f{j})(:));
+    end
+    learning.(x) = L;
+end
 end
