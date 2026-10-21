@@ -14,6 +14,11 @@ function R = test_decompose(part)
 %   C6 'tv' uses the beliefs in force after the projection facility (ALM
 %      reverts included; model-consistent toy, high gain): paths rebuilt
 %      after every revert, a wrong recorded belief is detected
+%   C7 N agent types (phase P6): a switching re_smoother run with RE and BR
+%      spelled out decomposes as the two-type run (every component, 1e-9);
+%      {RE, BR, TB}: additive, the period models rebuild its paths; method
+%      'tv' with a level type and a result of history.mode = 'kalman' stop
+%      with hetlearn:options:unsupported
 %   C5 SW07 (needs test_inversion('sw07_re') and ('sw07_learn') outputs in
 %      tests/output/results/): pinfobs and dy, 2019Q1-2026Q2, RE and
 %      learning; largest contributors to 2022Q2 inflation; RE 'tv' = 'iris'
@@ -186,6 +191,69 @@ try
         'overall %.2g; with a wrong belief %.2g'], numel(dA), sum(isA), rec, D6.check.recon_maxerr, recBad));
 catch err
     R = add(R, nm, false, sprintf('%s (%s, line %d)', err.message, err.stack(1).name, err.stack(1).line));
+end
+
+% ---- C7: N agent types (phase P6) ----
+nm = ['decompose C7: N agent types: RE and BR spelled out = the two-type decomposition (switching, re_smoother; ' ...
+    'every component, 1e-9); {RE, BR, TB} additive and rebuilds its forecast paths; level types (tv) and ' ...
+    'Kalman results refused'];
+try
+    T = @(varargin) struct(varargin{:});
+    c = base;
+    c.id = 'tdec_nt_two';
+    c.expectations.mode = 'switching';
+    c.switching.intensity = 0.25;
+    cb = c;
+    cb.id = 'tdec_nt_pair';
+    cb.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm')};
+    cc = c;
+    cc.id = 'tdec_nt_tb';
+    cc.expectations.types = [cb.expectations.types, {T('name', 'TB', 'kind', 'rule', 'rule', '0')}];
+    cc.shares.init = struct('RE', 0.4, 'BR', 0.4, 'TB', 0.2);
+    D = cell(1, 3);
+    rr = cell(1, 3);
+    mdl = cell(1, 3);
+    cs = {c, cb, cc};
+    for j = 1:3
+        rr{j} = run(cs{j});
+        oj = hetlearn.load_options(cs{j});
+        [mj, ij] = hetlearn.load_model(spec, oj);
+        mdl{j} = struct('spec', spec, 'm', mj, 'info', ij);
+        qj = struct('save', false, 'quiet', true, 'model', mdl{j});
+        D{j} = hetlearn.decompose(rr{j}, vars, [], qj);
+    end
+    d = 0;
+    for v = vars
+        d = max([d, max(abs(D{1}.values.(v{1})(:) - D{2}.values.(v{1})(:))), max(abs(D{1}.total.(v{1}) - D{2}.total.(v{1})))]);
+    end
+    same = isequal(D{1}.components, D{2}.components) && strcmp(D{2}.method, 'tv');
+    tbOk = D{3}.check.additivity_maxerr < 1e-12 && D{3}.check.recon_maxerr < 1e-9 && strcmp(D{3}.method, 'tv');
+    % refusals: the TB run's model description with its TB type turned into a level type; a Kalman result
+    iL = mdl{3}.info;
+    iL.nt.types(3).kind = 'level';
+    iL.nt.levels = struct('base', 2, 'types', 3, 'K', 1, 'slot', 3, 'vars', {{'pie'}}, 'lag', 1, 'states', {{}}, ...
+        'chain', struct('state', {}, 'target', {}, 'lag', {}));
+    lvErr = refused(@() hetlearn.decompose(rr{3}, vars, [], struct('save', false, 'quiet', true, 'method', 'tv', ...
+        'model', struct('spec', spec, 'm', mdl{3}.m, 'info', iL))), 'level types');
+    rk = rr{1};
+    rk.history_mode = 'kalman';
+    kErr = refused(@() hetlearn.decompose(rk, vars, [], struct('save', false, 'quiet', true, 'model', mdl{1})), 'kalman');
+    ok = d <= 1e-9 && same && tbOk && lvErr && kErr;
+    R = add(R, nm, ok, sprintf(['pair vs two-type %.3g (components equal %d); TB additivity %.2g, path rebuild %.2g; ' ...
+        'refused: level types %d, Kalman result %d'], d, same, D{3}.check.additivity_maxerr, D{3}.check.recon_maxerr, lvErr, kErr));
+catch err
+    R = add(R, nm, false, sprintf('%s (%s, line %d)', err.message, err.stack(1).name, err.stack(1).line));
+end
+end
+
+
+function tf = refused(fun, needle)
+% true when fun stops with hetlearn:options:unsupported and a message containing needle
+try
+    fun();
+    tf = false;
+catch err
+    tf = strcmp(err.identifier, 'hetlearn:options:unsupported') && contains(err.message, needle);
 end
 end
 
