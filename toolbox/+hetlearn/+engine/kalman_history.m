@@ -48,6 +48,28 @@ function varargout = kalman_history(varargin)
 %   (4) hetlearn.engine.update_learning, unchanged, with the ALM check of the
 %       model in force in t+1 under projection.facility 'alm' | 'plm_alm';
 %       first = true at beliefs.init.date
+%   N agent types and forecast transforms (ctx.nt; docs/DESIGN_br_extensions.md
+%   1.1-1.5, phase P6): the ALM in force has the share vectors of
+%   hetlearn.engine.shares_for_mode (before beliefs.init.date share 1 on the
+%   RE type) and the level coefficients in force
+%   (hetlearn.engine.anchor_update 'params'). Every type's forecast made in t
+%   comes from hetlearn.engine.ntypes('forecasts', ..., 'history', t) on the
+%   agents' data, the real-time filtered values x_{s|s}, except that with
+%   expectations.re_info = 'lagged' every <x>_exp1_RE and <x>_DEg_RE is the
+%   prediction x_{t|t-1} (as hetlearn.engine.history_db takes them from
+%   H.predicted under history.re_states = 'filtered'), and the target of a
+%   're_mean' type, <x>_feRE = x - <x>_exp1_RE{-1}, is rebuilt from x_{t|t}
+%   and the RE forecast of t-1 in that data, so it is the error of the RE
+%   forecast the agents used. PLM, rule, level and re_mean types are then
+%   evaluated as in the RE-smoother history (rule types' own lags from the
+%   engine's earlier forecasts; level types from their coefficients on the
+%   filtered states dated t-1), transforms as there. update_learning takes
+%   its N-type path. The forecast stage starts from the filtered state at the
+%   origin (D12), except for what hetlearn.engine.ntypes('seed') writes there:
+%   the rule types' own forecasts at the origin and, with a 're_mean' type,
+%   <x>_exp1_RE at the origin (the forecast the agents used).
+%   history.mode = 'kalman' with N types and transforms needs nothing else;
+%   wedge shocks enter the filter with the std the transform gives.
 %   Initial condition (history.kalman.init): 'stochastic' (default) the
 %   asymptotic mean and covariance of the ALM of the first quarter (the RE
 %   limit), as IRIS filter does; an error if it has a root on or outside the
@@ -87,7 +109,15 @@ function varargout = kalman_history(varargin)
 %              forecast on the real-time data - the model's <x>_exp1_BR,
 %              predicted under beliefs.info 'lagged', filtered under 'current'|;
 %              rounding for a PLM whose forecast uses data of one date only,
-%              such as AR(1))
+%              such as AR(1); with N types the max over the 'plm' types),
+%              .ftypes_model_maxdiff (N types only: struct by type name of
+%              the same difference for every 'plm', 'rule', 'level' and
+%              're_mean' type, the type's forecast before the transforms
+%              against the model's <x>_exp1_<type>, predicted for a type with
+%              information up to t-1, filtered for period-t information; it
+%              is rounding when the forecast uses data of one date only, and
+%              not otherwise, since the model's lagged states are the filter's
+%              revised values and the agents' data the real-time ones)
 %
 %   'write'  writes kalman_errors.csv in outDir (hetlearn.run, after
 %            hetlearn.engine.save_results): date, n_obs, llt, then err_<y>
@@ -151,6 +181,7 @@ if isfield(ctx, 'info') && isfield(ctx.info, 'policy') && isstruct(ctx.info.poli
 end
 doAlm = ~strcmp(hetlearn.engine.facility('name', o), 'none');
 reLagged = isfield(o.expectations, 're_info') && strcmp(o.expectations.re_info, 'lagged');
+isNT = hetlearn.engine.ntypes('on', ctx);       % N agent types, forecast transforms (phase P6)
 brInfo = 'lagged';
 if isfield(sys, 'info') && ~isempty(sys.info)
     brInfo = char(sys.info);
@@ -221,7 +252,22 @@ NOBS = zeros(1, nT);
 % ---- filter ---------------------------------------------------------------------------------
 n1RE = struct();
 for i = 1:numel(lv)
-    n1RE.(lv{i}) = 1;
+    if isNT                               % share vector over the variable's types, 1 on RE
+        b = ctx.nt.byvar.(lv{i});
+        v = zeros(1, numel(b.types));
+        v(b.re_pos) = 1;
+        n1RE.(lv{i}) = v;
+    else
+        n1RE.(lv{i}) = 1;
+    end
+end
+if isNT
+    XA = XF;                              % agents' data (the real-time filtered values, see below)
+    AV = agent_rows(rowOf, reLagged, lv);
+    dTy = struct();
+    for j = 1:numel(ctx.nt.types)
+        dTy.(ctx.nt.types(j).name) = 0;
+    end
 end
 ev = struct('date', {}, 'type', {}, 'variable', {}, 'detail', {});
 h = struct('alm_check_s', 0, 'alm_n_check', 0, 'alm_n_solve', 0, 'warm', []);
@@ -247,7 +293,11 @@ for k = 1:nT
     else
         n1m = n1RE;
     end
-    P = hetlearn.engine.facility('params', sys, S.phi, lv, n1m);
+    if isNT                               % with the level coefficients in force (phase P4)
+        P = hetlearn.engine.facility('params', sys, S.phi, lv, n1m, hetlearn.engine.anchor_update('params', ctx, S));
+    else
+        P = hetlearn.engine.facility('params', sys, S.phi, lv, n1m);
+    end
     pv = cell2mat(struct2cell(P));
     if ~solved || ~isequal(pv, lastP)
         [m, S, r, e] = hetlearn.engine.facility('solve', ctx, m, S, n1m, t, 'kalman');
@@ -312,28 +362,39 @@ for k = 1:nT
     end
     XF(1:ncur, kc) = a(cur);
     XF(ncur+1:end, kc) = yf;
+    if isNT
+        XA = agent_column(XA, XF, XP, kc, AV);
+    end
     if ~learn
         continue
     end
     % (3) forecasts made in t
-    getVal = @(name, j) xval(XF, rowOf, kc, name, j);
-    fRE = struct();
-    fBR = struct();
-    for i = 1:numel(lv)
-        x = lv{i};
-        rr = xrow(rowOf, [x '_exp1_RE']);
-        if reLagged
-            fRE.(x) = XP(rr, kc);         % made in t with data up to t-1
-        else
-            fRE.(x) = XF(rr, kc);
-        end
-        fBR.(x) = hetlearn.plm.forecast_value(sys, S.phi, getVal, x);
-        if isfield(rowOf, [x '_exp1_BR'])
-            rb = rowOf.([x '_exp1_BR']);
-            if strcmp(brInfo, 'current')
-                dBR = max(dBR, abs(fBR.(x) - XF(rb, kc)));
+    if isNT
+        % every type's forecast on the agents' data (DESIGN_br_extensions 1.1, phase P6): fRE = F, the
+        % forecasts as they enter the aggregate (fitness), fBR = X, with X.base before the transforms
+        getVal = @(name, j) xval(XA, rowOf, kc, name, j);
+        [fRE, fBR] = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'history', t);
+        [dBR, dTy] = model_gap(ctx, fBR, XF, XP, rowOf, kc, dBR, dTy);
+    else
+        getVal = @(name, j) xval(XF, rowOf, kc, name, j);
+        fRE = struct();
+        fBR = struct();
+        for i = 1:numel(lv)
+            x = lv{i};
+            rr = xrow(rowOf, [x '_exp1_RE']);
+            if reLagged
+                fRE.(x) = XP(rr, kc);         % made in t with data up to t-1
             else
-                dBR = max(dBR, abs(fBR.(x) - XP(rb, kc)));
+                fRE.(x) = XF(rr, kc);
+            end
+            fBR.(x) = hetlearn.plm.forecast_value(sys, S.phi, getVal, x);
+            if isfield(rowOf, [x '_exp1_BR'])
+                rb = rowOf.([x '_exp1_BR']);
+                if strcmp(brInfo, 'current')
+                    dBR = max(dBR, abs(fBR.(x) - XF(rb, kc)));
+                else
+                    dBR = max(dBR, abs(fBR.(x) - XP(rb, kc)));
+                end
             end
         end
     end
@@ -433,6 +494,9 @@ K.P_origin = Pk;
 K.n_solve = nSolve;
 K.runtime_s = toc(tAll);
 K.fbr_model_maxdiff = dBR;
+if isNT
+    K.ftypes_model_maxdiff = dTy;
+end
 hinfo = h;
 hinfo.start = start;
 hinfo.db_start = dbStart;
@@ -615,6 +679,66 @@ switch init
             ab(miss) = 0;
         end
         a(ib) = ab;
+end
+end
+
+
+function AV = agent_rows(rowOf, reLagged, lv)
+% Rows of the agents' data that differ from the real-time filtered values (N types, phase P6):
+% .pred  rows taken from the predictions x_{t|t-1}: with expectations.re_info = 'lagged' every
+%        <x>_exp1_RE and <x>_DEg_RE (functions of the period-(t-1) state; hetlearn.engine.history_db
+%        takes them from H.predicted under history.re_states = 'filtered')
+% .fe    targets of 're_mean' types, <x>_feRE = x - <x>_exp1_RE{-1}, rebuilt from x_{t|t} and the RE
+%        forecast of t-1 in the agents' data (rows .row, .x, .re)
+f = fieldnames(rowOf);
+AV = struct('pred', zeros(1, 0), 'fe', struct('row', {}, 'x', {}, 're', {}));
+if reLagged
+    sel = endsWith(f, '_exp1_RE') | endsWith(f, '_DEg_RE');
+    AV.pred = cellfun(@(n) rowOf.(n), f(sel))';
+end
+for i = 1:numel(lv)
+    x = lv{i};
+    if isfield(rowOf, [x '_feRE']) && isfield(rowOf, x) && isfield(rowOf, [x '_exp1_RE'])
+        AV.fe(end+1) = struct('row', rowOf.([x '_feRE']), 'x', rowOf.(x), 're', rowOf.([x '_exp1_RE']));
+    end
+end
+end
+
+
+function XA = agent_column(XA, XF, XP, kc, AV)
+% Column kc (quarter t) of the agents' data, once XF(:, kc) and XP(:, kc) are known.
+XA(:, kc) = XF(:, kc);
+XA(AV.pred, kc) = XP(AV.pred, kc);
+for q = 1:numel(AV.fe)
+    XA(AV.fe(q).row, kc) = XF(AV.fe(q).x, kc) - XA(AV.fe(q).re, kc - 1);
+end
+end
+
+
+function [dP, dT] = model_gap(ctx, X, XF, XP, rowOf, kc, dP, dT)
+% |forecast of each 'plm', 'rule', 'level' and 're_mean' type before the transforms (X.base) - the
+% model's <x>_exp1_<type>|, predicted (information up to t-1) or filtered (period t); dP over 'plm' types
+nt = ctx.nt;
+for i = 1:numel(ctx.learnVars)
+    x = ctx.learnVars{i};
+    b = nt.byvar.(x);
+    for jj = 1:numel(b.types)
+        ty = nt.types(b.types(jj));
+        if ~any(strcmp(ty.kind, {'plm', 'rule', 'level', 're_mean'})) || ~isfield(rowOf, b.fvars{jj})
+            continue
+        end
+        r = rowOf.(b.fvars{jj});
+        if strcmp(ty.info, 'current')
+            v = XF(r, kc);
+        else
+            v = XP(r, kc);
+        end
+        g = abs(X.base.(x).(ty.name) - v);
+        dT.(ty.name) = max(dT.(ty.name), g);
+        if strcmp(ty.kind, 'plm')
+            dP = max(dP, g);
+        end
+    end
 end
 end
 
