@@ -84,10 +84,13 @@ function opts = load_options(cfg, master)
 %     gain.decreasing.n0 >= 1; history.mode also 'kalman' (history.re_states
 %     must then stay 'smoothed', as with 'inversion'), history.kalman.init
 %     'stochastic' | 'smoothed'; 'fixed_shares' takes shares.fixed_n2 or
-%     shares.fixed (not both). Until the engine reads them, setting one of
-%     these features stops with hetlearn:options:notImplemented, which
-%     lists every such option of the run with the phase that builds it
-%     (function not_implemented: each phase deletes its own lines).
+%     shares.fixed (not both). Combinations that are not supported
+%     (hetlearn:options:unsupported, naming the options that put the run on
+%     the N-type path: expectations.types, expectations.transforms or a
+%     switching option of DESIGN_br_extensions 1.2): policy.mode = 'ramsey'
+%     and history.mode = 'inversion'. Density forecasts, hetlearn.evaluate
+%     and the Kalman history take N types; hetlearn.decompose refuses its own
+%     cases (level types with method 'tv', Kalman results).
 %
 %   See also hetlearn.defaults.
 
@@ -618,41 +621,42 @@ end
 validate_types(o);
 validate_transforms(o);
 validate_by_type(o);
-not_implemented(o);
+validate_ntype_stages(o);
 end
 
 
 % -------------------------------------------------------------------------
-function not_implemented(o)
-% Options of docs/DESIGN_br_extensions.md that are validated but that the engine does not read
-% yet. A phase deletes its own lines when it lands (section 6 of the design).
-% Phases P1 to P5 have landed (P4 on 2026-10-21 removed the last entries: kinds 'level' and
-% 're_mean', the rule term re1(...)), so no option is guarded at present.
-L = cell(0, 2);
-if ~isempty(L)
-    items = cellfun(@(a, b) sprintf('%s (phase %s)', a, b), L(:, 1), L(:, 2), 'UniformOutput', false);
-    error('hetlearn:options:notImplemented', ['Not implemented yet: %s. These options of ' ...
-        'docs/DESIGN_br_extensions.md are validated, but the engine does not use them before the phase ' ...
-        'named (section 6 of the design); leave them at their defaults until then.'], strjoin(items, '; '));
+function validate_ntype_stages(o)
+% Stages that do not take the N-type engine path (docs/DESIGN_br_extensions.md sec. 6, phase P6):
+% policy.mode = 'ramsey' and history.mode = 'inversion' with N agent types, forecast transforms or the
+% switching options of DESIGN_br_extensions 1.2 stop here, naming the options involved
+if ~(strcmp(o.policy.mode, 'ramsey') || strcmp(o.history.mode, 'inversion'))
+    return
 end
+A = hetlearn.agent_types(o);
+if ~A.engine
+    return
 end
-
-
-function e = rule_expr(t)
-e = '';
-if ischar(t.rule)
-    e = t.rule;
-elseif isstruct(t.rule) && isscalar(t.rule) && isfield(t.rule, 'expr') && ischar(t.rule.expr)
-    e = t.rule.expr;
+c = {};
+if ~isempty(o.expectations.types)
+    c{end+1} = 'N agent types (expectations.types)';
 end
+if ~isempty(o.expectations.transforms)
+    c{end+1} = 'forecast transforms (expectations.transforms)';
 end
-
-
-function c = struct2cell_or_empty(s)
-c = cell(0, 1);
-if isstruct(s) && isscalar(s)
-    c = struct2cell(s);
+if isempty(c)
+    c{end+1} = ['the switching options of DESIGN_br_extensions 1.2 (switching.inertia, .costs, .fitness, ' ...
+        'intensity ''model:<rule>'', shares.init, shares.fixed), which take the N-type engine path'];
 end
+what = strjoin(c, ' and ');
+if strcmp(o.policy.mode, 'ramsey')
+    error('hetlearn:options:unsupported', ['policy.mode = ''ramsey'' with %s is not supported: the Ramsey wrap ' ...
+        'of the N-type model and its rule model have not been built (docs/DESIGN_br_extensions.md sec. 6, P6). ' ...
+        'Use policy.mode = ''rule''.'], what);
+end
+error('hetlearn:options:unsupported', ['history.mode = ''inversion'' with %s is not supported: the inversion ' ...
+    'reads the two-type forecasts from the model (docs/DESIGN_br_extensions.md sec. 6, P6). Use history.mode = ' ...
+    '''re_smoother'' or ''kalman''.'], what);
 end
 
 
