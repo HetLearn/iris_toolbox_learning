@@ -147,9 +147,13 @@ for i = 1:numel(ctx.learnVars)
     x = ctx.learnVars{i};
     b = nt.byvar.(x);
     for jj = 1:numel(b.types)
-        if any(strcmp(nt.types(b.types(jj)).kind, {'plm', 'rule'}))
+        if any(strcmp(nt.types(b.types(jj)).kind, {'plm', 'rule', 'level', 're_mean'}))
             s = Series(full, NaN(numel(full), 1));
-            s(recDates) = rec.var.(x).(['f_' b.names{jj}])(:);
+            fn = ['f_' b.names{jj}];
+            if isfield(rec.var.(x), ['fb_' b.names{jj}])
+                fn = ['fb_' b.names{jj}];      % the model variable is the forecast before the transforms (P4)
+            end
+            s(recDates) = rec.var.(x).(fn)(:);
             paths.(b.fvars{jj}) = s;
         end
     end
