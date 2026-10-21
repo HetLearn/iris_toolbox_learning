@@ -25,7 +25,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SUM = ROOT / "results" / "summary_v3"
 SCN = ROOT / "scenarios" / "sw07"
 OUT = ROOT / "reports" / "sw07_learning_report.html"
-REPORT_DATE = "2026-10-20"
+REPORT_DATE = "2026-10-21"
 BASELINE_DATE = "2026-10-20"           # the user's baseline (config/master_options.m)
 ARCHIVE = "archive/2026-10-20_swX1_baseline/"
 esc = html.escape
@@ -1797,223 +1797,6 @@ def sec_eval():
     return section("evaluation", 11, "Forecast evaluation", body)
 
 
-# ----------------------------------------------------------------------------- application 1 on two other models
-OM_FILES = ["other_models_paths_long.csv", "other_models_learning_long.csv", "other_models_key_numbers.csv",
-            "other_models_checks.txt"]
-
-
-def model_line(name):
-    p = ROOT / "models" / name / "README.md"
-    if not p.exists():
-        return ""
-    for ln in p.read_text(encoding="utf-8").splitlines():
-        s = ln.strip()
-        if s and not s.startswith("#"):
-            return md_inline(s)
-    return ""
-
-
-def sec_other():
-    have = all((SUM / fn).exists() for fn in OM_FILES)
-    intro = ("Application 1 (data, RE, learning on inflation, forecast from the inflation peak) on two more models: the "
-             "three-equation New Keynesian model of IJCB (<code>models/ijcb3/</code>, parameters at the IJCB Table 1 "
-             "heterogeneous-expectations posterior means) and the An-Schorfheide (2007) model (<code>models/as07/</code>, "
-             "parameters at the published Herbst-Schorfheide (2016) posterior means).")
-    if not have:
-        missing = [fn for fn in OM_FILES if not (SUM / fn).exists()]
-        body = (f'<p class="answer">Results pending.</p><p>{intro}</p><aside class="box pending" role="note"><p>Track M3 is '
-                f'running these scenarios. This section is built from {", ".join(code("results/summary_v3/" + m) for m in OM_FILES)} '
-                f'and the memo section in {code("FINDINGS_v3.md")}; missing now: {", ".join(code(m) for m in missing)}. '
-                f'Rerun {code("python reports/build_report_v3.py")} once they exist.</p></aside>')
-        return section("othermodels", 12, "Application 1 on two other models", body), False
-    return section("othermodels", 12, "Application 1 on two other models", other_models_body(intro)), True
-
-
-OMODELS = [
-    dict(model="ijcb3", re="i1_re", learn="i1_learn", out="yobs", outlab="Output gap", outunit="% of trend output",
-         title="IJCB three-equation model",
-         desc=("The three-equation New Keynesian model of IJCB (sec. 2.1: hybrid IS curve, hybrid Phillips curve, Taylor "
-               "rule with smoothing; output gap, CPI inflation and the funds rate observed) at the posterior means of IJCB's "
-               "heterogeneous-expectations model (Table 1), with IJCB's learning estimates.")),
-    dict(model="as07", re="a1as_re", learn="a1as_learn", out="dy", outlab="Output growth", outunit="% annualised, per capita",
-         title="An and Schorfheide (2007)",
-         desc=("The small New Keynesian model of An and Schorfheide (2007) (Euler equation, Phillips curve, Taylor rule with "
-               "smoothing; output growth, CPI inflation and the funds rate observed with measurement errors) at the published "
-               "Herbst-Schorfheide (2016) posterior means for 1983Q1-2002Q4, with the toolbox learning calibration.")),
-]
-
-
-def parse_checks(text):
-    out, lines = [], text.splitlines()
-    for i, ln in enumerate(lines):
-        m = re.match(r"^(PASS|FAIL)\s+(\w+)\s+(.*)$", ln)
-        if m:
-            det, j = [], i + 1
-            while j < len(lines) and lines[j].startswith("      "):
-                det.append(lines[j].strip())
-                j += 1
-            out.append(dict(status=m.group(1), id=m.group(2), text=m.group(3), detail=" ".join(det)))
-    return out
-
-
-_m = re.search(r"(The package keeps IJCB's HE column.*?a year\.)", memo, re.S)
-IJCB_HE = " ".join(_m.group(1).split()) if _m else ""
-
-
-def other_models_body(intro):
-    op = pd.read_csv(SUM / "other_models_paths_long.csv")
-    OP = {(r.model, r.scenario, r.variable, r.date): float(r.value) for r in op.itertuples()}
-    ol = pd.read_csv(SUM / "other_models_learning_long.csv")
-    OL = {(r.scenario, r.variable, r.field, r.date): float(r.value) for r in ol.itertuples()}
-    okn = pd.read_csv(SUM / "other_models_key_numbers.csv")
-    OK = dict(zip(okn.name, okn.value))
-    ODESC = dict(zip(okn.name, okn.description))
-    ochk = parse_checks((SUM / "other_models_checks.txt").read_text(encoding="utf-8"))
-
-    def ok(name):
-        return float(OK[name])
-
-    def opser(mdl, scen, var, X, start=None):
-        return [None if (start and q < start) else clean(OP.get((mdl, scen, var, q))) for q in X]
-
-    def olser(scen, field, X):
-        return [clean(OL.get((scen, "pinf", field, q))) for q in X]
-
-    def oavg(mdl, scen, var):
-        xs = [OP[(mdl, scen, var, q)] for q in HOR]
-        return sum(xs) / len(xs)
-    parts, comp = [], {}
-    for M in OMODELS:
-        mdl, re_, le, ov = M["model"], M["re"], M["learn"], M["out"]
-        gap = {q: OP[(mdl, le, "pinfobs", q)] - OP[(mdl, re_, "pinfobs", q)] for q in HOR}
-        qg, gmax = argmax(gap)
-        neg = [q for q in HOR if gap[q] < 0]
-        npos = sum(1 for q in HOR if gap[q] > 0)
-        al, ar = ok(f"avg_pinfobs__{le}"), ok(f"avg_pinfobs__{re_}")
-        evh = re.findall(r"(\d{4}Q\d) projection_plm", ODESC.get(f"n_events__{le}", ""))
-        fe = int(ok(f"ev_projection_plm_forecast__{le}") + ok(f"ev_projection_alm_forecast__{le}")
-                 + ok(f"ev_projection_alm_shares_forecast__{le}"))
-        hfirst = min(d for (s, v, fl, d) in OL if s == le)
-        XF = qrange(hfirst, END)
-        n2m = {q: OL[(le, "pinf", "n2_model", q)] for q in HOR}
-        qlo, nlo = argmin(n2m)
-        ans = (f"Learning {'raises' if al > ar else 'lowers'} average inflation over {HOR[0]}-{END} by {f(abs(al - ar))} pp: "
-               f"{pct(al)} vs {pct(ar)} under RE. The gap is largest in {qg} ({pp(gmax)}) "
-               + (f"and stays positive in all {H} quarters ({pp(gap[END])} in {END})." if npos == H else
-                  f"and is negative from {neg[0]} ({pp(gap[END])} in {END})."))
-        p1 = (f"Inflation was {pct(ok(f'{mdl}_data_pinfobs_2022Q2'))} in {ORIGIN} (data); the RE forecast for {HOR[0]} is "
-              f"{pct(ok(f'pinfobs_{HOR[0]}__{re_}'))}, learning {pct(ok(f'pinfobs_{HOR[0]}__{le}'))}. Policy rate "
-              f"{pct(ok(f'avg_robs__{le}'))} vs {pct(ok(f'avg_robs__{re_}'))} on average; "
-              f"{M['outlab'].lower()} {f(ok(f'avg_{ov}__{le}'))} vs {f(ok(f'avg_{ov}__{re_}'))}. The end-of-quarter share "
-              f"({code('n2')}) is {f(ok(f'n2_origin__{le}'), 3)} at the end of {ORIGIN}; the share in force ({code('n2_model')}) "
-              f"is {f(ok(f'n2_model_2026Q2__{le}'), 3)} in {END} (lowest {f(nlo, 3)}, {qlo}); over {hfirst}-{ORIGIN} "
-              f"{code('n2')} averaged {f(ok(f'n2_hist_mean__{le}'), 3)}. "
-              f"Beliefs at the origin: alpha {f(ok(f'alpha_origin__{le}'), 3)}, beta {f(ok(f'beta_origin__{le}'), 3)}, a "
-              f"perceived mean of {pct(ok(f'pmean_origin__{le}'))} (steady state {pct(ok(f'{mdl}_ss_pinfobs'))}); "
-              f"{pct(ok(f'pmean_2026Q2__{le}'))} by {END}. Projection facility: {len(evh)} PLM-block events in the history "
-              f"({', '.join(evh)}), {fe if fe else 'none'} in the forecast.")
-        if mdl == "ijcb3":
-            cav = (f"Read the rate paths with two caveats. The package has no ELB regime: in the ELB quarters the filter "
-                   f"infers a shadow rate from the rule ({pct(ok('ijcb3_shadow_min_2009Q1_2015Q4'))} at its 2009-2015 trough). "
-                   f"At IJCB's estimates the trend real rate is {pct(ok('ijcb3_trend_real_rate'))} a year, so the RE forecast "
-                   f"settles at a funds rate of {pct(ok('ijcb3_ss_robs'))} with inflation of {pct(ok('ijcb3_ss_pinfobs'))}; "
-                   f"the funds rate averaged {pct(ok('ijcb3_data_avg_robs_2022Q3_2026Q2'))} over {HOR[0]}-{END} in the data "
-                   f"({code('models/ijcb3/README.md')}, open issue 1). " + esc(IJCB_HE))
-        else:
-            cav = (f"Read the paths with two caveats. The forecast returns to the 1983-2002 steady state (inflation "
-                   f"{pct(ok('as07_ss_pinfobs'))}, funds rate {pct(ok('as07_ss_robs'))}, output growth "
-                   f"{pct(ok('as07_ss_dy'))}); the funds rate averaged {pct(ok('as07_data_avg_robs_2022Q3_2026Q2'))} over "
-                   f"{HOR[0]}-{END} in the data. The observables carry measurement errors, and the learners learn model "
-                   f"inflation net of the error: {pct(ok('as07_model_pinfobs_2022Q2'))} at the origin, not the "
-                   f"{pct(ok('as07_data_pinfobs_2022Q2'))} in the data.")
-        cells = []
-        for var, lab, unit in (("pinfobs", "Inflation", UNIT), ("robs", "Policy rate", UNIT), (ov, M["outlab"], M["outunit"])):
-            dvar = "ffr" if var == "robs" else var
-            ser = [S("data", opser(mdl, "data", dvar, Q18), **({"name": "Data (funds rate)"} if var == "robs" else {})),
-                   S("re", opser(mdl, re_, var, Q18, ORIGIN)), S("learn", opser(mdl, le, var, Q18, ORIGIN))]
-            cap = (f"Average {HOR[0]}-{END}: RE {pct(oavg(mdl, re_, var))}; learning {pct(oavg(mdl, le, var))}"
-                   + (f"; data (funds rate) {pct(sum(OP[(mdl, 'data', 'ffr', q)] for q in HOR) / H)}" if var == "robs" else
-                      f"; data {pct(sum(OP[(mdl, 'data', var, q)] for q in HOR) / H)}") + "."
-                   + (" The 2020 quarters run off the scale (values in the table view)." if var == ov else ""))
-            sh = None
-            if var == "pinfobs":
-                sh = [("Share of learners in force (n2_model), inflation", "toolbox field n2_model of pinf",
-                       [S("learn", olser(le, "n2_model", Q18))], {})]
-            cells.append(panel(f"om-{mdl}-{var}", f"om{mdl}", f"{lab}, {unit}", cap, Q18, ser, shares=sh,
-                               clip=COVID if var == ov else []))
-        hcap = (f"Learned on the RE-smoothed history from {hfirst}; after {ORIGIN} the forecast. End-of-quarter share (n2) "
-                f"{f(ok(f'n2_origin__{le}'), 3)} at the end of {ORIGIN}; beta {f(ok(f'beta_origin__{le}'), 3)} at {ORIGIN}, "
-                f"{f(ok(f'beta_2026Q2__{le}'), 3)} in {END}.")
-        hist = stacked(f"om{mdl}h", "Share of learners and perceived persistence, inflation", hcap,
-                       [("End-of-quarter share of learners (n2)", XF, [S("learn", olser(le, "n2", XF))], {}),
-                        ("Perceived persistence (beta, the learners' AR(1) coefficient)", XF,
-                         [S("learn", olser(le, "beta_pinf", XF))], {})])
-        folder = f"scenarios/{mdl}/app1_peak"
-        lines = scen_lines_path(ROOT / folder / f"{le}.m")
-        parts.append(f"""<h3 class="sub">{esc(M['title'])} ({code(mdl)})</h3>
-<p class="mdesc">{esc(M['desc'])} Learning: gain {f(ok(f'gain__{le}'), 4)}, memory {f(ok(f'memory__{le}'), 2)}, intensity of
-choice {f(ok(f'intensity__{le}'), 2)}.</p>
-<p class="answer">{ans}</p>
-<p>{p1}</p>
-<p>{cav}</p>
-{codeblock(f"{folder}/{le}.m", lines)}
-{fig_title(f"{M['title']}: forecast from the {ORIGIN} peak, {Q18[0]}-{END}")}
-{legend(f"om{mdl}", [leg("data"), leg("re"), leg("learn")])}
-<div class="grid g-2">{"".join(cells)}</div>
-{tables(f"om{mdl}")}
-{fig_title(f"{M['title']}: the learners' share and perceived persistence, {hfirst}-{END}")}
-<div class="grid g-1w">{hist}</div>
-{tables(f"om{mdl}h")}""")
-        comp[mdl] = dict(avg=(ar, al), gap=(ok(f"gap_avg_pinfobs__{mdl}"), gmax, qg), end=gap[END],
-                         n2=(ok(f"n2_origin__{le}"), ok(f"n2_model_2026Q2__{le}")),
-                         bel=(ok(f"beta_origin__{le}"), ok(f"pmean_origin__{le}"), ok(f"{mdl}_ss_pinfobs")),
-                         d22=(ok(f"{mdl}_data_pinfobs_2022Q2"), ok(f"pinfobs_{HOR[0]}__{re_}")),
-                         ev=(len(evh), fe))
-    sgap = {q: P("a1_learn", "pinfobs", q) - P("a1_re", "pinfobs", q) for q in HOR}
-    sq, sg = argmax(sgap)
-    comp["sw07"] = dict(avg=(K("avg_pinfobs__a1_re"), K("avg_pinfobs__a1_learn")),
-                        gap=(K("avg_pinfobs__a1_learn") - K("avg_pinfobs__a1_re"), sg, sq), end=sgap[END],
-                        n2=(K("n2_origin__a1_learn"), K("n2_model_2026Q2__a1_learn")),
-                        bel=(K("a1_beta_origin"), K("a1_pmean_origin"), K("ss_pinf")),
-                        d22=(K("a1_pinf_data_2022Q2"), P("a1_re", "pinfobs", HOR[0])),
-                        ev=(sum(ev_count("a1_learn", k, "history") for k in ("plm", "alm", "alm_shares")),
-                            sum(ev_count("a1_learn", k, "forecast") for k in ("plm", "alm", "alm_shares"))))
-    order = ["sw07", "ijcb3", "as07"]
-    rows = [
-        [f"Average inflation {HOR[0]}-{END}, RE / learning"] + [f"{pct(comp[m]['avg'][0])} / {pct(comp[m]['avg'][1])}" for m in order],
-        ["Learning minus RE, average / largest"] + [f"{pp(comp[m]['gap'][0])} / {pp(comp[m]['gap'][1])} ({comp[m]['gap'][2]})" for m in order],
-        [f"Learning minus RE in {END}"] + [pp(comp[m]["end"]) for m in order],
-        [f"Learners' share: n2 at the end of {ORIGIN} / n2_model in {END}"] + [f"{f(comp[m]['n2'][0], 3)} / {f(comp[m]['n2'][1], 3)}" for m in order],
-        ["Inflation PLM at the origin: beta / perceived mean (steady state)"] +
-        [f"{f(comp[m]['bel'][0], 3)} / {pct(comp[m]['bel'][1]) if not math.isnan(comp[m]['bel'][1]) else 'none (beta at or above 1)'} ({pct(comp[m]['bel'][2])})" for m in order],
-        [f"Inflation in {ORIGIN}, data / RE forecast for {HOR[0]}"] + [f"{pct(comp[m]['d22'][0])} / {pct(comp[m]['d22'][1])}" for m in order],
-        ["Facility events, history / forecast"] + [f"{comp[m]['ev'][0]} / {comp[m]['ev'][1]}" for m in order],
-    ]
-    tbl = html_table(["", "SW07", "ijcb3", "as07"], rows, num_from=1, cls="cmp",
-                     caption=f"Application 1 in three models. SW07 on the {BASELINE_DATE} baseline; ijcb3 and as07 on the "
-                             f"previous settings (not rerun). SW07 observes GDP-deflator inflation, ijcb3 and as07 CPI "
-                             f"inflation. Sources: key_numbers.csv, other_models_key_numbers.csv, the paths files.")
-    allpos = all(comp[m]["avg"][1] > comp[m]["avg"][0] for m in order)
-    lead = (f"{'Learning raises the inflation path after the peak in all three models' if allpos else 'The sign of the learning effect differs across the models'}: "
-            f"by {f(comp['sw07']['gap'][0])} pp in SW07, {f(comp['ijcb3']['gap'][0])} pp in ijcb3 and {f(comp['as07']['gap'][0])} pp "
-            f"in as07 on average over {HOR[0]}-{END} (SW07 on the {BASELINE_DATE} baseline, the other two on the previous "
-            f"settings)."
-            + (" The gap is largest in the first two forecast quarters in all three."
-               if all(HOR.index(comp[m]["gap"][2]) <= 1 for m in order) else ""))
-    nck = sum(1 for c in ochk if c["status"] == "PASS")
-    p0 = (f"{intro} This section was not rerun for the {BASELINE_DATE} baseline: the runs date from 2026-10-18 and keep "
-          f"the settings of the previous baseline (constant gain, period-t RE information, smoothed RE values, the "
-          f"{code(PREV_FAC)} facility, each model's own published parameters), which their scenario files now pin, so "
-          f"the SW07 baseline does not reach them. Both packages ran without toolbox changes; {nck} of {len(ochk)} checks in "
-          f"{code('other_models_checks.txt')} pass (<a href=\"#validation\">validation</a>). The RE runs equal the original "
-          f"models: each model's own Kalman smoother gives the run's history and its zero-shock simulation the forecast "
-          f"(ijcb3 {sci(ok('ijcb3_re_vs_original_forecast'))}, as07 {sci(ok('as07_re_vs_original_forecast'))}).")
-    return f"""<p class="answer">{lead}</p>
-<p>{p0}</p>
-{tbl}
-{"".join(parts)}"""
-
-
 # ----------------------------------------------------------------------------- caveats, reproduce, validation, features
 def sec_caveats():
     m = re.search(r"^## Notes\s*$(.*?)(?=^## )", memo, re.M | re.S)
@@ -2041,7 +1824,7 @@ def sec_caveats():
     lis = "".join(f"<li>{x if x.startswith('The peak forecasts') else md_inline(x)}</li>" for x in items)
     body = f"""<p>From the Notes of the results memo, {code('results/summary_v3/FINDINGS_v3.md')}.</p>
 <ul class="cav">{lis}</ul>"""
-    return section("caveats", 13, "Caveats", body)
+    return section("caveats", 12, "Caveats", body)
 
 
 SECT_GROUPS = [("app1", "1 Application 1"), ("app2", "2 Application 2"), ("app3", "3 Application 3"),
@@ -2065,12 +1848,6 @@ def sec_reproduce():
             call += ("; in parallel: " + code("run_applications('eval_part', variants, parts)") + ", then "
                      + code("run_applications('eval_merge')"))
         rows.append([lab, code(f"scenarios/sw07/{folder}/"), files, call, out])
-    rows.append(["12 Other models", code("scenarios/ijcb3/app1_peak/") + ", " + code("scenarios/as07/app1_peak/"),
-                 ", ".join(code(i + ".m") for i in ("i1_re", "i1_learn", "a1as_re", "a1as_learn")),
-                 code("res = hetlearn.run(feval(id))") + " for each id, then "
-                 + code("run('results/summary_v3/build_other_models.m')"),
-                 ", ".join(code(f"results/{i}/") for i in ("i1_re", "i1_learn", "a1as_re", "a1as_learn")) + "; "
-                 + ", ".join(code(m) for m in OM_FILES)])
     rows.append(["Summary tables", code("results/summary_v3/"), code("build_summary_v3.m"),
                  code("run('results/summary_v3/build_summary_v3.m')"), code("results/summary_v3/") + " (CSVs, checks_v3.txt)"])
     rows.append(["This page", code("reports/"), code("build_report_v3.py"), code("python reports/build_report_v3.py"),
@@ -2083,7 +1860,7 @@ difference from its parent. The parents are {code('scenarios/sw07/base/sw07_re.m
 {code('run_applications')} runs groups in dependency order; {code('help run_applications')} gives the run times. Each run
 overwrites {code('results/<id>/')}.</p>
 {tbl}"""
-    return section("reproduce", 14, "How to reproduce", body)
+    return section("reproduce", 13, "How to reproduce", body)
 
 
 def sec_validation():
@@ -2092,22 +1869,10 @@ def sec_validation():
         st = f'<span class="st st-{"pass" if c["status"] == "PASS" else "fail"}">{c["status"]}</span>'
         rows.append([st, code(cid), esc(c["text"]), esc(c["detail"])])
     tbl = html_table(["Status", "Check", "What is checked", "Result"], rows, num_from=99, cls="val")
-    extra = ""
-    op = SUM / "other_models_checks.txt"
-    if op.exists():
-        otxt = op.read_text(encoding="utf-8")
-        oc = parse_checks(otxt)
-        orows = [[f'<span class="st st-{"pass" if c["status"] == "PASS" else "fail"}">{c["status"]}</span>', code(c["id"]),
-                  esc(c["text"]), esc(c["detail"])] for c in oc]
-        osum = rx(r"^(\d+ of \d+ checks pass)\s*$", otxt, flags=re.M)
-        extra = (f"<h3 class=\"sub\">Application 1 on the other models</h3><p>{esc(osum)}. Every line of "
-                 f"{code('results/summary_v3/other_models_checks.txt')}, written by {code('build_other_models.m')}.</p>"
-                 + html_table(["Status", "Check", "What is checked", "Result"], orows, num_from=99, cls="val"))
     body = f"""<p>{esc(CHK_SUMMARY)}. Every line of {code('results/summary_v3/checks_v3.txt')}, written by
 {code('build_summary_v3.m')}.</p>
-{tbl}
-{extra}"""
-    return section("validation", 15, "Validation", body)
+{tbl}"""
+    return section("validation", 14, "Validation", body)
 
 
 def sec_features():
@@ -2143,15 +1908,13 @@ others were asked for. {n_rm} rows are
 options raise an error naming the replacement).</p>
 {tbl}
 <p><b>Not implemented, planned hooks:</b> {hk}</p>"""
-    return section("features", 16, "Feature register", body), n, n_add, n_rm
+    return section("features", 15, "Feature register", body), n, n_add, n_rm
 
 
 # ============================================================================= assemble
 BASE_HTML = sec_baseline()
 PARTS = [sec_app1(), sec_app2(), sec_app3(), sec_app4(), sec_app5(), sec_app6(), sec_var1(), sec_var2(), sec_var3(),
          sec_var4(), sec_eval()]
-OM_HTML, OM_DONE = sec_other()
-PARTS.append(OM_HTML)
 PARTS += [sec_caveats(), sec_reproduce(), sec_validation()]
 FEAT_HTML, N_FEAT, N_ADD, N_RM = sec_features()
 PARTS.append(FEAT_HTML)
@@ -2166,16 +1929,15 @@ NEWBASE = (f"New baseline, {BASELINE_DATE}. Every SW07 result in this report was
            f"intensity of choice {mopt('switching.intensity', True)}, memory {mopt('switching.memory', True)}, and no "
            f"projection facility. The previous baseline (the swX1 re-estimate on data to 2026Q2, a constant gain of "
            f"{PREV['gain']}, intensity {PREV['chi']}, memory {PREV['omega']}, period-t RE information, smoothed RE values "
-           f"and the {code(PREV['facility'])} facility) and all its results are archived in {code(ARCHIVE)}. Section 12 "
-           f"(two other models) was not rerun and keeps the previous settings.")
+           f"and the {code(PREV['facility'])} facility) and all its results are archived in {code(ARCHIVE)}.")
 body = f"""
 <header class="top wrap">
   <p class="kicker">hetlearn toolbox report · {REPORT_DATE}</p>
   <h1>hetlearn: heterogeneous expectations in DSGE models</h1>
   <p class="lede">hetlearn is a MATLAB toolbox on IRIS that mixes rational-expectations agents with adaptive learners
   whose shares switch on past forecast performance (Özden 2025, IJCB 21(1)). This report applies it to the Smets-Wouters
-  (2007) model at its published parameters: six applications from the {ORIGIN} inflation peak, four model variants, a
-  real-time forecast evaluation, and application 1 on two other models.</p>
+  (2007) model at its published parameters: six applications from the {ORIGIN} inflation peak, four model variants and
+  a real-time forecast evaluation.</p>
   <p class="lede">{NEWBASE}</p>
   <p class="meta"><span>{REPORT_DATE}</span><span>{n_scen} scenarios ({n_scen - n_eval} runs, {n_eval} evaluation variants), {n_ok} ok{f", {n_scen - n_ok} with runs that stop (no model solution, check C8)" if n_scen > n_ok else ""}</span>
   <span>{esc(CHK_SUMMARY)}</span><span>Inputs: results/summary_v3/</span></p>
@@ -2731,5 +2493,5 @@ if "—" in page:
     raise SystemExit("em dash in the page")
 OUT.write_text(page, encoding="utf-8")
 print(f"wrote {OUT} ({OUT.stat().st_size / 1024:.0f} KB), {len(CHARTS)} charts, {FIGN[0]} figures, "
-      f"other models: {'built' if OM_DONE else 'pending'}; features {N_FEAT} ({N_ADD} ADDED, {N_RM} REMOVED); "
+      f"features {N_FEAT} ({N_ADD} ADDED, {N_RM} REMOVED); "
       f"checks {N_PASS}/{len(CHK)} PASS")
