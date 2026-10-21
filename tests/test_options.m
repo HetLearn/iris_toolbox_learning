@@ -158,8 +158,8 @@ end
 % -------------------------------------------------------------------------
 function R = br_schema(R)
 % BR1 defaults off and idempotent; BR2 the portfolio variants of DESIGN_br_extensions sec. 3 pass
-% validation and stop with hetlearn:options:notImplemented naming exactly their phases; BR3 bad
-% values are rejected by the validation, before the not-implemented guard.
+% validation and load (every phase has landed); BR3 bad values are rejected by the validation; BR4
+% Ramsey and the inversion with the N-type path stop with hetlearn:options:unsupported (phase P6).
 nm = 'opt BR1: BR options present and off by default; load_options(struct()) passes and is idempotent';
 try
     d = hetlearn.defaults();
@@ -287,9 +287,8 @@ for i = 1:size(V, 1)
     end
 end
 R = add(R, sprintf(['opt BR2: %d configurations (the portfolio variants of DESIGN_br_extensions sec. 3, ' ...
-    'history.mode kalman, RE/BR spelled out) pass validation and stop with notImplemented naming exactly ' ...
-    'their phases (br24, br26: existing options, they load; P1 to P5 landed: every configuration ' ...
-    'loads)'], size(V, 1)), isempty(bad), strjoin(bad, ' | '));
+    'history.mode kalman, RE/BR spelled out) pass validation and load (phases P1 to P5 have landed; ' ...
+    'br24 and br26 use existing options)'], size(V, 1)), isempty(bad), strjoin(bad, ' | '));
 
 E = {};      % {name, cfg, expected identifier}
 x = c; x.expectations.types = T('name', 'A', 'kind', 'heuristic');
@@ -353,6 +352,42 @@ for i = 1:size(E, 1)
 end
 R = add(R, sprintf('opt BR3: %d malformed BR settings rejected by the validation (types, transforms, value)', ...
     size(E, 1)), isempty(bad), strjoin(bad, ' | '));
+
+% BR4 (phase P6): stages without the N-type path stop with hetlearn:options:unsupported, naming the options
+U = {};      % {name, cfg, expected word in the message ('' = loads)}
+tb = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm'), T('name', 'TB', 'kind', 'rule', 'rule', '0')};
+x = c; x.policy.mode = 'ramsey'; x.expectations.types = tb;
+U(end+1, :) = {'Ramsey with N types', x, 'expectations.types'};
+x = c; x.policy.mode = 'ramsey'; x.expectations.transforms = cd5;
+U(end+1, :) = {'Ramsey with a transform', x, 'expectations.transforms'};
+x = c; x.policy.mode = 'ramsey'; x.switching.inertia = 0.5;
+U(end+1, :) = {'Ramsey with switching.inertia', x, 'switching.inertia'};
+x = c; x.history.mode = 'inversion'; x.expectations.types = tb;
+U(end+1, :) = {'inversion with N types', x, 'expectations.types'};
+x = c; x.history.mode = 'inversion'; x.shares.init = struct('RE', 0.5, 'BR', 0.5);
+U(end+1, :) = {'inversion with shares.init', x, 'shares.init'};
+x = c; x.policy.mode = 'ramsey';
+U(end+1, :) = {'Ramsey, two types (loads)', x, ''};
+x = c; x.history.mode = 'inversion';
+U(end+1, :) = {'inversion, two types (loads)', x, ''};
+x = c; x.history.mode = 'kalman'; x.expectations.types = tb; x.density.enabled = true; x.density.shocks = {'em'};
+U(end+1, :) = {'Kalman and density with N types (load)', x, ''};
+bad = {};
+for i = 1:size(U, 1)
+    try
+        hetlearn.load_options(U{i, 2}, struct());
+        if ~isempty(U{i, 3})
+            bad{end+1} = [U{i, 1} ': no error']; %#ok<AGROW>
+        end
+    catch err
+        if isempty(U{i, 3}) || ~strcmp(err.identifier, 'hetlearn:options:unsupported') || ~contains(err.message, U{i, 3})
+            bad{end+1} = sprintf('%s: %s %s', U{i, 1}, err.identifier, err.message); %#ok<AGROW>
+        end
+    end
+end
+R = add(R, sprintf(['opt BR4: Ramsey and the inversion with N types, transforms or the E2 switching options stop ' ...
+    'with hetlearn:options:unsupported naming them; %d cases (the two-type runs and the Kalman and density stages ' ...
+    'with N types load)'], size(U, 1)), isempty(bad), strjoin(bad, ' | '));
 end
 
 
