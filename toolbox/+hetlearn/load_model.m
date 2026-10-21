@@ -81,6 +81,27 @@ function [m, info] = load_model(spec, opts)
 %   (hetlearn:load_model:solveFailed); 'anchored' for a model without
 %   plain state names or a nonlinear model (hetlearn:load_model:anchored).
 %
+%   N agent types (expectations.types, docs/DESIGN_br_extensions.md 1.1-1.2,
+%   phase P2): hetlearn.agent_types resolves the types; the model comes from
+%   hetlearn.extend_model(spec, plm, 'types', ...) (<name>_ext_n<hash>.model),
+%   loaded at its RE limit (n_RE_<x> = 1, every other share 0, beliefs 0,
+%   rule constants at their values, anchored coefficients as above for the RE
+%   type's information set). Each learning type k (kind 'plm', or 'rule'
+%   with a mean term) gets its PLM system hetlearn.plm.build_system(...,
+%   info_k, k) on its learning variables, checked against the generated
+%   equations. info.sys is then the combined system of every learning type
+%   with keyed targets <target>__<k> (fields .type, .var, .reg_vars added;
+%   .nt.share_names for hetlearn.engine.facility), and info.nt the engine's
+%   description of the types (hetlearn.engine.ntypes). The default pair
+%   RE/BR on the N-type engine path (switching options of DESIGN_br_extensions
+%   1.2 without expectations.types) keeps the two-type file; info.nt and the
+%   keyed info.sys are then built on it (info.nt.sys_two holds the two-type
+%   system). 'model:<rule>' values (switching.intensity = 'model:bma') are
+%   computed from the solved RE limit m: info.nt.model_values.bma.sigma2.<x>
+%   = the forecast-error variance of x at the horizon of the RE type's
+%   forecast (2 under re_info 'lagged', 1 under 'current'). N types with
+%   policy.mode = 'ramsey' are not supported (hetlearn:load_model:types).
+%
 %   See also hetlearn.extend_model, hetlearn.re_filter, hetlearn.run,
 %   hetlearn.re_anchor_coefficients.
 
@@ -101,6 +122,11 @@ if ~isempty(opts.model_params)
             opts.model_params, opts.model_params, spec.folder, spec.params);
     end
     spec.params = opts.model_params;
+end
+AT = hetlearn.agent_types(opts);          % N agent types (DESIGN_br_extensions 1.1); default: off
+if AT.ntype
+    [m, info] = load_ntype(spec, opts, AT);
+    return
 end
 
 % ---- PLM spec: a VAR over the learning set needs the learning variables first ----
@@ -322,6 +348,402 @@ info.eList = eList;
 info.pList = pList;
 info.model_hash = hetlearn.util.md5(hetlearn.util.file_bytes(meta.ext_file));
 info.policy = pol;
+if AT.engine
+    % the default pair RE/BR on the N-type engine path (DESIGN_br_extensions 1.2), two-type file
+    if ~isempty(pol) && pol.ramsey
+        error('hetlearn:load_model:types', ['The switching options of DESIGN_br_extensions 1.2 (inertia, ' ...
+            'costs, fitness, model:<rule> intensity, shares.init/.fixed) are not supported with ' ...
+            'policy.mode = ''ramsey'' yet.']);
+    end
+    info.nt = nt_descriptor(AT, meta, learnVars, xList, opts, sys, m, spec);
+    info.sys = nt_system(info.nt, meta, opts);
+end
+end
+
+
+% =========================================================================
+% N agent types (DESIGN_br_extensions 1.1, phase P2)
+% =========================================================================
+function [m, info] = load_ntype(spec, opts, AT)
+v = opts.expectations.variables;
+gen = AT.gen;
+% a VAR over the learning set: each type's own learning variables first (as the two-type path)
+needLv = any(arrayfun(@(g) strcmp(g.kind, 'plm') && uses_learning_set(g.plm), gen));
+if needLv
+    meta0 = hetlearn.extend_model(spec, 'ar1', 'validate', false);
+    lv0 = learning_vars(v, meta0.forward_vars, spec);
+    for i = 1:numel(gen)
+        if strcmp(gen(i).kind, 'plm') && uses_learning_set(gen(i).plm)
+            tv = lv0;
+            if ~isempty(gen(i).variables)
+                tv = lv0(ismember(lv0, gen(i).variables));
+            end
+            gen(i).plm = resolve_learning_set(gen(i).plm, tv);
+            AT.types(i).plm = gen(i).plm;
+        end
+    end
+end
+meta = hetlearn.extend_model(spec, opts.beliefs.plm, 'types', gen);
+learnVars = learning_vars(v, meta.forward_vars, spec);
+for i = 2:numel(AT.types)
+    bad = setdiff(AT.types(i).variables, learnVars);
+    if ~isempty(bad)
+        error('hetlearn:load_model:types', 'Type %s forecasts %s, which are not learning variables (%s).', ...
+            AT.types(i).name, strjoin(bad, ', '), strjoin(learnVars, ', '));
+    end
+end
+lagged = strcmp(meta.re_info, 'lagged');
+if lagged
+    long = learnVars(cellfun(@(x) meta.max_lead.(x) > 1, learnVars));
+    if ~isempty(long)
+        error('hetlearn:load_model:reInfo', ['expectations.re_info = ''lagged'' needs learning variables with ' ...
+            'a maximum lead of 1 (the k-step expectations x_expk = x_exp(k-1){+1} would keep period-t ' ...
+            'information); %s has longer leads in %s.'], strjoin(long, ', '), spec.model_file);
+    end
+end
+anchTog = strcmp(opts.expectations.re_variant, 'anchored');
+anchored = anchTog || any(arrayfun(@(t) strcmp(t.kind, 're') && strcmp(t.variant, 'anchored'), AT.types));
+if anchored && ~(isfield(meta, 'anchor_ok') && meta.anchor_ok && logical(spec.linear))
+    error('hetlearn:load_model:anchored', ...
+        ['expectations.re_variant = ''anchored'' needs a linear model whose IRIS state ' ...
+        'names are plain (no log variables); %s does not qualify.'], spec.model_file);
+end
+
+% ---- toggles and model ---------------------------------------------------------------
+A = struct();
+if isfield(spec, 'assign') && isstruct(spec.assign) && ~isempty(spec.assign)
+    A = spec.assign;
+end
+tog = struct();
+for i = 1:numel(meta.toggles)
+    x = meta.forward_vars{i};
+    tog.(meta.toggles{i}) = ismember(x, learnVars);
+    A.(meta.toggles{i}) = tog.(meta.toggles{i});
+end
+A.(meta.anchor_toggle) = anchTog;
+info_ = char(opts.beliefs.info);
+A.(meta.info_toggle) = strcmp(info_, 'current');
+P = call_params(spec);
+pol = hetlearn.policy.setup(spec, meta, opts, P);
+if ~isempty(pol) && pol.ramsey
+    error('hetlearn:load_model:types', 'N agent types (expectations.types) are not supported with policy.mode = ''ramsey'' yet.');
+end
+if ~isempty(pol) && pol.wrapped
+    A.(pol.toggle) = false;
+end
+m = Model.fromFile(meta.ext_file, 'linear', logical(spec.linear), 'assign', A);
+pList = cellstr(get(m, 'pList'));
+eList = cellstr(get(m, 'eList'));
+f = fieldnames(P);
+keep = ismember(f, pList) | ismember(f, strcat('std_', eList)) | strncmp(f, 'corr_', 5);
+Pm = struct();
+for i = find(keep)'
+    Pm.(f{i}) = P.(f{i});
+end
+Z = re_limit(meta);
+if ~isempty(pol)
+    pf = fieldnames(pol.params);
+    for i = 1:numel(pf)
+        Z.(pf{i}) = pol.params.(pf{i});
+    end
+end
+m = assign(m, Pm);
+m = assign(m, Z);
+anchorInfo = [];
+reCheck = [];
+mMC = [];
+if anchored && ~lagged
+    [Aa, anchorInfo] = hetlearn.re_anchor_coefficients(spec, P, 'vars', meta.forward_vars, ...
+        'states', meta.re_states, 'ref_file', meta.ref_file);
+    m = assign(m, Aa);
+elseif anchored
+    Amc = A;
+    Amc.(meta.anchor_toggle) = false;
+    mMC = Model.fromFile(meta.ext_file, 'linear', logical(spec.linear), 'assign', Amc);
+    mMC = assign(mMC, Pm);
+    mMC = assign(mMC, Z);
+    [mMC, ok, msg] = hetlearn.engine.solve_model(mMC, spec);
+    if ~ok
+        error('hetlearn:load_model:solveFailed', ['solve failed for %s (the RE model with information up ' ...
+            'to t-1 for {%s}): %s'], meta.ext_file, strjoin(learnVars, ', '), msg);
+    end
+    if logical(spec.linear)
+        mMC = sstate(mMC);
+    end
+    [Aa, anchorInfo] = hetlearn.re_anchor_coefficients(spec, P, 're_info', 'lagged', 'model', mMC, ...
+        'vars', learnVars, 'states', meta.re_states, 'chain', meta.re_chain);
+    m = assign(m, Aa);
+end
+[m, ok, msg] = hetlearn.engine.solve_model(m, spec);
+if ~ok
+    error('hetlearn:load_model:solveFailed', 'solve failed for %s (RE limit of the agent types): %s', meta.ext_file, msg);
+end
+if logical(spec.linear)
+    m = sstate(m);
+end
+if anchored && lagged
+    common = intersect(cellstr(get(m, 'xList')), cellstr(get(mMC, 'xList')), 'stable');
+    sA = srf(m, 1:40);
+    sM = srf(mMC, 1:40);
+    dd = 0;
+    for i = 1:numel(common)
+        e = abs(sA.(common{i})(1:40, :) - sM.(common{i})(1:40, :));
+        e(isnan(e)) = Inf;
+        dd = max([dd; e(:)]);
+    end
+    reCheck = struct('anchored_vs_mc_maxdiff', dd, 'variables', {common});
+    if ~(dd < 1e-10)
+        error('hetlearn:load_model:reInfo', ['With information up to t-1 the anchored RE model at n_RE = 1 ' ...
+            'differs from the model-consistent one by %.3g (IRFs, learning {%s}).'], dd, strjoin(learnVars, ', '));
+    end
+end
+
+% ---- PLM systems of the learning types, checked against the generated equations -----------
+xList = cellstr(get(m, 'xList'));
+nt = nt_descriptor(AT, meta, learnVars, xList, opts, [], m, spec);
+for j = 1:numel(nt.types)
+    t = nt.types(j);
+    if isempty(t.sys) || ~strcmp(t.kind, 'plm')
+        continue
+    end
+    for i = 1:numel(t.vars)
+        x = t.vars{i};
+        a = hetlearn.plm.forecast_expr(t.sys, x);
+        b = hetlearn.plm.forecast_expr(meta.type_sys.(t.name), x, t.sys.info);
+        if ~strcmp(a, b)
+            error('hetlearn:load_model:plmMismatch', ['Type %s: the PLM system for the learning variables gives ' ...
+                '%s_exp1_%s = %s, but the generated model has %s. Set the type''s plm by_var entries for the ' ...
+                'auxiliary variables so that both agree.'], t.name, x, t.name, a, b);
+        end
+    end
+end
+sysN = nt_system(nt, meta, opts);
+allp = {};
+if ~isempty(sysN.eq)
+    allp = [sysN.eq.param_names];
+end
+miss = setdiff(allp, pList);
+if ~isempty(miss)
+    error('hetlearn:load_model:plmMismatch', 'PLM parameter(s) not declared in %s: %s.', meta.ext_file, strjoin(miss, ', '));
+end
+
+info = struct();
+info.meta = meta;
+info.learnVars = learnVars;
+info.plm = opts.beliefs.plm;
+info.sys = sysN;
+info.params = P;
+info.toggles = tog;
+info.assign = A;
+info.re_variant = opts.expectations.re_variant;
+info.re_info = meta.re_info;
+if lagged
+    info.re_info_check = reCheck;
+end
+info.anchor = anchorInfo;
+info.has_leads = get(m, 'maxLead') > 0;
+info.xList = xList;
+info.yList = cellstr(get(m, 'yList'));
+info.eList = eList;
+info.pList = pList;
+info.model_hash = hetlearn.util.md5(hetlearn.util.file_bytes(meta.ext_file));
+info.policy = pol;
+info.nt = nt;
+end
+
+
+function Z = re_limit(meta)
+% n_RE_x = 1 and every other share 0, belief and anchored parameters 0, rule constants at their values
+Z = struct();
+fwd = meta.forward_vars;
+for i = 1:numel(fwd)
+    x = fwd{i};
+    sp = meta.share_params.(x);
+    for j = 1:numel(sp)
+        Z.(sp{j}) = double(strcmp(meta.type_order.(x){j}, 'RE'));
+    end
+end
+for f = reshape(fieldnames(meta.belief_params), 1, [])
+    pn = meta.belief_params.(f{1});
+    for j = 1:numel(pn)
+        Z.(pn{j}) = 0;
+    end
+end
+for f = reshape(fieldnames(meta.anchor_params), 1, [])
+    pn = meta.anchor_params.(f{1});
+    for j = 1:numel(pn)
+        Z.(pn{j}) = 0;
+    end
+end
+for f = reshape(fieldnames(meta.rule_params), 1, [])
+    Z.(f{1}) = meta.rule_params.(f{1});
+end
+end
+
+
+function nt = nt_descriptor(AT, meta, learnVars, xList, opts, sysTwo, m, spec)
+% The engine's description of the agent types (hetlearn.engine.ntypes).
+legacy = AT.legacy_file;
+nt = struct();
+nt.legacy_file = legacy;
+nt.names = AT.names;
+nt.re = 1;
+nt.default_pair = AT.default_pair;
+T = struct('name', {}, 'kind', {}, 'variant', {}, 'info', {}, 'inpop', {}, 'cost', {}, 'update', {}, ...
+    'gain', {}, 'vars', {}, 'sys', {}, 'rule', {}, 'self_maxlag', {}, 'data_maxlag', {});
+for j = 1:numel(AT.types)
+    a = AT.types(j);
+    t = struct('name', a.name, 'kind', a.kind, 'variant', a.variant_resolved, 'info', a.info_resolved, ...
+        'inpop', a.inpop, 'cost', a.cost, 'update', a.update, 'gain', a.gain, 'vars', {{}}, 'sys', [], ...
+        'rule', struct(), 'self_maxlag', 0, 'data_maxlag', 0);
+    if j == 1 || isempty(a.variables)
+        t.vars = learnVars;
+    else
+        t.vars = learnVars(ismember(learnVars, a.variables));
+    end
+    switch a.kind
+        case 'plm'
+            if legacy
+                t.sys = sysTwo;
+            else
+                t.sys = hetlearn.plm.build_system(a.plm, t.vars, xList, t.info, a.name);
+            end
+            t.data_maxlag = t.sys.maxlag;
+        case 'rule'
+            meanVars = {};
+            for i = 1:numel(t.vars)
+                x = t.vars{i};
+                R = meta.rules.(a.name).(x);
+                t.rule.(x) = R;
+                t.self_maxlag = max(t.self_maxlag, R.self_maxlag);
+                t.data_maxlag = max(t.data_maxlag, R.maxlag);
+                if R.uses_mean
+                    meanVars{end+1} = x; %#ok<AGROW>
+                end
+            end
+            if ~isempty(meanVars)
+                bv = struct();
+                for i = 1:numel(meanVars)
+                    bv.(meanVars{i}) = struct('regressors', {{}}, 'constant', true);
+                end
+                pl = struct('default', 'ar1', 'by_var', bv, 'derived', struct(), ...
+                    'var', struct('variables', {{}}, 'lags', 1, 'constant', true));
+                t.sys = hetlearn.plm.build_system(pl, meanVars, xList, t.info, a.name);
+            end
+    end
+    T(j) = t; %#ok<AGROW>
+end
+nt.types = T;
+nt.byvar = struct();
+for i = 1:numel(learnVars)
+    x = learnVars{i};
+    ix = find(arrayfun(@(t) any(strcmp(t.vars, x)), T));
+    b = struct();
+    b.types = ix;
+    b.names = {T(ix).name};
+    if legacy
+        b.fvars = {[x '_exp1_RE'], [x '_exp1_BR']};
+        b.share_names = {['n1_' x], ['n2_' x]};
+    else
+        b.fvars = cellfun(@(k) sprintf('%s_exp1_%s', x, k), b.names, 'UniformOutput', false);
+        b.share_names = meta.share_params.(x);
+        if ~isequal(meta.type_order.(x), b.names)
+            error('hetlearn:load_model:types', 'Type order of %s differs from the generated file.', x);
+        end
+    end
+    b.inpop = arrayfun(@(j) T(j).inpop && (j ~= 1 || isempty(AT.types(1).variables) ...
+        || any(strcmp(AT.types(1).variables, x))), ix);
+    b.re_pos = find(ix == 1, 1);
+    nt.byvar.(x) = b;
+end
+nt.model_values = model_values(opts, m, learnVars, opts.expectations.re_info);
+if legacy
+    nt.sys_two = sysTwo;
+end
+end
+
+
+function sysN = nt_system(nt, meta, opts)
+% Combined PLM system of every learning type with keyed targets <target>__<type>
+eq = struct('target', {}, 'isAux', {}, 'constant', {}, 'reg_names', {}, 'reg_lags', {}, ...
+    'param_names', {}, 'type', {}, 'var', {}, 'reg_vars', {});
+maxlag = 0;
+for j = 1:numel(nt.types)
+    t = nt.types(j);
+    maxlag = max([maxlag, t.data_maxlag]);
+    if isempty(t.sys)
+        continue
+    end
+    for q = 1:numel(t.sys.eq)
+        e = t.sys.eq(q);
+        k = t.name;
+        eq(end+1) = struct('target', [e.target '__' k], 'isAux', e.isAux, 'constant', e.constant, ...
+            'reg_names', {cellfun(@(u) [u '__' k], e.reg_names, 'UniformOutput', false)}, ...
+            'reg_lags', e.reg_lags, 'param_names', {e.param_names}, 'type', k, 'var', e.target, ...
+            'reg_vars', {e.reg_names}); %#ok<AGROW>
+    end
+end
+sysN = struct();
+sysN.eq = eq;
+sysN.targets = {eq.target};
+sysN.learn = {};
+sysN.maxlag = maxlag;
+sysN.var = struct('variables', {{}}, 'lags', 1, 'constant', true);
+sysN.derived = struct();
+if isfield(meta, 'derived') && isstruct(meta.derived)
+    sysN.derived = meta.derived;
+end
+sysN.info = char(opts.beliefs.info);
+sysN.nt = struct('share_names', struct());
+f = fieldnames(nt.byvar);
+for i = 1:numel(f)
+    sysN.nt.share_names.(f{i}) = nt.byvar.(f{i}).share_names;
+end
+end
+
+
+function mv = model_values(opts, m, learnVars, reInfo)
+% 'model:<rule>' values from the solved RE limit m (DESIGN_br_extensions 3)
+mv = struct();
+s = opts.switching.intensity;
+if ~ischar(s)
+    return
+end
+rule = regexprep(s, '^model:', '');
+switch rule
+    case 'bma'
+        % EHSW/Cho-Kasa model averaging: chi = 1/(2 sigma^2), sigma^2 the Gaussian predictive
+        % variance of the approximating (RE) model at the horizon of the RE type's forecast error
+        h = 1 + strcmp(reInfo, 'lagged');
+        [T, R, ~, ~, ~, ~, ~, Omg] = sspace(m, 'triangular', false);
+        T = T(:, :, 1);
+        Omg = Omg(:, :, 1);
+        ne = size(Omg, 1);
+        R = R(:, 1:ne, 1);
+        xv = cellstr(get(m, 'xVector'));
+        nb = size(T, 2);
+        nf = size(T, 1) - nb;
+        Tb = T(nf+1:end, :);
+        Rb = R(nf+1:end, :);
+        sig = struct();
+        for i = 1:numel(learnVars)
+            x = learnVars{i};
+            p = find(strcmp(xv, x), 1);
+            psi = R(p, :);                       % impact
+            v = psi * Omg * psi';
+            Ti = T(p, :);
+            for j = 1:h-1                        % Psi_j = T_x Tb^(j-1) Rb
+                psi = Ti * Rb;
+                v = v + psi * Omg * psi';
+                Ti = Ti * Tb;
+            end
+            sig.(x) = v;
+        end
+        mv.bma = struct('horizon', h, 'sigma2', sig, 'rule', s);
+    otherwise
+        error('hetlearn:load_model:modelValue', ['switching.intensity = ''%s'': unknown model rule ''%s'' ' ...
+            '(built: model:bma).'], s, rule);
+end
 end
 
 
