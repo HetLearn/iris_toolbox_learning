@@ -60,6 +60,21 @@ function D = decompose(res, vars, range, opts)
 %   propagation. Check: the same matrices with constants rebuild res.paths
 %   period by period (D.check.recon_maxerr).
 %
+%   N agent types and forecast transforms (docs/DESIGN_br_extensions.md
+%   1.1-1.5; phase P6): supported, with the model of the run (the N-type file:
+%   transform factors, rule constants and wedge stds are its parameters, a
+%   wedge shock is a component like any shock). 'tv' over the forecast takes
+%   every learning type's beliefs from res.learning.<target>__<type> and the
+%   share parameters from res.learning.<x>.n_model_<type>; in the RE-model
+%   periods the paths of the type forecasts <x>_exp1_<type> ('plm', 'rule',
+%   'level', 're_mean' types; they hold the agents' forecasts) are left out of
+%   the reconstruction check, as <x>_exp1_BR. Errors (hetlearn:options:
+%   unsupported): 'tv' with level types (their coefficients are re-solved each
+%   quarter and not recorded in res.learning), and any result of
+%   history.mode = 'kalman' (its filtered history is not a path of the model
+%   with the filtered shocks, since the state covariance never collapses, so
+%   the components would not add up by shock).
+%
 %   Output D: .scenario, .method, .vars, .dates, .components, .values.<v>
 %   (nDates x nComponents, model units), .total.<v>, .ss.<v>, .scale.<v>
 %   (report units = model units x spec.report.scale.<v>), .table (long:
@@ -120,6 +135,26 @@ if strcmp(method, 'auto')
 end
 if ~any(strcmp(method, {'iris', 'tv'}))
     error('hetlearn:decompose:option', 'opts.method must be ''auto'', ''iris'' or ''tv''.');
+end
+hm = '';
+if isfield(res, 'history_mode')
+    hm = char(res.history_mode);
+elseif isfield(o, 'history') && isfield(o.history, 'mode')
+    hm = char(o.history.mode);
+end
+if strcmp(hm, 'kalman')
+    error('hetlearn:options:unsupported', ['hetlearn.decompose of %s: history.mode = ''kalman'' is not supported. ' ...
+        'Its history is the filtered state of the ALM in force each quarter, which is not a path of the model ' ...
+        'with the filtered shocks (the state covariance never collapses), so the components would not add up by ' ...
+        'shock. Decompose a run of the same scenario with history.mode = ''re_smoother'' or ''inversion''.'], o.id);
+end
+if strcmp(method, 'tv') && isfield(info, 'nt') && ~isempty(info.nt) && isfield(info.nt, 'levels') ...
+        && ~isempty(info.nt.levels)
+    lt = info.nt.types(strcmp({info.nt.types.kind}, 'level'));
+    error('hetlearn:options:unsupported', ['hetlearn.decompose of %s with method ''tv'': level types (%s; ' ...
+        'expectations.types kind ''level'') are not supported. Their coefficients are re-solved every quarter ' ...
+        '(hetlearn.engine.anchor_update) and not recorded in res.learning, so the model in force in each forecast ' ...
+        'quarter cannot be rebuilt. Method ''iris'' (mode ''rational'') is available.'], o.id, strjoin({lt.name}, ', '));
 end
 
 % ---- names, data, RE steady state ------------------------------------------------------
@@ -315,6 +350,21 @@ end
 end
 
 
+function fv = type_forecast_vars(nt, lv)
+% the paths that hold the agents' own forecasts over the record (hetlearn.engine.assemble): <x>_exp1_<k> of
+% the 'plm', 'rule', 'level' and 're_mean' types of each learning variable
+fv = {};
+for i = 1:numel(lv)
+    b = nt.byvar.(lv{i});
+    for jj = 1:numel(b.types)
+        if any(strcmp(nt.types(b.types(jj)).kind, {'plm', 'rule', 'level', 're_mean'}))
+            fv{end+1} = b.fvars{jj}; %#ok<AGROW>
+        end
+    end
+end
+end
+
+
 function [Cm, check] = iris_contrib(m, paths, full, it0, names, vars, eList, ss)
 nTime = numel(full);
 nE = numel(eList);
@@ -354,9 +404,15 @@ nC = nE + 1;
 Cm = zeros(nV, nTime, nC);
 Cm(:, 1:it0-1, nC) = Xdev(:, 1:it0-1);     % initial conditions; shock components start at 0
 recon = zeros(1, nTime);
-isBR = reshape(endsWith(names, '_exp1_BR'), [], 1);
 sys = info.sys;
 lv = info.learnVars;
+nt = [];
+if isfield(info, 'nt') && ~isempty(info.nt)
+    nt = info.nt;                          % N agent types (phase P6)
+    isBR = reshape(ismember(names, type_forecast_vars(nt, lv)), [], 1);
+else
+    isBR = reshape(endsWith(names, '_exp1_BR'), [], 1);
+end
 origin = double(res.dates.origin);
 hasInv = isfield(res, 'inversion') && ~isempty(res.inversion) && isfield(res.inversion, 'params');
 if hasInv
@@ -376,7 +432,7 @@ for it = it0:nTime
         k = find(abs(invD - td) < 1e-6, 1);
         P = cell2struct(num2cell(res.inversion.params(:, k)), pn(:), 1);
     elseif td > origin + 1e-6
-        P = forecast_params(sys, lv, res, t);    % beliefs in force after the projection facility
+        P = forecast_params(sys, lv, res, t, nt);    % beliefs in force after the projection facility
     end
     % ---- solve (only when the parameters change) ----
     if isempty(P)
@@ -497,8 +553,9 @@ check.n_backward = nBack;
 end
 
 
-function P = forecast_params(sys, lv, res, t)
-% Beliefs phi_{t-1} and the model share n1_model(t) from res.learning.
+function P = forecast_params(sys, lv, res, t, nt)
+% Beliefs phi_{t-1} and the model share n1_model(t) from res.learning. N agent types (nt, phase P6):
+% the keyed system's beliefs and every type's model share n_model_<k>(t) as its share parameter.
 P = struct();
 for i = 1:numel(sys.eq)
     e = sys.eq(i);
@@ -506,6 +563,16 @@ for i = 1:numel(sys.eq)
     for k = 1:numel(e.param_names)
         P.(e.param_names{k}) = L.(e.param_names{k})(t - 1);
     end
+end
+if nargin >= 5 && ~isempty(nt)
+    for i = 1:numel(lv)
+        x = lv{i};
+        b = nt.byvar.(x);
+        for jj = 1:numel(b.names)
+            P.(b.share_names{jj}) = res.learning.(x).(['n_model_' b.names{jj}])(t);
+        end
+    end
+    return
 end
 for i = 1:numel(lv)
     x = lv{i};
