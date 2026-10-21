@@ -337,7 +337,10 @@ h = 8.
   1 at every horizon shown (0.958-0.974; p 0.05 at h = 8) but worse on output growth there (p < 0.10
   at h = 2-8). With so few targets these p-values are fragile.
 
-## Application 1 on two other models
+## Application 1 on two other models [removed from the report 2026-10-21]
+
+2026-10-21: removed from the report and the pipeline (user decision); the packages, scenario files, runs
+and `other_models_*` files are kept, unused. The text below is the record of 2026-10-18.
 
 Track M3, 2026-10-18. Application 1 as above (2022Q2 peak, 16 quarters, zero future shocks, anchored RE
 agents, switching on inflation only, facility `'plm_alm'`) on two more packages at published parameter
@@ -535,8 +538,6 @@ shares and beliefs: average inflation moves by at most 0.03 pp under baseline le
 - App 4: the Ramsey losses with anchored RE agents (RE and learning) rest on the open design question
   above; only the model-consistent runs `a4_ramsey_<w>_re_mc` are RE Ramsey plans. All of application
   4 uses period-t RE information.
-- Section 12 (ijcb3, as07) was not rerun: its scenario files pin the settings of 2026-10-18 (constant
-  gain, period-t RE information, smoothed RE values, `plm_alm`, each model's published parameters).
 
 ## Files (`results/summary_v3/`)
 
