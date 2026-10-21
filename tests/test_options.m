@@ -120,7 +120,7 @@ R = expect_error(R, 'opt: bad expectations.mode rejected', ...
 R = expect_error(R, 'opt: bad shares.structure rejected', ...
     @() hetlearn.load_options(struct('shares', struct('structure', 'global')), struct()), 'shares.structure');
 R = expect_error(R, 'opt: bad gain.rule rejected', ...
-    @() hetlearn.load_options(struct('gain', struct('rule', 'decreasing')), struct()), 'gain.rule');
+    @() hetlearn.load_options(struct('gain', struct('rule', 'no_such_rule')), struct()), 'gain.rule');   % 'decreasing' exists since P5
 R = expect_error(R, 'opt: switching.memory = 1 rejected', ...
     @() hetlearn.load_options(struct('switching', struct('memory', 1)), struct()), 'switching.memory');
 R = expect_error(R, 'opt: hetero_filter reported as not implemented', ...
@@ -202,28 +202,28 @@ V(end+1, :) = {'br01b', x, {'P4'}};
 x = c; x.expectations.transforms = [mult(0.76, {'c', 'lab', 'inve', 'pk', 'rk'}), ...
     mult(0.86, {'w', 'pinf@Phillips curve, price setting', 'pinf@Wage Phillips curve, wage setting'}), ...
     mult(0.08, {'pinf@Consumption Euler equation', 'pinf@Arbitrage equation for the value of capital'})];
-V(end+1, :) = {'br04', x, {'P3'}};
+V(end+1, :) = {'br04 (P3 landed 2026-10-21: loads)', x, {}};
 cd5 = struct('kind', 'multiplier', 'profile', 'geometric', 'types', 'all', 'value', 0.62, 'scope', 'all', ...
     'exclude', {FLEX});
 x = c; x.expectations.transforms = cd5;
-V(end+1, :) = {'br05a', x, {'P3'}};
+V(end+1, :) = {'br05a (P3 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.transforms = setfield(setfield(cd5, 'value', 0.94), 'scope', 'learning'); %#ok<SFLD>
-V(end+1, :) = {'br05b', x, {'P3'}};
+V(end+1, :) = {'br05b (P3 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.transforms = setfield(setfield(cd5, 'profile', 'hyperbolic'), 'value', 0.25); %#ok<SFLD>
-V(end+1, :) = {'br06', x, {'P3'}};
+V(end+1, :) = {'br06 (P3 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.transforms = struct('kind', 'myopia_anchoring', 'types', 'all', 'value', [0.52 0.434], ...
     'scope', {{'pinf@Phillips curve, price setting'}});
-V(end+1, :) = {'br07', x, {'P3'}};
+V(end+1, :) = {'br07 (P3 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.transforms = struct('kind', 'diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', 'all', ...
     'exclude', {FLEX});
-V(end+1, :) = {'br10', x, {'P3'}};
+V(end+1, :) = {'br10 (P3 landed 2026-10-21: loads; the anchored reference is checked by load_model, P4)', x, {}};
 x = c; x.expectations.types = {T('name', 'ADA', 'kind', 'rule', 'rule', '0.65*x{-1} + 0.35*self{-1}'), ...
     T('name', 'WTR', 'kind', 'rule', 'rule', 'x{-1} + 0.4*(x{-1} - x{-2})'), ...
     T('name', 'STR', 'kind', 'rule', 'rule', 'x{-1} + 1.3*(x{-1} - x{-2})'), ...
     T('name', 'LAA', 'kind', 'rule', 'rule', '0.5*(mean + x{-1}) + (x{-1} - x{-2})', 'gain', struct('rule', 'decreasing'))};
 x.switching = struct('intensity', 0.4, 'memory', 0.7, 'inertia', 0.9, 'fitness', 'unnormalized');
 x.shares.init = struct('ADA', 0.25, 'WTR', 0.25, 'STR', 0.25, 'LAA', 0.25);
-V(end+1, :) = {'br17', x, {'P5'}};                % LAA: gain.rule 'decreasing' (P5)
+V(end+1, :) = {'br17 (P5 landed 2026-10-21: loads)', x, {}};   % LAA: gain.rule 'decreasing'
 x = c; x.expectations.variables = {'pinf', 'c'};
 x.expectations.types = {T('name', 'TAR', 'kind', 'rule', 'rule', '0', 'variables', {{'pinf'}}), ...
     T('name', 'EXT', 'kind', 'rule', 'rule', 'x{-1}', 'variables', {{'pinf'}}), ...
@@ -231,21 +231,21 @@ x.expectations.types = {T('name', 'TAR', 'kind', 'rule', 'rule', '0', 'variables
     T('name', 'PES', 'kind', 're', 'variant', 'model_consistent', 'info', 'current', 'variables', {{'c'}})};
 x.expectations.transforms = [struct('kind', 'wedge', 'types', {{'OPT'}}, 'factor', struct('mean', 'model:sd_ygap_half')), ...
     struct('kind', 'wedge', 'types', {{'PES'}}, 'factor', struct('mean', '-model:sd_ygap_half'))];
-V(end+1, :) = {'br18', x, {'P3'}};
+V(end+1, :) = {'br18 (P3 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm'), ...
     T('name', 'TB', 'kind', 'rule', 'rule', '0')};
 x.shares.init = struct('RE', 1/3, 'BR', 1/3, 'TB', 1/3);
 V(end+1, :) = {'br19 (P2 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.variables = ST7; x.expectations.mode = 'learning';
 x.beliefs.update = 'sac'; x.gain = struct('rule', 'constant', 'value', 0.006);
-V(end+1, :) = {'br20', x, {'P5'}};
+V(end+1, :) = {'br20 (P5 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'IO', 'kind', 're_mean')};
 V(end+1, :) = {'br23', x, {'P4', 'P5'}};
 x = c; x.beliefs.plm.by_var.pinf = struct('regressors', {{}}, 'constant', true);
 V(end+1, :) = {'br24 (existing options)', x, {}};
 x = c; x.expectations.variables = ST7; x.expectations.mode = 'learning';
 x.beliefs.plm.default = 'ar2'; x.beliefs.update = 'kf'; x.beliefs.kf = struct('gamma', 0.031);
-V(end+1, :) = {'br25a', x, {'P5'}};
+V(end+1, :) = {'br25a (P5 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.variables = ST7; x.expectations.mode = 'fixed_shares';
 x.expectations.types = {T('name', 'M1', 'kind', 'plm', 'update', 'kf'), ...
     T('name', 'M2', 'kind', 'plm', 'plm', reg({'pinf{-1}', 'r{-1}'}), 'update', 'kf'), ...
@@ -253,17 +253,17 @@ x.expectations.types = {T('name', 'M1', 'kind', 'plm', 'update', 'kf'), ...
     T('name', 'M4', 'kind', 'plm', 'plm', reg({'pinf{-1}'}), 'update', 'kf'), ...
     T('name', 'M5', 'kind', 'plm', 'plm', reg({'pinf{-1}', 'r{-1}', 'y{-1}'}), 'update', 'kf')};
 x.shares.fixed = struct('M1', 0.2, 'M2', 0.2, 'M3', 0.2, 'M4', 0.2, 'M5', 0.2);
-V(end+1, :) = {'br25b', x, {'P5'}};
+V(end+1, :) = {'br25b (P5 landed 2026-10-21: loads)', x, {}};
 x = c; x.gain = struct('rule', 'constant', 'value', 0.018);
 V(end+1, :) = {'br26 (existing options)', x, {}};
 x = c; x.switching = struct('fitness', 'unnormalized', 'memory', 1, 'intensity', 'model:bma');
 V(end+1, :) = {'br27 (P2 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.transforms = struct('kind', 'wedge', 'types', 'all', 'scope', {{'pinf'}}, ...
     'factor', struct('rho', 0.714, 'std', 0.182, 'mean', 0, 'shock', 'e_wpinf'));
-V(end+1, :) = {'br29', x, {'P3'}};
+V(end+1, :) = {'br29 (P3 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.transforms = struct('kind', 'wedge', 'types', 'all', 'scope', {{'c', 'inve', 'lab'}}, ...
     'factor', struct('rho', 0.833, 'std', 'model:acd51', 'loadings', 'model:projection', 'shock', 'e_xi'));
-V(end+1, :) = {'br31', x, {'P3'}};
+V(end+1, :) = {'br31 (P3 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'FN', 'kind', 'rule', 'rule', 'dn{-1} - re1(y{+1} - y)')};
 V(end+1, :) = {'br33', x, {'P4'}};
 x = c; x.history.mode = 'kalman';
