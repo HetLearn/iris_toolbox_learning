@@ -478,13 +478,13 @@ function R = errors(R, spec)
 base = tsw07_a1_learn();
 T = @(varargin) struct(varargin{:});
 E = {};
+% the two P4-boundary cases of phase P3 (variant 10 on the anchored baseline; anchored RE(t-1) agents
+% with diagnostic memory states) load since phase P4 (2026-10-21): tests/test_anchor.m checks them
 x = base;
+x.expectations.re_info = 'current';
 x.expectations.transforms = tf('diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', 'all', 'exclude', {flex()});
-E(end+1, :) = {'variant 10 with the anchored baseline (diagnostic on the anchored inflation RE type: P4)', x, ...
+E(end+1, :) = {'variant 10 with anchored RE agents on period-t information (anchored reference not built)', x, ...
     'hetlearn:load_model:transforms'};
-x = base;
-x.expectations.transforms = tf('diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', {st6()});
-E(end+1, :) = {'anchored RE(t-1) agents in an economy with diagnostic memory states (P4)', x, 'hetlearn:load_model:transforms'};
 x = base;
 x.expectations.transforms = tf('diagnostic', 'types', {{'BR'}}, 'value', 0.44, 'scope', 'learning');
 E(end+1, :) = {'diagnostic on the learners', x, 'hetlearn:load_model:transforms'};
