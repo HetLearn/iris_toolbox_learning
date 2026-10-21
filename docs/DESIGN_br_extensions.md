@@ -1008,6 +1008,120 @@ run in the engine.
   of `update_learning.m` (describes the 'rls' step only), the `defaults.m` comment that lists P5
   among the guarded options, and the summary label of `test_options` BR2.
 
+**P4 done (2026-10-21).** The generalised anchor (E4) with level types, the intercept-only type, the
+term `re1(...)`, the anchored diagnostic reference, and fitness on transformed forecasts.
+- New `toolbox/+hetlearn/anchor_coefficients.m`: `E_{t-j} z_{t+h} = k + C s_{t-j}` for any list of
+  targets (variable, h >= 0, j + h >= 1) in a solved economy, from `sspace` (`k = K_z`, `c = T_z`,
+  then p = j + h - 1 times `k = c K_b + k`, `c = c T_b`). Chain entries (state, target, lag) are solved
+  out: `F_t = (I - C_0)^{-1}(k + C_s s_{t-j} + sum_l C_l F_{t-l})`, so a chain state may also stand for
+  the agents' own forecast made l periods earlier. A loading of 1e-12 or more on any other state is an
+  error, and there is a unit-perturbation check over j + h periods. `re_anchor_coefficients` is now a
+  wrapper that performs the same operations in the same order, so A and info are bitwise unchanged
+  (SW07: 312 parameters with period-t information, 26 lagged).
+- Options: kinds `'level'` and `'re_mean'` and the rule term `re1(...)` run. Their guards are gone from
+  `load_options.m` (`not_implemented` now lists nothing) and from `agent_types.m`. A level type
+  resolves `info` (`[]` = `expectations.re_info`), has update `'fixed'`, and its base must be a
+  non-level type that forecasts its variables. A `'re_mean'` type takes the RE type's variant and
+  information.
+- Generator: files with level or `'re_mean'` types or `re1` terms are version 8. Transform files keep
+  version 7; their key adds the extra anchored terms when there are any, so the P3 files without
+  them stay as they were. Level type: `x_exp1_<k> = lev<k>_x__const + sum lev<k>_x__<s>*s{-1}`
+  (`s` with period-t information). `'re_mean'`: `x_feRE = x - x_exp1_RE{-1}` (inside `br_x`, so the
+  RE limit and the RE filter hold it) and `x_exp1_<k> = x_exp1_RE + alpha_x_feRE__<k>`. `re1(e)`:
+  `rule_terms` parses e into targets (`v{+h}`, h >= 0) and weights, and the generator writes the
+  anchored expression `re1<k><q>_x__*` on the states dated t-1. The RE type's anchored expression now
+  runs over the original states plus extra terms (`anchor_extra`):
+  - the memory states `z_REt2` of diagnostic expectations outside the learning set, written in
+    `!if ~br_z` blocks inside the equation (IRIS accepts them; checked);
+  - partial-adjustment states;
+  - with a diagnostic transform on the lagged RE type, `x_DEg_RE{-1}`.
+
+  The anchored version of the aggregate is `(1 + theta)*x_exp1_RE - theta*x_DEg_RE{-1}`, where
+  `x_DEg_RE` = anchored `E_{t-1} x_{t+2}` (declared under `!if re_anchored`).
+- `load_model`: `anchor_general` computes the RE type's coefficients for files with extra terms. It
+  calls `anchor_coefficients` in the model-consistent RE limit (D11) with targets (x, 1) and (x, 2)
+  and chains `x_REt2` (lag 0), `x_REt3` (lag 0) and `x_REt3{-1}` (lag 1: the own lag
+  `x_DEg_RE{-1}`). Terms whose state does not exist under the toggles are 0. The `re1` values come
+  from the model-consistent RE limit with the lagged RE chains solved out (`res.meta.model_values.re1`).
+  The level chains (`info.nt.levels`) have one entry per level-0 type; the slot of the economies
+  j >= 1 is the level type with the largest k. Refused: an anchored diagnostic reference with
+  period-t RE information.
+- Engine. New `+engine/anchor_update.m` (`'compute'`, `'params'`, `'value'`) runs in `update_nt`
+  after the belief update and before the ALM check. Each chain needs K IRIS solves per quarter: the
+  level-0 economy has share 1 on the base, and economy j >= 1 puts share 1 on the slot with the level-j
+  coefficients. The initial levels are computed in `ntypes('init')`. A level economy without a
+  solution raises `levelNoSolution` under `'none'`; the message gives the base's beliefs and the level
+  coefficient on x{-1}. Under `'alm'` and `'plm_alm'` the beliefs revert (event `projection_level`).
+  Other engine changes:
+  - `facility`: the level coefficients enter the parameter vector (fifth argument of `make_params`);
+    the ALM revert restores `S.prev.levels`.
+  - `ntypes('forecasts')`: level types use `S.levels` on the history databank (states dated t-1),
+    `'re_mean'` = RE forecast + abar, and `re1` terms use their coefficients. In the forecast stage
+    all three are asserted against the model (1e-9).
+  - `history_db`: under `'filtered'` + `'lagged'`, `x_DEg_RE` comes from `H.predicted` and `x_feRE`
+    is rebuilt from the predictions.
+  - `ntypes('seed')`: the RE forecast of the history at the origin goes into the forecast databank,
+    so `x_feRE` of t0 + 1 uses it.
+- Fitness on transformed forecasts (the P3 decision). `ntypes('forecasts')` applies to each type's
+  forecast the transforms of its term in `x_exp1` (`score_steps`, from `meta.transforms`):
+  multiplier, myopia, diagnostic with its reference, and wedge, all read from the databank. Partial
+  adjustment uses the engine's previous value in the history stage and the model's state in the
+  forecast stage. The transformed forecast feeds fitness, `FE_<k>`, `f_<k>` and the KOZ forecast
+  errors. The untransformed one feeds the rule types' own lags and the paths `x_exp1_<k>`; the record
+  carries it as `fb_<k>` when there are transforms. Without transforms nothing changes.
+- Gates, `tests/test_anchor.m` (8 checks, about 2 min; registered before `test_br_regression`):
+  - A1 fixed-point gate: the anchored RE(t-1) limit's two-step forecast vs its own coefficients
+    1.0e-14 (relative); the level-k T-map with level 0 = RE gives RE at levels 1 and 2 (4.6e-15).
+  - A2 EGM closed form on the new test package `tests/models/egm` (y = mu + b E y{+1} + u, u AR(1);
+    levels 1-3 with information up to t-1 and with period-t information): 8.9e-16.
+  - A3 K = 0: a level type at share 0 beside the learner = the two-type `'learning'` run (paths
+    1.1e-11, beliefs 2.3e-14).
+  - A4 level k on level 0 = RE equals RE: level forecasts vs RE 4.5e-14 over 242 quarters; paths vs
+    `tsw07_a1_re` 1.1e-11.
+  - A5 anchored DE = model-consistent DE at n_RE = 1: load check 3.0e-13, independent IRFs 3.0e-13.
+    The anchored expression loads on the six memory states (up to 0.044) and on `pinf_DEg_RE{-1}`
+    (0.084).
+  - A6 variant 23 with abar held at 0 = RE: forecasts 1.8e-15, shares 0.5 exactly, paths 7.3e-12.
+  - A7 variant 33: re1 = a two-period simulation of the RE limit (9.5e-14 over 16 quarters).
+  - A8 variant 18: f_OPT - f_PES = 2g (1.3e-13); OPT share 0.018 at 2022Q2.
+  - Against the design prototype (scratch, `proto1.mat` of `br_proto1.m`), levels 1, 2 and 5 at the
+    2019Q4 beliefs equal its T-map to 1.3e-14, 1.4e-14 and 3.7e-14.
+- Tests whose premise changed: `test_options` BR2 (br01a, br01b, br23, br33 load), `test_ntypes` U5
+  (`re1(y{+1} - y)` is valid, so the malformed entry is now `re1(y{-1})`), `test_transforms` E1 (its
+  two P4-boundary cases load; replaced by the anchored DE with period-t information, still refused).
+- Whole suite at the default thread count (`test_generator` alone, `test_re_info` alone, the rest in
+  two sessions): 396 checks in 25 suites, all pass. `test_br_regression` is exact (R1
+  byte-identical, R2 max diff 0), `test_ntypes` R3 max diff 0, `test_learning_rules` L14 0;
+  `test_transforms` R4 is within its tolerances (R4a 0; R4b-f learning 5.8e-13 or less, paths 1.6e-11
+  or less on their own filters).
+- Application 1 (live baseline, `a1_learn` plus the section 3 changes, not saved; average inflation
+  2022Q3-2026Q2 annualised, discrete-choice shares at the end of 2022Q2):
+  - baseline: 3.45% (BR 0.591).
+  - 01a and 01b stop in the history stage at the origin, 2022Q2 (`levelNoSolution`). With the
+    learners' beliefs at the end of 2022Q2 (alpha 0.083, beta 1.061), the level-1 forecast loads 1.168
+    on inflation at t-1, and the level-1 economy has no stable solution (NO_STABLE).
+  - 10 (anchored DE): 4.75% (RE 0.456, BR 0.544).
+  - 23: 2.94% (RE 0.388, IO 0.612).
+  - 33: 2.61% (RE 1.000, FN 0.000).
+  - 18: -17.86% (c: OPT 0.018, PES 0.982; pinf: TAR 0.215, EXT 0.785). With fitness on the biased
+    forecasts and g = 2.16 at chi 2, the c shares jump between the corners (OPT below 0.1 in 132 of
+    242 quarters). From PES 0.98 the forecast runs off (c at -127 by 2023Q2), with no stop, since the
+    ALM solves every quarter. Not usable as calibrated: g and chi for 18 (D8) need revisiting before P7.
+  - Scoring reruns: 05a 4.59% (RE 0.396, BR 0.604; P3 4.60%), 05b 4.09% (0.416, 0.584; 4.01%), 06 4.97%
+    (0.384, 0.616; 4.92%). 29 no longer stops: 6.67% (RE 0.345, BR 0.655; P3 stopped in 2023Q2).
+- Left for P6 and later:
+  - propagation: the Kalman history, density forecasts, `evaluate`, `decompose` and Ramsey refuse N
+    types (and so transforms);
+  - the T-map Jacobian diagnostic (`res.learning.levels`) is not recorded;
+  - level types on a base whose forecast has its own state (a rule with `self{-k}`, an AR(2) PLM)
+    stop at their first quarter;
+  - not built: a second RE type other than model-consistent with period-t information or a copy of
+    RE; the anchored DE reference with period-t information; `re1` in economies whose transforms add
+    states;
+  - USER_GUIDE and FEATURES rows, and the `defaults.m` and `load_options.m` header comments that still
+    describe the phase guards (no option is guarded now);
+  - scenario files (P7).
+
 ---------------------------------------------------------------------------------------------
 
 ## 7. Decisions for the main session
