@@ -42,6 +42,8 @@ suites = {'test_options', 'test_rls', 'test_switching', 'test_plm', 'test_genera
     'test_re_info', ...   % test_re_info: expectations.re_info (DESIGN 19; about 8 min, or one part: see below)
     'test_kalman', ...    % test_kalman: history.mode = 'kalman', gates K1-K4 (DESIGN_br_extensions 5; SW07 runs, about 2 min)
     'test_ntypes', ...    % test_ntypes: N agent types, R3 and the P2 gates (DESIGN_br_extensions 1.1-1.2; toy, AH, SW07 runs, about 2 min)
+    'test_learning_rules', ...  % test_learning_rules: SAC, KF learning, decreasing gain, the P5 gates (DESIGN_br_extensions 1.5; unit, toy, AH runs)
+    'test_transforms', ...  % test_transforms: forecast transforms, R4 and the P3 gates (DESIGN_br_extensions 1.3; SW07 models and runs, about 4 min)
     'test_br_regression'}; % test_br_regression: frozen regression gate of the bounded-rationality extensions
 % test_re_info: 'current' | 'lagged'; test_re_info('toy' | 'sw07_model' | 'sw07_runs' | 'sw07_stages') runs one
 %   part at a time. test_br_regression (docs/DESIGN_br_extensions.md 1.7): R1 generated files, R2 30 runs exact,
