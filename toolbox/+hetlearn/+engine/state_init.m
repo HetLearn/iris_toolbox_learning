@@ -28,6 +28,12 @@ function [S, ctx] = state_init(ctx, m, H)
 %   beliefs.init.training_range) or 'user' (hetlearn.init.user with
 %   re_moments as fallback). Initial fitness: hetlearn.switching.init_fitness
 %   (shares.init_n2, switching.intensity); initial n1 = 1 - shares.init_n2.
+%
+%   N agent types (ctx.info.nt from hetlearn.load_model; docs/
+%   DESIGN_br_extensions.md 1.1-1.2): the state and share groups of
+%   hetlearn.engine.ntypes('init', ...) instead (beliefs, gains and fitness
+%   per type, shares over the types of each group); ctx.nt is set. The
+%   two-type state below is unchanged otherwise.
 
 o = ctx.opts;
 sys = ctx.sys;
@@ -36,6 +42,10 @@ mInit = m;      % Ramsey runs (DESIGN 13): RE moments of the estimated rule mode
 if isfield(ctx, 'info') && isfield(ctx.info, 'policy') && ~isempty(ctx.info.policy) ...
         && ~isempty(ctx.info.policy.rule_model)
     mInit = ctx.info.policy.rule_model;
+end
+if isfield(ctx, 'info') && isfield(ctx.info, 'nt') && ~isempty(ctx.info.nt)
+    [S, ctx] = hetlearn.engine.ntypes('init', ctx, mInit, H);     % N agent types
+    return
 end
 
 % ---- beliefs ---------------------------------------------------------------------
