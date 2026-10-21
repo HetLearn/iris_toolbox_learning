@@ -4,12 +4,16 @@
 %
 %   Baseline since 2026-10-20 (config/master_options.m): published SW07 parameters (model_params =
 %   'sw07_params_original'), RE agents and learners on t-1 information, filtered RE states, KOZ gain
-%   from 0.05, chi 2, memory 0.8, no projection facility; app 4 with RE information 'current'. The RE
+%   from 0.05, chi 2, memory 0.8, projection facility 'alm' (since 2026-10-21; 'none' on 2026-10-20);
+%   app 4 with RE information 'current'. The RE
 %   checks C2 and C3b use the hand-written RE(t-1) reference tests/models/sw07_re_lagged_pinf.model
 %   (SW07 with E_{t-1} pinf_{t+1}; = Dynare, test_re_info T1-T2) at the same parameters, with its own
 %   Kalman smoother on the database, because under re_info = 'lagged' the RE benchmark is the RE(t-1)
-%   model, not models/sw07/sw07.model. A run without results (stopped with hetlearn:engine:noSolution
-%   under facility 'none') is listed in scenarios.csv with its error and left out of the tables.
+%   model, not models/sw07/sw07.model. A run without results (a stop: hetlearn:engine:noSolution
+%   under facility 'none', hetlearn:engine:almUnstable under 'alm' or 'plm_alm') is listed in
+%   scenarios.csv with its error and left out of the tables; C8 accepts only noSolution stops of runs
+%   whose facility is 'none'. Facility events of the density draws and of the app-5 impulse runs go
+%   to key_numbers.csv (a5_fac_*, a5m_fac_*).
 %
 %   Reads   results/<id>/results.mat (+ density.mat, decomposition.csv, decomposition_check.csv),
 %           results/run_log.csv, results/eval_sw07_v3/ (merged tables and parts), the database and
@@ -104,7 +108,7 @@ SC = {
     'v2_reg', 'var2_plm', 'var2', 'Regression PLM (pinf, ygap, r)'
     'v2_var3', 'var2_plm', 'var2', 'VAR(1) PLM (pinf, ygap, r)'
     'v2_var12', 'var2_plm', 'var2', 'VAR(1) PLM (12 variables)'
-    'v3_all', 'var3_allvars', 'var3', 'All 12 variables (none, the baseline)'
+    'v3_all', 'var3_allvars', 'var3', ['All 12 variables (' o0.projection.facility ', the baseline)']
     'v3_all_plm_alm', 'var3_allvars', 'var3', 'All 12 variables (plm_alm)'
     'v3_all_alm', 'var3_allvars', 'var3', 'All 12 variables (alm)'
     'v4_const', 'var4_gain', 'var4', 'Constant gain 0.05'
@@ -423,7 +427,8 @@ mset = {'markup', 'markup', 'demand', 'demand', 'demand'};
 mvar = {'pinfobs', 'pinf_exp1', 'pinf_exp1_RE', 'pinf_exp1_BR', 'robs', 'dy', 'n2_model_pinf'};
 B = {};
 MECH = struct();
-MSTOP = {};                                      % impulse runs that stopped (noSolution, facility 'none')
+MSTOP = {};                                      % impulse runs that stopped (noSolution under 'none', almUnstable)
+MFAC = cell(0, 5);                               % facility events of the impulse runs: shock, exp, alm, alm_shares, dates
 for s = 1:numel(mshk)
     for e = 1:2
         cf = feval(['a1_' ex{e, 1}]);
@@ -432,9 +437,21 @@ for s = 1:numel(mshk)
         cf.shocks.add = {{mshk{s}, hz(1), 1}};
         try
             rr = hetlearn.run(cf, 'save', false, 'quiet', true);
+            Ei = rr.events;
+            ka = false(height(Ei), 1);
+            ks = ka;
+            fd = '';
+            if height(Ei) > 0
+                ka = strcmp(Ei.type, 'projection_alm') & strcmp(Ei.stage, 'forecast');
+                ks = strcmp(Ei.type, 'projection_alm_shares') & strcmp(Ei.stage, 'forecast');
+                if any(ka | ks)
+                    fd = strjoin(reshape(unique(cellstr(Ei.date(ka | ks))), 1, []), ' ');
+                end
+            end
+            MFAC(end+1, :) = {mshk{s}, ex{e, 1}, nnz(ka), nnz(ks), fd}; %#ok<SAGROW>
         catch err
-            % under projection.facility = 'none' the shocked run can lose the model solution: record the
-            % stop (date from the message) and leave its responses NaN
+            % the shocked run can stop (noSolution under projection.facility = 'none', almUnstable under
+            % 'alm' or 'plm_alm'): record the stop (date from the message) and leave its responses NaN
             tk = regexp(err.message, 'Period (\d{4}Q\d) \((\w+) stage\)', 'tokens', 'once');
             if isempty(tk)
                 tk = {'', ''};
@@ -678,9 +695,12 @@ CH(end+1, :) = {sprintf('C7a Evaluation parts partition the origins (%d parts; e
 CH(end+1, :) = {'C7b Merged errors = union of the part errors; merged tables = hetlearn.evaluate_tables on the merged errors (metrics, relative RMSE, DM; max abs)', ...
     all(okB) && height(TE) == height(PE) && e7a == 0 && all(e7b < 1e-12), ...
     sprintf('rows %d vs %d, errors %.3g, tables %.3g / %.3g / %.3g', height(TE), height(PE), e7a, e7b)};
-% C8 statuses. Since 2026-10-20 the baseline has projection.facility = 'none': a quarter without a model
-% solution stops the run (hetlearn:engine:noSolution) and that stop is the recorded result. The check
-% passes if every run or evaluation origin that is not ok stopped that way under facility 'none'.
+% C8 statuses. Since 2026-10-21 the baseline has projection.facility = 'alm' (2026-10-20: 'none', when a
+% quarter without a model solution stopped the run and C8 accepted those stops). Under 'alm' an unstable
+% model reverts the beliefs (and, if that is not enough, keeps last quarter's shares), so no run is
+% expected to stop: the check passes only if every run and every evaluation part is ok, except a
+% hetlearn:engine:noSolution stop of a run whose own facility is 'none' (none of the files sets 'none'
+% since 2026-10-20). The detail lists the facility events the runs record.
 isNoSol = @(m) contains(m, 'noSolution') || (contains(m, 'has no solution') && contains(m, 'restricts nothing'));
 bad = {};
 stops = {};
@@ -689,18 +709,18 @@ for i = 1:nS
     if strcmp(stt{i}, 'ok')
         continue
     end
+    fo = hetlearn.load_options(feval(ids{i}));
     if isEval(i)
         fm = es.failures.message(strcmp(es.failures.variant, ids{i}));
-        fo = es.failures.origin(strcmp(es.failures.variant, ids{i}));
-        if ~isempty(fm) && all(cellfun(isNoSol, fm))
-            stops{end+1} = sprintf('%s: %d of %d origins (first %s)', ids{i}, numel(fm), numel(oS), fo{1}); %#ok<SAGROW>
-            STOP.(ids{i}) = struct('date', fo{1}, 'stage', 'evaluation', 'n', numel(fm));
+        fd = es.failures.origin(strcmp(es.failures.variant, ids{i}));
+        if strcmp(fo.projection.facility, 'none') && ~isempty(fm) && all(cellfun(isNoSol, fm))
+            stops{end+1} = sprintf('%s: %d of %d origins (first %s)', ids{i}, numel(fm), numel(oS), fd{1}); %#ok<SAGROW>
+            STOP.(ids{i}) = struct('date', fd{1}, 'stage', 'evaluation', 'n', numel(fm));
         else
             bad{end+1} = sprintf('%s: %s %s', ids{i}, stt{i}, ems{i}); %#ok<SAGROW>
         end
         continue
     end
-    fo = hetlearn.load_options(feval(ids{i}));
     tk = regexp(ems{i}, 'Period (\d{4}Q\d) \((\w+) stage\)', 'tokens', 'once');
     if strcmp(fo.projection.facility, 'none') && isNoSol(ems{i}) && ~isfield(R, ids{i})
         if isempty(tk)
@@ -712,16 +732,34 @@ for i = 1:nS
         bad{end+1} = sprintf('%s: %s %s', ids{i}, stt{i}, ems{i}); %#ok<SAGROW>
     end
 end
-msg8 = 'every scenario ok';
+% facility events: runs (beliefs reverted + shares kept + PLM blocks kept, all stages) and evaluation
+% variants (every engine event type summed over the origins; the evaluation keeps totals only)
+fr = {};
+for i = find(~isEval)'
+    nf = [sum(EVC(i, 4:6), 'omitnan'), sum(EVC(i, 7:9), 'omitnan'), sum(EVC(i, 1:3), 'omitnan')];
+    if any(nf > 0)
+        fr{end+1} = sprintf('%s %d/%d/%d', ids{i}, nf); %#ok<SAGROW>
+    end
+end
+fe = {};
+for i = find(isEval)'
+    if nev(i) > 0
+        fe{end+1} = sprintf('%s %d', ids{i}, nev(i)); %#ok<SAGROW>
+    end
+end
+msg8 = sprintf('%d of %d scenarios ok', sum(strcmp(stt, 'ok')), nS);
 if ~isempty(stops)
-    msg8 = ['stopped with hetlearn:engine:noSolution under facility none (recorded as the result): ' strjoin(stops, '; ')];
+    msg8 = [msg8 '; stopped with hetlearn:engine:noSolution under facility none (recorded as the result): ' strjoin(stops, '; ')];
 end
 if ~isempty(bad)
     msg8 = [msg8 '; NOT OK: ' strjoin(bad, '; ')];
 end
-CH(end+1, :) = {sprintf(['C8 Every scenario has status ok or stopped with hetlearn:engine:noSolution under ' ...
-    'projection.facility = ''none'' (the baseline records such a stop as the result; %d scenarios incl. 10 evaluation variants)'], ...
-    nS), isempty(bad), msg8};
+msg8 = [msg8 sprintf('; runs with facility events (beliefs reverted / shares kept / PLM blocks kept): %s', ...
+    strjoin_or(fr, 'none')) sprintf('; evaluation engine events (all types, 138 origins each): %s', strjoin_or(fe, 'none'))];
+CH(end+1, :) = {sprintf(['C8 Every scenario has status ok: with projection.facility = ''%s'' (the baseline since ' ...
+    '2026-10-21) no run is expected to stop; a hetlearn:engine:noSolution stop is accepted only as the recorded result of ' ...
+    'a run whose facility is ''none'' (%d scenarios incl. %d evaluation variants)'], o0.projection.facility, nS, nnz(isEval)), ...
+    isempty(bad), msg8};
 % C9 inversion fits the data; C10 share timing
 e9 = NaN;
 if isfield(R.a6_inv_learn, 'inversion') && isfield(R.a6_inv_learn.inversion, 'max_obs_miss')
@@ -849,6 +887,19 @@ for c = 1:2
                     sprintf('Average median inflation 2022Q3-2026Q2, %s shocks, learning', cases{c}));
                 K = addk(K, sprintf('a5_n_used_%s_learn', cases{c}), D.n_used, 'draws', sprintf('Draws used, %s shocks, learning', cases{c}));
                 K = addk(K, sprintf('a5_s_per_draw_%s_learn', cases{c}), D.s_per_draw, 's', sprintf('Seconds per draw, %s shocks, learning', cases{c}));
+                % facility events per draw (D.events: one row per draw, counts by event type)
+                Ev = D.events;
+                dAlm = Ev.projection_alm;
+                dShr = Ev.projection_alm_shares;
+                K = addk(K, sprintf('a5_fac_draws_%s_learn', cases{c}), nnz(dAlm > 0 | dShr > 0), 'draws', ...
+                    sprintf('Draws with a projection-facility event (projection_alm or projection_alm_shares), %s shocks, learning', cases{c}));
+                K = addk(K, sprintf('a5_fac_alm_%s_learn', cases{c}), sum(dAlm), 'events', ...
+                    sprintf('projection_alm events (beliefs reverted) summed over the draws, %s shocks, learning', cases{c}));
+                K = addk(K, sprintf('a5_fac_shares_%s_learn', cases{c}), sum(dShr), 'events', ...
+                    sprintf('projection_alm_shares events (shares kept) summed over the draws, %s shocks, learning', cases{c}));
+                K = addk(K, sprintf('a5_fac_max_%s_learn', cases{c}), max([0; dAlm(:) + dShr(:)]), 'events', ...
+                    sprintf('Most facility events in one draw, %s shocks, learning', cases{c}));
+                K = addk(K, sprintf('a5_n_error_%s_learn', cases{c}), D.n_error, 'draws', sprintf('Draws that stopped with an error, %s shocks, learning', cases{c}));
             end
         end
     end
@@ -888,7 +939,7 @@ end
 % variants
 for id = {'v1_mc_learn', 'v2_ar2', 'v2_ar1nc', 'v2_reg', 'v2_var3', 'v2_var12', 'v3_all', 'v3_all_plm_alm', 'v3_all_alm', 'v4_const', 'a1_learn'}
     if ~isfield(PS, id{1})
-        continue                                 % no results (stopped under facility 'none', C8)
+        continue                                 % no results (the run stopped, C8)
     end
     ps = PS.(id{1});
     t = find(strcmp(ps.dates, '2022Q2'));
@@ -942,7 +993,7 @@ K = addk(K, 'v4_n2_hist_mean_const', mean(Lc.n2(hd)), 'share', 'Average learners
 K = addk(K, 'v4_n2_hist_mean_koz', mean(Lk.n2(hd)), 'share', 'Average learners'' share 1966Q1-2026Q2, KOZ gain (a6_smooth_learn)');
 K = addk(K, 'v4_beta_maxdiff_hist', max(abs(Lc.beta_pinf(hd) - Lk.beta_pinf(hd))), 'coefficient', 'Largest |beta_pinf| difference KOZ vs constant 0.05, 1966Q1-2026Q2');
 K = addk(K, 'v4_n2_maxdiff_hist', max(abs(Lc.n2(hd) - Lk.n2(hd))), 'share', 'Largest |n2| difference KOZ vs constant 0.05, 1966Q1-2026Q2');
-% stops under facility 'none' (C8): one entry per scenario or evaluation variant that stopped
+% stops accepted by C8 (noSolution under facility 'none'): one entry per scenario or evaluation variant
 sf = fieldnames(STOP);
 for k = 1:numel(sf)
     K = addk(K, ['stop_n__' sf{k}], STOP.(sf{k}).n, 'runs', sprintf('Runs that stopped with noSolution (first %s, %s), %s', ...
@@ -997,7 +1048,7 @@ for k = 1:4
     K = addk(K, ['a2_gap_pinf_' hs{k}], g2(k), 'pp annualised', ['Learning replay minus data, inflation, ' hs{k}]);
 end
 K = addk(K, 'a2_gap_pinf_absmax_after_2023Q2', max(abs(g2(5:end))), 'pp annualised', 'Largest absolute inflation gap of the learning replay after 2023Q2');
-if isfield(R, 'v1_mc_learn')                     % no results when it stopped under facility 'none' (C8)
+if isfield(R, 'v1_mc_learn')                     % no results when it stopped (C8; it did under 'none', 2026-10-20)
     Lm = R.v1_mc_learn.learning.pinf;
     for dq = {'2022Q4', '2024Q1', '2025Q2'}
         K = addk(K, ['v1_n2_model_' dq{1}], 1 - Lm.n1_model(hz(strcmp(hs, dq{1}))), 'share', ['Learners'' share in force in ' dq{1} ', model-consistent RE']);
@@ -1036,6 +1087,16 @@ end
 for k = 1:size(MSTOP, 1)
     K = addk(K, sprintf('a5m_stop__%s_%s', MSTOP{k, 1}, MSTOP{k, 2}), 1, 'run', sprintf(['Impulse run with one unit of %s ' ...
         'in 2022Q3 (%s) stopped with noSolution in %s: %s'], MSTOP{k, 1}, MSTOP{k, 2}, MSTOP{k, 3}, MSTOP{k, 4}));
+end
+for k = 1:size(MFAC, 1)                          % facility events in the forecast of each impulse run that completed
+    qs = '';
+    if ~isempty(MFAC{k, 5})
+        qs = [' (quarters ' MFAC{k, 5} ')'];
+    end
+    K = addk(K, sprintf('a5m_fac_alm__%s_%s', MFAC{k, 1}, MFAC{k, 2}), MFAC{k, 3}, 'events', sprintf(['projection_alm events ' ...
+        '(beliefs reverted) in the forecast of the impulse run with one unit of %s in 2022Q3 (%s)%s'], MFAC{k, 1}, MFAC{k, 2}, qs));
+    K = addk(K, sprintf('a5m_fac_shares__%s_%s', MFAC{k, 1}, MFAC{k, 2}), MFAC{k, 4}, 'events', sprintf(['projection_alm_shares ' ...
+        'events (shares kept) in the forecast of the impulse run with one unit of %s in 2022Q3 (%s)%s'], MFAC{k, 1}, MFAC{k, 2}, qs));
 end
 % variant 1 path (inflation, perceived mean); none when v1_mc_learn stopped (C8)
 if isfield(R, 'v1_mc_learn')
@@ -1101,6 +1162,16 @@ for hq = [1 8]
 end
 for i = find(isEval)'
     K = addk(K, ['ev_events_total__' ids{i}], nev(i), 'events', ['Facility and other engine events over the 138 evaluation runs (all types), ' ids{i}]);
+end
+for v = 1:numel(es.ids)                          % origins whose run has an engine event (settings.events: origins x variants)
+    ne = es.events(:, v);
+    io = find(ne > 0);
+    dq = '';
+    if ~isempty(io)
+        dq = sprintf(' (first %s, last %s)', oS{io(1)}, oS{io(end)});
+    end
+    K = addk(K, ['ev_origins_with_events__' es.ids{v}], numel(io), 'origins', ...
+        sprintf('Evaluation origins whose run has an engine event (all types)%s, %s', dq, es.ids{v}));
 end
 write_cols(fullfile(out, 'key_numbers.csv'), {'name', 'value', 'unit', 'description'}, cells_to_cols(K));
 fprintf('build_summary_v3: %d key numbers, %d checks (%d pass), %.1f s\n', size(K, 1), size(CH, 1), ...
@@ -1328,6 +1399,16 @@ if c
     v = a;
 else
     v = b;
+end
+end
+
+
+function s = strjoin_or(c, d)
+% strjoin(c, ', '), or d when c is empty.
+if isempty(c)
+    s = d;
+else
+    s = strjoin(c, ', ');
 end
 end
 
