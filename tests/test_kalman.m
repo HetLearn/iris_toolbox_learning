@@ -29,6 +29,19 @@ function R = test_kalman(part)
 %      since res.paths holds the learners' recorded forecasts there); res.kalman fields;
 %      hetlearn.run writes kalman_errors.csv when it saves (tests/output/results/; values
 %      = res.kalman to 1e-12) and a later 're_smoother' run of the id deletes it
+%   N agent types and forecast transforms (phase P6, DESIGN_br_extensions 1.1-1.5):
+%   K6 the baseline tsw07_a1_learn with the types RE and BR spelled out (N-type file and engine
+%      path), 'stochastic' start, 1965Q1-2026Q2 = the two-type Kalman run: one-step errors,
+%      l_t, log likelihood, F_t, filtered and predicted databanks, a and P at the origin,
+%      learning record, paths, events and final state (<= 1e-12; 0 in practice)
+%   K7 identity cases on the N-type path: a target-believer type at share 0 ({RE, BR, TB},
+%      shares.init TB = 0) and a multiplier at 1 on every type's inflation forecast leave the
+%      two-type Kalman run unchanged (errors, log likelihood, beliefs, shares; <= 1e-10, the TB
+%      file has a larger state vector)
+%   K8 level types and an intercept-only type in the Kalman history (projection.facility
+%      'alm'): {L0 AR(1), L1, L2 levels on L0} and {RE, IO 're_mean'} run to 2026Q2 with their
+%      forecast stage; every type whose forecast uses data of one date only equals the model's
+%      prediction of it (res.kalman.ftypes_model_maxdiff < 1e-11); shares sum to 1
 %   SW07 runs are not saved, except the K5 pair (tests/output/results/).
 
 if nargin < 1 || isempty(part)
@@ -291,6 +304,227 @@ try
         da, dBR, fieldsOk, csvOk, dE, gone, K.fbr_model_maxdiff));
 catch err
     R = add(R, nm, false, getReport(err, 'basic'));
+end
+R = ntype_checks(R, run);
+end
+
+
+% =========================================================================
+function R = ntype_checks(R, run)
+% K6-K8: N agent types and forecast transforms in the Kalman history (phase P6)
+T = @(varargin) struct(varargin{:});
+pair = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm')};
+ra = [];
+nm = ['kalman K6: RE and BR spelled out (N-type file and engine path) = the two-type Kalman run, stochastic start, ' ...
+    '1965Q1-2026Q2 (errors, l_t, F_t, filtered states, a and P at the origin, learning, paths, events, state; <= 1e-12)'];
+try
+    c = kalman_cfg(tsw07_a1_learn(), 'tk_k6', qq(2026, 2), 'stochastic');
+    ra = run(c);
+    b = c;
+    b.expectations.types = pair;
+    rb = run(b);
+    [dk, wk] = kalman_diff(ra.kalman, rb.kalman);
+    [dr, wr, nb] = run_diff(ra, rb, 'BR');
+    isN = isfield(rb.learning.pinf, 'n_BR') && ~strcmp(ra.meta.ext_file, rb.meta.ext_file);
+    fprintf('KALMAN-K6 | pair vs two-type: kalman %.3g (%s), run %.3g (%s); log lik %.8f / %.8f; N-type path %d\n', ...
+        dk, wk, dr, wr, ra.kalman.loglik, rb.kalman.loglik, isN);
+    R = add(R, nm, dk <= 1e-12 && dr <= 1e-12 && isempty(nb) && isN, sprintf('kalman %.3g (%s), run %.3g (%s)%s', ...
+        dk, wk, dr, wr, strjoin(nb, '; ')));
+catch err
+    R = add(R, nm, false, getReport(err, 'basic'));
+end
+
+nm = ['kalman K7: N-type identity cases = the two-type Kalman run: a target believer at share 0 and a multiplier at 1 ' ...
+    'on the inflation forecasts (errors, log likelihood, beliefs, shares; <= 1e-10)'];
+try
+    if isempty(ra)
+        ra = run(kalman_cfg(tsw07_a1_learn(), 'tk_k6', qq(2026, 2), 'stochastic'));
+    end
+    c = kalman_cfg(tsw07_a1_learn(), 'tk_k7a', qq(2026, 2), 'stochastic');
+    c.expectations.types = [pair, {T('name', 'TB', 'kind', 'rule', 'rule', '0')}];
+    c.shares.init = struct('RE', 0.5, 'BR', 0.5, 'TB', 0);
+    r1 = run(c);
+    c = kalman_cfg(tsw07_a1_learn(), 'tk_k7b', qq(2026, 2), 'stochastic');
+    c.expectations.transforms = struct('kind', 'multiplier', 'profile', 'geometric', 'types', 'all', 'value', 1, ...
+        'scope', 'learning');
+    r2 = run(c);
+    d = zeros(1, 2);
+    txt = cell(1, 2);
+    rr = {r1, r2};
+    for q = 1:2
+        K = rr{q}.kalman;
+        okv = isfinite(ra.kalman.err) & isfinite(K.err);
+        same = isequal(isfinite(ra.kalman.err), isfinite(K.err));
+        td = ra.dates.record;
+        La = ra.learning;
+        Lb = rr{q}.learning;
+        e = [max(abs(ra.kalman.err(okv) - K.err(okv))), abs(ra.kalman.loglik - K.loglik), ...
+            max(abs(La.pinf.alpha_pinf(td) - Lb.pinf__BR.alpha_pinf__BR(td))), ...
+            max(abs(La.pinf.beta_pinf(td) - Lb.pinf__BR.beta_pinf__BR(td))), max(abs(La.pinf.n1(td) - Lb.pinf.n_RE(td))), ...
+            max(abs(La.pinf.n2(td) - Lb.pinf.n_BR(td)))];
+        d(q) = max(e);
+        if ~same
+            d(q) = Inf;                    % missing pattern of the errors differs
+        end
+        txt{q} = sprintf('errors %.2g, log lik %.2g, alpha %.2g, beta %.2g, n_RE %.2g, n_BR %.2g', e);
+    end
+    tb0 = max(abs(r1.learning.pinf.n_TB(r1.dates.record)));
+    fprintf('KALMAN-K7 | TB at share 0: %s (max TB share %.2g); multiplier 1: %s\n', txt{1}, tb0, txt{2});
+    R = add(R, nm, all(d <= 1e-10) && tb0 == 0, sprintf('TB at share 0: %s; multiplier 1: %s', txt{1}, txt{2}));
+catch err
+    R = add(R, nm, false, getReport(err, 'basic'));
+end
+
+nm = ['kalman K8: level types {L0, L1, L2} and an intercept-only type {RE, IO} in the Kalman history (facility alm): ' ...
+    'they run with their forecast stage; one-date forecasts = the model''s predictions (< 1e-11); shares sum to 1'];
+try
+    c = kalman_cfg(tsw07_a1_learn(), 'tk_k8a', qq(2026, 2), 'stochastic');
+    c.projection.facility = 'alm';
+    c.expectations.types = {T('name', 'L0', 'kind', 'plm'), T('name', 'L1', 'kind', 'level', 'base', 'L0', 'k', 1), ...
+        T('name', 'L2', 'kind', 'level', 'base', 'L0', 'k', 2)};
+    c.shares.init = struct('L0', 1/3, 'L1', 1/3, 'L2', 1/3);
+    r1 = run(c);
+    c = kalman_cfg(tsw07_a1_learn(), 'tk_k8b', qq(2026, 2), 'stochastic');
+    c.projection.facility = 'alm';
+    c.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'IO', 'kind', 're_mean')};
+    r2 = run(c);
+    g1 = r1.kalman.ftypes_model_maxdiff;
+    g2 = r2.kalman.ftypes_model_maxdiff;
+    gap = max([g1.L0, g1.L1, g1.L2, g2.IO]);
+    td = r1.dates.record;
+    L1 = r1.learning.pinf;
+    s1 = max(abs(L1.n_RE(td) + L1.n_L0(td) + L1.n_L1(td) + L1.n_L2(td) - 1));
+    L2 = r2.learning.pinf;
+    s2 = max(abs(L2.n_RE(td) + L2.n_IO(td) - 1));
+    hz = r1.dates.horizon;
+    fin = all(isfinite(r1.paths.pinfobs(hz))) && all(isfinite(r2.paths.pinfobs(hz))) ...
+        && isfinite(r1.kalman.loglik) && isfinite(r2.kalman.loglik);
+    nLev = sum(strcmp(r1.events.type, 'projection_level'));
+    fprintf(['KALMAN-K8 | levels: log lik %.4f, model gap L0 %.2g L1 %.2g L2 %.2g, %d projection_level events, shares at ' ...
+        '2026Q2 L0 %.3f L1 %.3f L2 %.3f; intercept-only: log lik %.4f, gap IO %.2g, IO share %.3f\n'], r1.kalman.loglik, ...
+        g1.L0, g1.L1, g1.L2, nLev, L1.n_L0(qq(2026, 2)), L1.n_L1(qq(2026, 2)), L1.n_L2(qq(2026, 2)), r2.kalman.loglik, ...
+        g2.IO, L2.n_IO(qq(2026, 2)));
+    R = add(R, nm, gap < 1e-11 && s1 < 1e-12 && s2 < 1e-12 && fin, sprintf(['model gap L0 %.2g, L1 %.2g, L2 %.2g, IO %.2g; ' ...
+        'share sums %.2g, %.2g; log lik %.4f, %.4f; %d projection_level events'], g1.L0, g1.L1, g1.L2, g2.IO, s1, s2, ...
+        r1.kalman.loglik, r2.kalman.loglik, nLev));
+catch err
+    R = add(R, nm, false, getReport(err, 'basic'));
+end
+end
+
+
+function [d, w] = kalman_diff(A, B)
+% max abs difference of two res.kalman structs (numeric fields and the two databanks)
+d = 0;
+w = '';
+f = {'y', 'pred', 'err', 'F', 'llt', 'n_obs', 'loglik', 'a_origin', 'P_origin', 'fbr_model_maxdiff'};
+for i = 1:numel(f)
+    a = A.(f{i});
+    b = B.(f{i});
+    if ~isequal(size(a), size(b)) || ~isequal(isnan(a), isnan(b))
+        d = Inf;
+        w = f{i};
+        return
+    end
+    e = max([0; reshape(abs(a(isfinite(a)) - b(isfinite(b))), [], 1)]);
+    if e > d
+        d = e;
+        w = f{i};
+    end
+end
+if ~isequal(A.state_names, B.state_names) || ~isequal(A.observables, B.observables)
+    d = Inf;
+    w = 'state or observable names';
+    return
+end
+for db = {'filtered', 'predicted'}
+    na = fieldnames(A.(db{1}));
+    if ~isempty(setxor(na, fieldnames(B.(db{1}))))
+        d = Inf;
+        w = [db{1} ' names'];
+        return
+    end
+    for i = 1:numel(na)
+        e = sdiff(A.(db{1}).(na{i}), B.(db{1}).(na{i}));
+        if e > d
+            d = e;
+            w = [db{1} '.' na{i}];
+        end
+    end
+end
+end
+
+
+function [d, w, bad] = run_diff(ra, rb, k)
+% two-type run ra against an N-type run rb with the types RE and k: paths, learning, events, state
+d = 0;
+w = '';
+bad = {};
+pa = fieldnames(ra.paths);
+if ~isempty(setxor(pa, fieldnames(rb.paths)))
+    bad{end+1} = 'path names differ';
+end
+for i = 1:numel(pa)
+    if isfield(rb.paths, pa{i})
+        [d, w] = upd(d, w, sdiff(ra.paths.(pa{i}), rb.paths.(pa{i})), ['paths.' pa{i}]);
+    end
+end
+map = {'n1', 'n_RE'; 'n2', ['n_' k]; 'n1_model', 'n_model_RE'; 'zetaRE', 'U_RE'; 'zetaBR', ['U_' k]; ...
+    'FE_RE', 'FE_RE'; 'FE_BR', ['FE_' k]; 'fRE', 'f_RE'; 'fBR', ['f_' k]};
+tg = fieldnames(ra.learning);
+for i = 1:numel(tg)
+    A = ra.learning.(tg{i});
+    if isfield(rb.learning, tg{i}) && isfield(rb.learning.(tg{i}), 'types')
+        B = rb.learning.(tg{i});
+        for j = 1:size(map, 1)
+            [d, w] = upd(d, w, sdiff(A.(map{j, 1}), B.(map{j, 2})), [tg{i} '.' map{j, 1}]);
+        end
+    end
+    K = rb.learning.([tg{i} '__' k]);
+    f = setdiff(fieldnames(A), [map(:, 1)', {'isAux', 'params'}]);
+    for j = 1:numel(f)
+        g = f{j};
+        if ~isfield(K, g)
+            g = regexprep(g, '^(R_)?(.*)$', ['$1$2__' k]);
+        end
+        [d, w] = upd(d, w, sdiff(A.(f{j}), K.(g)), [tg{i} '.' f{j}]);
+    end
+end
+Ea = ra.events;
+Eb = rb.events;
+if height(Ea) ~= height(Eb) || ~isequal(Ea.date, Eb.date) || ~isequal(Ea.type, Eb.type) || ~isequal(Ea.stage, Eb.stage)
+    bad{end+1} = 'events differ';
+end
+for i = 1:numel(tg)
+    q = [tg{i} '__' k];
+    [d, w] = upd(d, w, max([0; abs(ra.state.phi.(tg{i})(:) - rb.state.phi.(q)(:))]), ['state.phi.' tg{i}]);
+    [d, w] = upd(d, w, max([0; abs(ra.state.R.(tg{i})(:) - rb.state.R.(q)(:))]), ['state.R.' tg{i}]);
+end
+for g = 1:numel(ra.state.n1)
+    [d, w] = upd(d, w, max(abs([ra.state.n1(g), ra.state.zetaRE(g), ra.state.zetaBR(g)] - ...
+        [rb.state.n{g}(1), rb.state.U{g}(1), rb.state.U{g}(2)])), 'state.shares');
+end
+end
+
+
+function [d, w] = upd(d, w, v, name)
+if ~(v <= d)
+    d = v;
+    w = name;
+end
+end
+
+
+function v = sdiff(a, b)
+% max abs difference of two Series on the dates of either (NaN in one only counts as Inf)
+v = 0;
+for r = {a.Range, b.Range}
+    x = a(r{1});
+    y = b(r{1});
+    e = abs(x(:) - y(:));
+    e(isnan(x(:)) & isnan(y(:))) = 0;
+    e(isnan(e)) = Inf;
+    v = max([v; e]);
 end
 end
 
