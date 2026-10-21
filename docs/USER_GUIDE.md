@@ -11,7 +11,7 @@ Other documents: `docs/DESIGN.md` (algorithms, timing, file contracts), `docs/FE
 `README_PIPELINE.md` (pipeline map and status).
 
 Checked against the code on 2026-10-19; the baseline (1.4) and the options it touches updated
-on 2026-10-20; run times measured on 2026-10-18. Line numbers are
+on 2026-10-20; report section 12 (ijcb3, as07) removed on 2026-10-21; run times measured on 2026-10-18. Line numbers are
 given as `file` line N. They move when a file is edited, so each one comes with the code it
 points to. All paths are relative to the project root
 `C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\iris_toolbox_learning`.
@@ -27,16 +27,16 @@ points to. All paths are relative to the project root
 | `setup_paths.m` | Starts IRIS (folder set on line 12), then adds `toolbox/`, the IRIS patch, `config/` and `scenarios/` with every subfolder to the path | You, only if IRIS moves |
 | `config/master_options.m` | Project-wide option values: the SW07 baseline of 2026-10-20 (lines 86-97, the `o.*` lines; 1.4), a dated table of the previous values above them, and commented knobs (lines 100-102) | You |
 | `scenarios/sw07/<folder>/<id>.m` | The 52 SW07 scenario files, one function per file. Each calls its parent and sets what differs | You |
-| `scenarios/ijcb3/app1_peak/`, `scenarios/as07/app1_peak/` | Application 1 on the two other models: `i1_re`, `i1_learn`, `a1as_re`, `a1as_learn` | You |
+| `scenarios/ijcb3/app1_peak/`, `scenarios/as07/app1_peak/` | Application 1 on the two other models: `i1_re`, `i1_learn`, `a1as_re`, `a1as_learn`. Unused since 2026-10-21 (removed from the report; kept in place) | Nobody |
 | `scenarios/sw07/INDEX.csv` | One row per SW07 scenario file (52 rows): folder, id, parent, options it sets, compare_with, has_results, title | `python scenarios/build_index.py` |
-| `models/sw07/`, `models/ijcb3/`, `models/as07/` | Model packages: model file, parameters, data, `model_spec.m`, validation (1.2) | You, when the model, its parameters or its data change |
+| `models/sw07/`, `models/ijcb3/`, `models/as07/` | Model packages: model file, parameters, data, `model_spec.m`, validation (1.2); ijcb3 and as07 unused since 2026-10-21 | You, when the model, its parameters or its data change |
 | `run_applications.m` | Runner for the SW07 applications, model variants and forecast evaluation: run groups, run log, evaluation parts and merge | You, to change a group, the decompositions or the evaluation settings |
 | `results/<id>/` | Output of one scenario run | Written by each run (overwritten) |
 | `results/run_log.csv` | One row per run, decomposition and evaluation part | Appended by `run_applications` |
 | `results/eval_sw07_v3/` | The forecast evaluation (parts and merged tables) | Written by `run_applications('eval')` |
 | `results/summary_v3/build_summary_v3.m` | Summary tables and checks of the SW07 runs | You, when the report must show a new scenario or a changed setting (4.7) |
-| `results/summary_v3/build_other_models.m` | Tables and checks of application 1 on ijcb3 and as07 | As above |
-| `results/summary_v3/*.csv`, `checks_v3.txt`, `other_models_checks.txt` | The summary tables: the report's data | Written by the two scripts |
+| `results/summary_v3/build_other_models.m` | Tables and checks of application 1 on ijcb3 and as07. Retired 2026-10-21 with report section 12: not run; its `other_models_*` files are kept but nothing reads them | Nobody |
+| `results/summary_v3/*.csv`, `checks_v3.txt` | The summary tables: the report's data | Written by `build_summary_v3.m` |
 | `results/summary_v3/FINDINGS_v3.md` | Results memo; numbers from `key_numbers.csv`. No script writes it | Edited by hand |
 | `reports/build_report_v3.py` | Report builder (Python 3 with pandas) | You, when the report must show something new |
 | `reports/sw07_learning_report.html` | The report: page content only, the claude.ai publisher wraps it | Written by the builder |
@@ -60,6 +60,9 @@ The rule: you write model packages, scenario files and the master options; the t
 | `models/sw07/` | Smets-Wouters (2007) | Two sets: the published SW07 posterior mode for 1966Q1-2004Q4 (`sw07_params_original.m`, the baseline since 2026-10-20 through `model_params`), and the Dynare re-estimate `swX1` on 1966Q1-2026Q2 (`sw07_params.m` = `spec.params`, the default and the previous baseline) | `dy`, `dc`, `dinve`, `dw`, `labobs`, `pinfobs`, `robs`; 1965Q1-2026Q2; every observable NaN in 2020Q1-2020Q3 (covid quarters ignored, user decision 2026-10-19) | 12: `invef`, `rkf`, `pkf`, `cf`, `labf`, `inve`, `pinf`, `rk`, `pk`, `c`, `lab`, `w` | yes: Taylor rule by label; loss targets `pinf`, `ygap`, `r`, `dr` |
 | `models/ijcb3/` | Three-equation NK model of IJCB (sec. 2.1) | IJCB Table 1, HE posterior means (`ijcb3_params.m`) | `yobs`, `pinfobs`, `robs`; 1960Q1-2026Q2; `robs` NaN in the 36 ELB quarters | `y`, `pinf` | no |
 | `models/as07/` | An and Schorfheide (2007) | Herbst and Schorfheide (2016) published posterior means; measurement errors fixed as in the book's code (`as07_params.m`) | `dy`, `pinfobs`, `robs`; 1965Q1-2026Q2; `robs` NaN in the 36 ELB quarters | `y`, `pinf` | no |
+
+Since 2026-10-21 only `models/sw07/` is in use: ijcb3 and as07 left the report and the portfolio (user
+decision); their packages and scenario files stay in place, unused.
 
 Each package has a `README.md` (model, parameters, units, open issues), `data/README.md` and
 `data/build_database.m` (how the database is built and refreshed), and `validation/` (checks
@@ -131,9 +134,8 @@ Where the baseline does not apply:
   with `'lagged'` (`hetlearn:options:unsupported`). The only deviation; the report says so.
 - **`a6_inv_learn.m`** line 21: `history.re_states = 'smoothed'`, because `'filtered'` is an error
   with `history.mode = 'inversion'`; the inversion is one-sided already.
-- **The other models** (`i1_re.m`, `a1as_re.m`): their files pin the previous settings and set
-  `model_params = ''`, so the SW07 baseline does not reach them; their results (report section 12)
-  date from 2026-10-18.
+- **The other models** (`i1_re.m`, `a1as_re.m`; unused since 2026-10-21): their files pin the
+  previous settings and set `model_params = ''`, so the SW07 baseline does not reach them.
 - **The tests** read `tests/scenarios/master_options.m` (the previous values), not this file.
 
 Consequences to know:
@@ -203,17 +205,14 @@ IRIS take about 15 s to start. `run_applications` calls `setup_paths` itself.
 
 ### 2.3 The whole report
 
-| Step | Command (MATLAB from the root; step 5 in PowerShell) | Time |
+| Step | Command (MATLAB from the root; step 3 in PowerShell) | Time |
 |---|---|---|
 | 1 | `run_applications('all')`: groups app1-app6, var1-var4, eval, in that order | about 3 hours: evaluation 2.7 h, app5 14 min, the other groups about 6.5 min |
-| 2 | `ids = {'i1_re', 'i1_learn', 'a1as_re', 'a1as_learn'}; for k = 1:4, hetlearn.run(feval(ids{k})); end` | 1-3 s each |
-| 3 | `run('results/summary_v3/build_summary_v3.m')` | about 3 min (includes unsaved check runs: two 10-draw densities, five model-consistent copies of app-4 RE runs, ten impulse runs) |
-| 4 | `run('results/summary_v3/build_other_models.m')` | about 20 s |
-| 5 | `python reports/build_report_v3.py` | about 10 s |
+| 2 | `run('results/summary_v3/build_summary_v3.m')` | about 3 min (includes unsaved check runs: two 10-draw densities, five model-consistent copies of app-4 RE runs, ten impulse runs) |
+| 3 | `python reports/build_report_v3.py` | about 10 s |
 
-Steps 1 and 2 are independent. Step 3 needs step 1, step 4 needs step 2, step 5 needs 3 and 4
-(without the `other_models_*` files, report section 12 says its results are pending). With the
-evaluation in four parallel sessions, step 1 takes about an hour (8.2).
+Each step needs the one before it. With the evaluation in four parallel sessions, step 1 takes
+about an hour (8.2). The other-model runs and `build_other_models.m` were dropped on 2026-10-21.
 
 ---
 
@@ -223,7 +222,7 @@ One row per report section. Every call is MATLAB from the project root. The buil
 summary file at start; most sections draw on `scenarios.csv`, `paths_long.csv`,
 `learning_long.csv` and `key_numbers.csv`. The last column names each section's own tables and
 its function in `reports/build_report_v3.py`. Summary step: `build_summary_v3.m` for the
-baseline box and sections 1-11, `build_other_models.m` for section 12.
+baseline box and sections 1-11.
 
 | Report section | Scenario files | Call | Results | Summary tables, builder function |
 |---|---|---|---|---|
@@ -239,29 +238,26 @@ baseline box and sections 1-11, `build_other_models.m` for section 12.
 | 9 Model variant 3: learning on inflation only vs on all 12 variables | `var3_allvars/`: `v3_all` (no facility, the baseline), `v3_all_plm_alm`, `v3_all_alm` | `run_applications('var3')` | `results/v3_*/` | `v3_facility.csv`; `sec_var3` |
 | 10 Model variant 4: endogenous gain (baseline) vs a constant gain | `var4_gain/`: `v4_const`, `v4_const_full` (gain held at 0.05); the endogenous-gain side is `a1_learn` and `a6_smooth_learn` | `run_applications('var4')` | `results/v4_const/`, `results/v4_const_full/` | `sec_var4` |
 | 11 Forecast evaluation | `eval/`: `e01_re` ... `e10_allvars`; settings in `run_applications.m` lines 156-170 | `run_applications('eval')`; in parallel: `run_applications('eval_part', variants, parts)`, then `run_applications('eval_merge')` | `results/eval_sw07_v3/` | `eval_metrics.csv`, `eval_relative.csv`, `eval_dm.csv`; `sec_eval` |
-| 12 Application 1 on two other models | `scenarios/ijcb3/app1_peak/`: `i1_re`, `i1_learn`; `scenarios/as07/app1_peak/`: `a1as_re`, `a1as_learn` | `res = hetlearn.run(feval(id))` for each id, then `run('results/summary_v3/build_other_models.m')` | `results/i1_re/`, `results/i1_learn/`, `results/a1as_re/`, `results/a1as_learn/` | `other_models_paths_long.csv`, `other_models_learning_long.csv`, `other_models_key_numbers.csv`, `other_models_checks.txt`; `sec_other` |
-| 13 Caveats | | | | the Notes section of `FINDINGS_v3.md`; `sec_caveats` |
-| 14 How to reproduce | | | | `scenarios.csv`, `run_applications.m`; `sec_reproduce` |
-| 15 Validation | | | | `checks_v3.txt` (C1-C12), `other_models_checks.txt` (M checks); `sec_validation` |
-| 16 Feature register | | | | `docs/FEATURES.md`; `sec_features` |
+| 12 Caveats | | | | the Notes section of `FINDINGS_v3.md`; `sec_caveats` |
+| 13 How to reproduce | | | | `scenarios.csv`, `run_applications.m`; `sec_reproduce` |
+| 14 Validation | | | | `checks_v3.txt` (C1-C12); `sec_validation` |
+| 15 Feature register | | | | `docs/FEATURES.md`; `sec_features` |
 
-Then run steps 3-5 of 2.3. Points to know:
+Then run steps 2-3 of 2.3. Points to know:
 
 - **Run SW07 scenarios through `run_applications`**: a group, or one id such as
   `run_applications('a5_markup_learn')`, which is logged under its group (`app5`).
   `scenarios.csv` takes each status from `results/run_log.csv`: a scenario run with
   `hetlearn.run` directly shows `missing`, and check C8 fails.
-- **The other-model runs are not in `run_applications`.** Run them with `hetlearn.run`
-  (step 2 of 2.3); `run_applications('i1_re')` also works and logs the run under group `single`.
-- **The report date is a fixed string**: `REPORT_DATE = "2026-10-20"`, `build_report_v3.py`
+- **The report date is a fixed string**: `REPORT_DATE = "2026-10-21"`, `build_report_v3.py`
   line 28 (with `BASELINE_DATE` and `ARCHIVE` below it). Change it when you rebuild on another day.
 - **The memo is not regenerated.** `FINDINGS_v3.md` quotes `key_numbers.csv`; after a rerun its
   numbers stay as they are until you edit them. The report uses only its Notes section.
 - **Results on this machine** (2026-10-20, the new baseline, 1.4): 39 of 40 runs ok and
   `v1_mc_learn` stopped (no model solution in 2022Q3); the evaluation ran 1380 runs, of which 5
   stopped (3 origins of `e03_learn_mc`, 2 of `e04_learn_all_learners`); checks 15 of 15
-  (`checks_v3.txt`, C8 accepts such stops) and 11 of 11 (`other_models_checks.txt`, not rerun).
-  The summary tables and the report were rebuilt on 2026-10-20; the published report
+  (`checks_v3.txt`, C8 accepts such stops). The summary tables were rebuilt on 2026-10-20, the
+  report on 2026-10-21 (section 12 removed); the published report
   (https://claude.ai/artifact/BvM5vuFBTYm943Z8eBpZR8) is republished by the main session. The
   previous baseline's results: `archive/2026-10-20_swX1_baseline/`.
 - **One summary file is not in the report:** `app4_targets_long.csv` (6.5). The report reads the
@@ -342,9 +338,9 @@ sw07_re                          base: every option listed, commented at its def
                 v3_all_plm_alm, v3_all_alm, e10_allvars
             v4_const             constant gain 0.05 (the baseline gain is endogenous)
                 v4_const_full
-i1_re                            model ijcb3 (starts from struct(), not from sw07_re)
+i1_re                            model ijcb3 (starts from struct(), not from sw07_re; unused since 2026-10-21)
     i1_learn
-a1as_re                          model as07
+a1as_re                          model as07 (unused since 2026-10-21)
     a1as_learn
 ```
 
@@ -795,7 +791,7 @@ Every generated file passes a collapse test: with every RE share at 1 the extend
 reproduce the original model's impulse responses to 1e-10 (a `_relag` file: with no variable
 learning; with every lead-1 variable learning, its anchored and model-consistent forms must agree).
 
-Steps, with ijcb3 and as07 as the worked examples:
+Steps, with ijcb3 and as07 as the worked examples (both unused since 2026-10-21, kept as templates):
 
 1. Copy `models/ijcb3/` (the smallest package; as07 was built from it) to `models/<new>/`.
    Replace the model file, the parameter function and the data; edit `model_spec.m`.
@@ -821,12 +817,8 @@ Steps, with ijcb3 and as07 as the worked examples:
    and sets `cfg.model = '<new>'`, the origin, the horizon and `expectations.variables`, plus a
    learning child. Templates: `i1_re.m`, `i1_learn.m`. Do not inherit from `sw07_re`: it loads
    SW07 and asserts the SW07 peak.
-5. Run: `res = hetlearn.run(feval('<id>'));`.
-6. Report section 12: add a row to `MD` in `build_other_models.m` (lines 46-47: model, RE id,
-   learning id, output observable, loading of `pinf` in `pinfobs`) and an entry to `OMODELS`
-   in `build_report_v3.py` (line 1451). `build_other_models.m` also expects observables
-   `pinfobs` and `robs`, a database series `ffr` (lines 97 and 401) and the 2022Q2 origin
-   (lines 55 and 137).
+5. Run: `res = hetlearn.run(feval('<id>'));`. The report has no section for other packages
+   since 2026-10-21; a new package needs its own report section.
 
 What the two packages show:
 
@@ -851,14 +843,13 @@ rebuild the report and reread its text.
 
 | Assumption | `results/summary_v3/build_summary_v3.m` | `reports/build_report_v3.py` |
 |---|---|---|
-| Scenario lists | `SC` lines 53-104; app3 `pairs` line 274; app5 `cases` line 360; app6 `dcase` line 427; variant 3 `fids` line 459 | `ENT` lines 236-249; `WSETS` 702; `CASES` 798; `DCASES` 908; `GROUPS` 910; `PLMS` 1050; `EVV` 1316; `OMODELS` 1451 |
+| Scenario lists | `SC` lines 53-104; app3 `pairs` line 274; app5 `cases` line 360; app6 `dcase` line 427; variant 3 `fids` line 459 | `ENT` lines 236-249; `WSETS` 702; `CASES` 798; `DCASES` 908; `GROUPS` 910; `PLMS` 1050; `EVV` 1316 |
 | Dates | paths 2015Q1-2026Q2 (line 183); history 1966Q1-2026Q2 (line 443); `d22 = qq(2022, 2)` (line 680); fixed quarters in the key-number block (lines 680-972) | origin and horizon from `paths_long.csv` (lines 97-100); fixed quarters in some sentences (e.g. `'2022Q4'`, `'2023Q2'`, `'2024Q2'` in `sec_app1`); `REPORT_DATE` line 28 |
 | App 3 size and dates | check C3b, line 543; labels lines 58-61 | section title says 100 bp |
 | App 4 | weight sets `W` line 291; loss horizons 16 and 80 (lines 300, 331); the `_re_mc` ids are built from the weight-set names (line 330) | weights read from the scenario files; `RE_model_consistent` rows as the RE benchmark (lines 716-736) |
 | App 5 | quantiles 0.05 and 0.95 (lines 378-379); impulse shocks of `app5_mechanism.csv` (lines 403-404) | `ndraws` and `seed` read from `a5_markup_re.m` |
 | Evaluation | folder `results/eval_sw07_v3` (line 34); samples line 858 | `SAMPLES` line 1320 |
 | Calibration and baseline | `pfun` from `model_params` of the merged SW07 options (line 48); RE checks C2, C3b on `tests/models/sw07_re_lagged_pinf.model` (re_info `'lagged'`) | the `o.*` lines of `master_options.m` read by regex (`mopt`); the previous baseline from `archive/2026-10-20_swX1_baseline/code_pre_2026-10-20/config/master_options.m` and `defaults.m` |
-| Other models | `build_other_models.m`: `MD` lines 46-47; origin 2022Q2 (lines 55, 137) | |
 
 Every number in the report text is read from the summary files at build time, but the sentences
 around the numbers are fixed. Some code also expects today's pattern: `sec_app1` looks for the
@@ -1188,15 +1179,13 @@ From `build_summary_v3.m` (report units unless stated):
 | `key_numbers.csv` | name, value, unit, description (1,314 rows): every number the memo and the report quote |
 | `checks_v3.txt` | checks C1-C12 (15 lines), PASS or FAIL with the value; C12: the saved `_re_mc` runs equal the unsaved model-consistent copies |
 
-From `build_other_models.m`: `other_models_paths_long.csv` (model, scenario, date, variable,
-value, source, stage), `other_models_learning_long.csv` (model, scenario, date, variable, field,
-value, stage), `other_models_key_numbers.csv`, `other_models_checks.txt` (M checks; 11 of 11
-pass). `FINDINGS_v3.md` is the memo (1.1).
+`FINDINGS_v3.md` is the memo (1.1). The four `other_models_*` files of the retired
+`build_other_models.m` stay in the folder; nothing reads them since 2026-10-21.
 
 ### 6.6 The report
 
-`reports/sw07_learning_report.html`, written by `python reports/build_report_v3.py`: 16
-sections, 161 charts, about 685 KB. It is page content only (no `<html>` wrapper); the claude.ai
+`reports/sw07_learning_report.html`, written by `python reports/build_report_v3.py`: 15
+sections (section 12 on the other models removed 2026-10-21), 142 charts, about 643 KB. It is page content only (no `<html>` wrapper); the claude.ai
 Artifact publisher wraps it, and a browser opens it as it is (fonts come from Google Fonts).
 Published at https://claude.ai/artifact/BvM5vuFBTYm943Z8eBpZR8 (version 5, 2026-10-19, after
 the reviewer's pass).
@@ -1275,8 +1264,7 @@ Toolbox (`help hetlearn.<name>` gives the full text):
 | app5 | 14 min: RE densities about 30 s each (fast path), learning densities about 6.5 min each (0.71 s per draw) |
 | History backed out, 1966Q1-2026Q2 (`a6_inv_learn`) | 14 s |
 | Evaluation | 2.7 hours of compute (10 variants x 138 origins); per variant RE 2.5 min, learning 10-23 min, `e09_var12` 41 min; one part 0.5-7 min; about 47 min in 4 parallel sessions |
-| Other models, one scenario | 1-3 s |
-| `build_summary_v3.m` / `build_other_models.m` / report | about 3 min / 20 s / 10 s |
+| `build_summary_v3.m` / report | about 3 min / 10 s |
 | Full test suite | more than 9 min |
 
 ### 8.2 Parallel sessions
