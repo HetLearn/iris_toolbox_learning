@@ -142,7 +142,7 @@ S.fRE = fRE;
 S.fBR = fBR;
 
 % ---- (3) RLS and the projection facility (DESIGN 4.4) ---------------------------------
-doRLS = strcmp(o.beliefs.update, 'rls');
+doRLS = any(strcmp(o.beliefs.update, {'rls', 'sac', 'kf'}));   % 'sac', 'kf': hetlearn.rls.sac/.kf (DESIGN_br_extensions 1.5, P5)
 S.prev = struct('phi', S.phi, 'R', S.R);        % beliefs before this period's update
 nE = numel(sys.eq);
 for i = 1:nE
@@ -161,7 +161,7 @@ if doRLS
         end
         g = G.(tg);
         out.gain.(tg) = g;
-        [cand.(tg), Rcand.(tg)] = hetlearn.rls.update(S.phi.(tg), S.R.(tg), Z{i}, Y(i), g);
+        if strcmp(o.beliefs.update, 'rls'), [cand.(tg), Rcand.(tg)] = hetlearn.rls.update(S.phi.(tg), S.R.(tg), Z{i}, Y(i), g); else, [cand.(tg), Rcand.(tg), S, ev] = feval(['hetlearn.rls.' o.beliefs.update], S.phi.(tg), S.R.(tg), Z{i}, Y(i), g, S, sys.eq(i), o.beliefs, o.gain, t, ev); end
         upd(i) = true;
     end
     if strcmp(hetlearn.engine.facility('name', o), 'plm_alm')
@@ -338,7 +338,7 @@ if nE > 0
 end
 for j = 1:numel(nt.types)
     ty = nt.types(j);
-    if isempty(ty.sys) || ~strcmp(ty.update, 'rls')
+    if isempty(ty.sys) || ~any(strcmp(ty.update, {'rls', 'sac', 'kf'}))   % 'sac', 'kf': P5
         continue
     end
     anyRLS = true;
@@ -385,7 +385,7 @@ for j = 1:numel(nt.types)
         end
         g = G.(e.var);
         out.gain.(e.target) = g;
-        [cand.(e.target), Rcand.(e.target)] = hetlearn.rls.update(S.phi.(e.target), S.R.(e.target), Z{q}, Y(q), g);
+        if strcmp(ty.update, 'rls'), [cand.(e.target), Rcand.(e.target)] = hetlearn.rls.update(S.phi.(e.target), S.R.(e.target), Z{q}, Y(q), g); else, [cand.(e.target), Rcand.(e.target), S, ev] = feval(['hetlearn.rls.' ty.update], S.phi.(e.target), S.R.(e.target), Z{q}, Y(q), g, S, e, o.beliefs, gk, t, ev); end
         upd(ix(q)) = true;
     end
 end
