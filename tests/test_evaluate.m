@@ -19,6 +19,10 @@ function R = test_evaluate(part)
 %   V4 SW07 smoke: origins 2010Q1-2024Q2, H = 8, variants tsw07_peak_re and
 %      tsw07_switch_pinf; prints the inflation RMSE at h = 1, 4, 8 and the
 %      runtime
+%   V5 N agent types (phase P6), toy, 8 origins: the switching variant with RE
+%      and BR spelled out = the two-type variant; {RE, BR, TB} gets its own
+%      real-time RE filter (not the two-type one) and its forecasts equal
+%      separate real-time runs (first and last origin)
 %   Results go to tests/output/results/ (not the project results/).
 
 if nargin < 1 || isempty(part)
@@ -250,6 +254,44 @@ try
 catch err
     R = add(R, 'evaluate V3: real time: data changed after the origin leave its forecast unchanged; data at the origin change it', ...
         false, err.message);
+end
+
+% ---- V5: N agent types (phase P6) ------------------------------------------------------------------
+nm = ['evaluate V5: N agent types: the switching variant with RE and BR spelled out = the two-type variant (<= 1e-9); ' ...
+    '{RE, BR, TB} gets its own real-time RE filter, its forecasts = separate real-time runs (<= 1e-9)'];
+try
+    T = @(varargin) struct(varargin{:});
+    cP = cSW;
+    cP.id = 'toy_ev_pair';
+    cP.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm')};
+    cT = cSW;
+    cT.id = 'toy_ev_tb';
+    cT.expectations.types = [cP.expectations.types, {T('name', 'TB', 'kind', 'rule', 'rule', '0')}];
+    cT.shares.init = struct('RE', 0.4, 'BR', 0.4, 'TB', 0.2);
+    o5 = [qq(2019, 1), qq(2020, 4)];
+    E5 = hetlearn.evaluate('toy_v5', {cSW, cP, cT}, o5, struct('horizon', H, 'quiet', true, 'save', false));
+    F5 = E5.forecasts;
+    dPair = max(abs(F5.toy_ev_sw(:) - F5.toy_ev_pair(:)));
+    od = hetlearn.util.to_dates(o5);
+    od = od(1):od(end);
+    dTB = 0;
+    for i = [1, numel(od)]
+        c = cT;
+        c.forecast.origin = od(i);
+        c.forecast.horizon = H;
+        c.history.realtime = true;
+        r = hetlearn.run(c, 'save', false, 'quiet', true);
+        for k = 1:numel(E5.observables)
+            f = reshape(r.paths.(E5.observables{k})(od(i) + (1:H)), 1, []);
+            dTB = max(dTB, max(abs(f - F5.toy_ev_tb(i, :, k))));
+        end
+    end
+    nF = height(E5.settings.failures);
+    ok = dPair <= 1e-9 && dTB <= 1e-9 && nF == 0 && all(isfinite(F5.toy_ev_tb(:)));
+    R = add(R, nm, ok, sprintf('%d origins: pair vs two-type %.3g; TB vs separate runs (2 origins) %.3g; %d failures', ...
+        numel(od), dPair, dTB, nF));
+catch err
+    R = add(R, nm, false, sprintf('%s (%s, line %d)', err.message, err.stack(1).name, err.stack(1).line));
 end
 end
 
