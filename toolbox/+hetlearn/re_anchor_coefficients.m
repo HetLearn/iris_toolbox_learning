@@ -62,7 +62,14 @@ function [A, info] = re_anchor_coefficients(spec, P, varargin)
 %   info also holds .re_info, .cz (C_z), .k_full/.c_full (on xb_{t-1} of
 %   'model'), .xb (its xbVector) and .fixed_point_rcond.
 %
-%   See also hetlearn.extend_model, hetlearn.load_model, hetlearn.plm.anchor_names.
+%   Since phase P4 (DESIGN_br_extensions 1.4, 2026-10-21) this is a wrapper:
+%   the coefficients and the check come from hetlearn.anchor_coefficients
+%   (j = 0, h = 1 on the original model; j = 1, h = 1 with the chain x_REt2 on
+%   the lagged RE model), computed with the same operations, so A and info are
+%   unchanged.
+%
+%   See also hetlearn.anchor_coefficients, hetlearn.extend_model, hetlearn.load_model,
+%   hetlearn.plm.anchor_names.
 
 ip = inputParser;
 ip.addParameter('vars', {});
@@ -124,82 +131,34 @@ if isempty(mo)
 end
 mo = sstate(mo);
 
-% ---- coefficients from the state-space form ---------------------------------------------
-xv = cellstr(get(mo, 'xVector'));
+
+% ---- coefficients: hetlearn.anchor_coefficients, j = 0, h = 1 (DESIGN 11) -------------------
 states = reshape(cellstr(get(mo, 'xbVector')), 1, []);
 if ~isempty(o.states) && ~isequal(reshape(cellstr(o.states), 1, []), states)
     error('hetlearn:anchor:stale', ...
         ['The state vector of the original model differs from the one in the generated ' ...
         'file (regenerate with hetlearn.extend_model(..., ''force'', true)).']);
 end
-[T, ~, K] = sspace(mo, 'triangular', false);
-T = T(:, :, 1);
-K = K(:, 1, 1);
-if size(T, 2) ~= numel(states)
-    error('hetlearn:anchor:size', 'sspace: %d state columns but %d xb names.', size(T, 2), numel(states));
+xv = cellstr(get(mo, 'xVector'));
+for i = 1:numel(vars)
+    if ~any(strcmp(xv, vars{i}))
+        error('hetlearn:anchor:noVar', '%s is not a transition variable of the original model.', vars{i});
+    end
 end
+[Rc, ic] = hetlearn.anchor_coefficients(mo, vars, states, 'lag', 0, 'horizon', 1, ...
+    'check', logical(o.check) && ~isempty(vars), 'tol', o.tol, 'what', 'anchored RE forecast');
 A = struct();
 info = struct('states', {states}, 'vars', {vars}, 'k', struct(), 'c', struct(), ...
-    'param_names', struct(), 'check_maxdiff', NaN);
+    'param_names', struct(), 'check_maxdiff', ic.check_maxdiff);
 for i = 1:numel(vars)
     x = vars{i};
-    pos = find(strcmp(xv, x), 1);
-    if isempty(pos)
-        error('hetlearn:anchor:noVar', '%s is not a transition variable of the original model.', x);
-    end
     pn = hetlearn.plm.anchor_names(x, states);
-    info.k.(x) = K(pos);
-    info.c.(x) = T(pos, :)';
+    info.k.(x) = Rc.k(i);
+    info.c.(x) = Rc.C(i, :)';
     info.param_names.(x) = pn;
-    A.(pn{1}) = K(pos);
+    A.(pn{1}) = Rc.k(i);
     for j = 1:numel(states)
-        A.(pn{1 + j}) = T(pos, j);
-    end
-end
-
-% ---- unit-perturbation check -----------------------------------------------------------------
-if logical(o.check) && ~isempty(vars)
-    [~, sv, sl] = hetlearn.plm.anchor_names(vars{1}, states);
-    nb = numel(states);
-    nc = nb + 1;
-    L = max([sl, 0]);
-    t0 = qq(2000, 4);
-    rng = t0 - L : t0 + 1;
-    db = struct();
-    xl = cellstr(get(mo, 'xList'));
-    el = cellstr(get(mo, 'eList'));
-    Z = zeros(numel(rng), nc);
-    for i = 1:numel(xl)
-        X = Z;
-        if any(strcmp(sv, xl{i}))
-            for j = find(strcmp(sv, xl{i}))
-                X(L + 1 - sl(j), 1 + j) = 1;     % row of date t0 - lag
-            end
-        end
-        db.(xl{i}) = Series(rng(1), X);
-    end
-    for i = 1:numel(el)
-        db.(el{i}) = Series(rng(1), Z);
-    end
-    s = simulate(mo, db, t0 + 1 : t0 + 1, 'prependInput', true, 'anticipate', false);
-    worst = 0;
-    for i = 1:numel(vars)
-        x = vars{i};
-        v = reshape(s.(x)(t0 + 1), 1, []);
-        if numel(v) ~= nc
-            error('hetlearn:anchor:check', 'Unit-perturbation simulation returned %d columns, expected %d.', numel(v), nc);
-        end
-        kx = info.k.(x);
-        cx = info.c.(x)';
-        dk = abs(v(1) - kx) / max(1, abs(kx));
-        dc = abs((v(2:end) - v(1)) - cx) ./ max(1, abs(cx));
-        worst = max([worst, dk, dc]);
-    end
-    info.check_maxdiff = worst;
-    if ~(worst < o.tol)
-        error('hetlearn:anchor:check', ...
-            ['Anchored RE coefficients from sspace differ from the unit-perturbation ' ...
-            'simulations by %.3g (tolerance %g).'], worst, o.tol);
+        A.(pn{1 + j}) = Rc.C(i, j);
     end
 end
 end
@@ -207,7 +166,8 @@ end
 
 % =========================================================================
 function [A, info] = lagged_coefficients(o)
-% Anchored coefficients with information up to t-1 (DESIGN 19).
+% Anchored coefficients with information up to t-1 (DESIGN 19): hetlearn.anchor_coefficients with
+% j = 1, h = 1 and the lagged RE chain x_REt2 of each learning variable as its lag-0 chain state.
 mo = o.model;
 if isempty(mo)
     error('hetlearn:anchor:lagged', ['re_info = ''lagged'' needs ''model'': the solved model-consistent ' ...
@@ -218,122 +178,40 @@ states = reshape(cellstr(o.states), 1, []);
 if isempty(vars) || isempty(states)
     error('hetlearn:anchor:lagged', 're_info = ''lagged'' needs ''vars'' (the learning set) and ''states''.');
 end
-xv = cellstr(get(mo, 'xVector'));
 xb = reshape(cellstr(get(mo, 'xbVector')), 1, []);
-nx = numel(xv);
-nb = numel(xb);
-nf = nx - nb;
-[T, ~, K] = sspace(mo, 'triangular', false);
-T = T(:, :, 1);
-K = K(:, 1, 1);
-if size(T, 1) ~= nx || size(T, 2) ~= nb
-    error('hetlearn:anchor:size', 'sspace: %d x %d transition matrix for %d x %d names.', size(T, 1), size(T, 2), nx, nb);
-end
-Tb = T(nf+1:end, :);
-Kb = K(nf+1:end);
-nL = numel(vars);
-kf = zeros(nL, 1);
-Cf = zeros(nL, nb);
-for i = 1:nL
-    pos = find(strcmp(xv, vars{i}), 1);
-    if isempty(pos)
-        error('hetlearn:anchor:noVar', '%s is not a transition variable of the lagged RE model.', vars{i});
-    end
-    Cf(i, :) = T(pos, :) * Tb;               % E_{t-1} x_{t+1} on xb_{t-1}
-    kf(i) = T(pos, :) * Kb + K(pos);
-end
-% columns: original states, chain states (x_REt2 of each learning variable), the rest
-iS = zeros(1, numel(states));
 for j = 1:numel(states)
-    q = find(strcmp(xb, states{j}), 1);
-    if isempty(q)
+    if ~any(strcmp(xb, states{j}))
         error('hetlearn:anchor:lagged', 'State %s of the original model is not a state of the lagged RE model.', states{j});
     end
-    iS(j) = q;
 end
-iZ = zeros(1, nL);
+nL = numel(vars);
+ch = struct('state', cell(1, nL), 'target', cell(1, nL), 'lag', cell(1, nL));
 for i = 1:nL
     if ~isfield(o.chain, vars{i})
         error('hetlearn:anchor:lagged', 'No lagged RE chain for %s (meta.re_chain).', vars{i});
     end
-    z = o.chain.(vars{i}){2};
-    q = find(strcmp(xb, z), 1);
-    if isempty(q)
-        error('hetlearn:anchor:lagged', 'The chain state %s is not a state of the lagged RE model.', z);
-    end
-    iZ(i) = q;
+    ch(i) = struct('state', o.chain.(vars{i}){2}, 'target', i, 'lag', 0);
 end
-iO = setdiff(1:nb, [iS, iZ]);
-big = max([0, max(max(abs(Cf(:, iO))))]);
-if big >= 1e-12
-    [~, w] = max(max(abs(Cf(:, iO)), [], 1));
-    error('hetlearn:anchor:lagged', ['The lagged RE forecast loads on %s (coefficient %.3g), a state that is ' ...
-        'neither an original state nor a lagged RE chain state.'], xb{iO(w)}, big);
-end
-Cs = Cf(:, iS);
-Cz = Cf(:, iZ);
-M = eye(nL) - Cz;
-rc = rcond(M);
-if ~(rc > 1e-12)
-    error('hetlearn:anchor:lagged', ['I - C_z is singular (rcond %.3g): the RE agents'' own lagged forecasts ' ...
-        'do not pin down the anchored forecast.'], rc);
-end
-kt = M \ kf;
-Ct = M \ Cs;
+[Rc, ic] = hetlearn.anchor_coefficients(mo, vars, states, 'lag', 1, 'horizon', 1, 'chain', ch, ...
+    'check', logical(o.check), 'tol', o.tol, 'error_id', 'hetlearn:anchor:lagged', ...
+    'what', 'lagged RE forecast');
 A = struct();
 info = struct('states', {states}, 'vars', {vars}, 'k', struct(), 'c', struct(), ...
-    'param_names', struct(), 'check_maxdiff', NaN, 're_info', 'lagged', 'cz', Cz, ...
-    'k_full', kf, 'c_full', Cf, 'xb', {xb}, 'fixed_point_rcond', rc);
+    'param_names', struct(), 'check_maxdiff', ic.check_maxdiff, 're_info', 'lagged', 'cz', ic.cz, ...
+    'k_full', ic.k_full, 'c_full', ic.c_full, 'xb', {ic.xb}, 'fixed_point_rcond', ic.fixed_point_rcond);
 for i = 1:nL
     x = vars{i};
     pn = hetlearn.plm.anchor_names(x, states);
-    info.k.(x) = kt(i);
-    info.c.(x) = Ct(i, :)';
+    info.k.(x) = Rc.k(i);
+    info.c.(x) = Rc.C(i, :)';
     info.param_names.(x) = pn;
-    A.(pn{1}) = kt(i);
+    A.(pn{1}) = Rc.k(i);
     for j = 1:numel(states)
-        A.(pn{1 + j}) = Ct(i, j);
-    end
-end
-% ---- check: two-period simulations from each unit state, zero shocks ------------------
-if logical(o.check)
-    [~, sv, sl] = hetlearn.plm.anchor_names(vars{1}, xb);
-    nc = nb + 1;
-    Lg = max([sl, 0]);
-    t0 = qq(2000, 4);
-    rng = t0 - Lg : t0 + 2;
-    db = struct();
-    xl = cellstr(get(mo, 'xList'));
-    el = cellstr(get(mo, 'eList'));
-    Z0 = zeros(numel(rng), nc);
-    for i = 1:numel(xl)
-        X = Z0;
-        for j = find(strcmp(sv, xl{i}))
-            X(Lg + 1 - sl(j), 1 + j) = 1;        % row of date t0 - lag
-        end
-        db.(xl{i}) = Series(rng(1), X);
-    end
-    for i = 1:numel(el)
-        db.(el{i}) = Series(rng(1), Z0);
-    end
-    s = simulate(mo, db, t0 + 1 : t0 + 2, 'prependInput', true, 'anticipate', false);
-    worst = 0;
-    for i = 1:nL
-        v = reshape(s.(vars{i})(t0 + 2), 1, []);
-        if numel(v) ~= nc
-            error('hetlearn:anchor:check', 'Unit-perturbation simulation returned %d columns, expected %d.', numel(v), nc);
-        end
-        dk = abs(v(1) - kf(i)) / max(1, abs(kf(i)));
-        dc = abs((v(2:end) - v(1)) - Cf(i, :)) ./ max(1, abs(Cf(i, :)));
-        worst = max([worst, dk, dc]);
-    end
-    info.check_maxdiff = worst;
-    if ~(worst < o.tol)
-        error('hetlearn:anchor:check', ['Lagged anchored RE coefficients from sspace differ from the two-period ' ...
-            'unit-perturbation simulations by %.3g (tolerance %g).'], worst, o.tol);
+        A.(pn{1 + j}) = Rc.C(i, j);
     end
 end
 end
+
 
 
 function P = call_params(spec)
