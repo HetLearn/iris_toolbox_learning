@@ -1,0 +1,22 @@
+% ah.model: Anufriev and Hommes (2012) asset-pricing economy (tests/test_ntypes.m).
+% Market clearing p_t = (p^e_{t+1} + ybar)/(1 + r) + eps_t, fundamental price p^f = ybar/r = 60,
+% written in deviations from p^f; the price is observed as p_obs = pf + p.
+
+!transition_variables
+    "Price, deviation from the fundamental price" p
+
+!transition_shocks
+    "Price noise" e
+
+!parameters
+    "Interest rate" r
+    "Fundamental price ybar/r" pf
+
+!measurement_variables
+    "Price" p_obs
+
+!transition_equations
+    "Market clearing" p = p{+1}/(1 + r) + e;
+
+!measurement_equations
+    p_obs = pf + p;
