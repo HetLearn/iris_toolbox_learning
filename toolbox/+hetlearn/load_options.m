@@ -522,9 +522,7 @@ end
 if ~isstruct(o.beliefs.init.values)
     error('hetlearn:options:type', 'Option "beliefs.init.values" must be a struct.');
 end
-if ~strcmp(o.gain.rule, 'decreasing')      % 'decreasing': planned (P5), reported by not_implemented
-    fn(o.gain.rule, 'gain');
-end
+fn(o.gain.rule, 'gain');
 num(o.gain.value, @(x) x > 0 && x <= 1, 'gain.value', 'in (0, 1]');
 num(o.gain.decreasing.n0, @(x) x >= 1 && isfinite(x), 'gain.decreasing.n0', '>= 1');
 if ~isstruct(o.gain.by_var)
@@ -630,9 +628,6 @@ function not_implemented(o)
 % yet. A phase deletes its own lines when it lands (section 6 of the design).
 T = o.expectations.types;
 L = {};
-if ~isempty(o.expectations.transforms)
-    L(end+1, :) = {'expectations.transforms', 'P3'};
-end
 kinds = {T.kind};
 if any(strcmp(kinds, 'level'))
     L(end+1, :) = {'types of kind ''level''', 'P4'};
@@ -642,21 +637,6 @@ if any(strcmp(kinds, 're_mean'))
 end
 if any(cellfun(@(e) ~isempty(regexp(e, '\<re1\s*\(', 'once')), arrayfun(@rule_expr, T, 'UniformOutput', false)))
     L(end+1, :) = {'rule term re1(...)', 'P4'};
-end
-ups = [{o.beliefs.update}, {T.update}];
-for u = {'sac', 'kf'}
-    if any(strcmp(ups, u{1}))
-        L(end+1, :) = {sprintf('beliefs.update = ''%s''', u{1}), 'P5'}; %#ok<AGROW>
-    end
-end
-gr = {o.gain.rule};
-for i = 1:numel(T)
-    if isstruct(T(i).gain) && isfield(T(i).gain, 'rule')
-        gr{end+1} = T(i).gain.rule; %#ok<AGROW>
-    end
-end
-if any(strcmp(gr, 'decreasing'))
-    L(end+1, :) = {'gain.rule = ''decreasing''', 'P5'};
 end
 if ~isempty(L)
     items = cellfun(@(a, b) sprintf('%s (phase %s)', a, b), L(:, 1), L(:, 2), 'UniformOutput', false);
@@ -818,9 +798,7 @@ try
     q.koz.structure = tochar(q.koz.structure, 'gain.koz.structure');
     q.koz.error = tochar(q.koz.error, 'gain.koz.error');
     q.koz.master = tocell(q.koz.master, 'gain.koz.master');
-    if ~strcmp(q.rule, 'decreasing')
-        fn(q.rule, 'gain');
-    end
+    fn(q.rule, 'gain');
     num(q.value, @(x) x > 0 && x <= 1, 'gain.value', 'in (0, 1]');
     num(q.decreasing.n0, @(x) x >= 1 && isfinite(x), 'gain.decreasing.n0', '>= 1');
     ot = o;
