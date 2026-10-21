@@ -40,6 +40,8 @@ suites = {'test_options', 'test_rls', 'test_switching', 'test_plm', 'test_genera
     'test_facility', ...  % test_facility: projection facility (DESIGN 4.4; unit systems and toy, about 30 s)
     'test_re_states', ... % test_re_states: history.re_states 'smoothed' | 'filtered' (DESIGN 5.2; toy + SW07 runs, about 2 min)
     'test_re_info', ...   % test_re_info: expectations.re_info (DESIGN 19; about 8 min, or one part: see below)
+    'test_kalman', ...    % test_kalman: history.mode = 'kalman', gates K1-K4 (DESIGN_br_extensions 5; SW07 runs, about 2 min)
+    'test_ntypes', ...    % test_ntypes: N agent types, R3 and the P2 gates (DESIGN_br_extensions 1.1-1.2; toy, AH, SW07 runs, about 2 min)
     'test_br_regression'}; % test_br_regression: frozen regression gate of the bounded-rationality extensions
 % test_re_info: 'current' | 'lagged'; test_re_info('toy' | 'sw07_model' | 'sw07_runs' | 'sw07_stages') runs one
 %   part at a time. test_br_regression (docs/DESIGN_br_extensions.md 1.7): R1 generated files, R2 30 runs exact,
