@@ -139,10 +139,14 @@ for i = 1:numel(sys.eq)
     end
 end
 rec.var = struct();
+fl = {'n_', 'n_model_', 'U_', 'FE_', 'f_'};
+if isfield(nt, 'has_tf') && nt.has_tf
+    fl{end+1} = 'fb_';            % forecast before the transforms (phase P4); f_ is the transformed one
+end
 for i = 1:numel(ctx.learnVars)
     x = ctx.learnVars{i};
     for k = ctx.nt.byvar.(x).names
-        for f = {'n_', 'n_model_', 'U_', 'FE_', 'f_'}
+        for f = fl
             rec.var.(x).([f{1} k{1}]) = NaN(1, T);
         end
     end
@@ -189,6 +193,9 @@ for i = 1:numel(ctx.learnVars)
         end
         r.(['FE_' kn])(k) = out.FE.(x).(kn);
         r.(['f_' kn])(k) = S.f.(x).(kn);
+        if isfield(r, ['fb_' kn]) && isfield(S, 'fb') && isfield(S.fb, x)
+            r.(['fb_' kn])(k) = S.fb.(x).(kn);
+        end
         if ~isempty(n1m)
             r.(['n_model_' kn])(k) = n1m.(x)(jj);
         end
