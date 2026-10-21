@@ -101,6 +101,11 @@ hinfo = alm_info();
 if ~logical(ctx.opts.history.learn)
     t = ctx.origin;
     getVal = @(name, k) sm.(name)(t + k);
+    if hetlearn.engine.ntypes('on', ctx)       % N agent types (DESIGN_br_extensions 1.1)
+        S = hetlearn.engine.ntypes('store', ctx, S, hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'history', t));
+        rec = hetlearn.engine.record(rec, 1, ctx, S, hetlearn.engine.ntypes('no_update', ctx), []);
+        return
+    end
     for i = 1:numel(lv)
         x = lv{i};
         S.fRE.(x) = sm.([x '_exp1_RE'])(t);
@@ -168,12 +173,17 @@ origin = double(ctx.origin);
 for k = 1:numel(dates)
     t = dates(k);
     getVal = @(name, j) sm.(name)(t + j);
-    fRE = struct();
-    fBR = struct();
-    for i = 1:numel(lv)
-        x = lv{i};
-        fRE.(x) = sm.([x '_exp1_RE'])(t);
-        fBR.(x) = hetlearn.plm.forecast_value(sys, S.phi, getVal, x);
+    if hetlearn.engine.ntypes('on', ctx)       % N agent types: every type's forecast (DESIGN_br_extensions 1.1)
+        fRE = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'history', t);
+        fBR = [];
+    else
+        fRE = struct();
+        fBR = struct();
+        for i = 1:numel(lv)
+            x = lv{i};
+            fRE.(x) = sm.([x '_exp1_RE'])(t);
+            fBR.(x) = hetlearn.plm.forecast_value(sys, S.phi, getVal, x);
+        end
     end
     A = [];
     atOrigin = abs(double(t) - origin) < 1e-6;
