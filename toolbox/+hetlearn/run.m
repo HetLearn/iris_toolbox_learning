@@ -130,6 +130,7 @@ res.meta.runtime_s = toc(tAll);
 if logical(ip.Results.save)
     out = hetlearn.engine.save_results(res, spec, ip.Results.results_dir);
     hetlearn.policy.write_loss(res.loss, out);          % loss.csv (DESIGN 13)
+    hetlearn.engine.kalman_history('write', res, out);  % kalman_errors.csv (history.mode 'kalman'; else a stale one is deleted)
     res.meta.runtime_s = toc(tAll);
     if ~quiet
         fprintf('  saved %s (%.1f s)\n', out, res.meta.runtime_s);
