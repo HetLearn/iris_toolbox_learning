@@ -1,14 +1,23 @@
-function sys = build_system(plm, learnVars, allVarNames, info)
+function sys = build_system(plm, learnVars, allVarNames, info, suffix)
 %BUILD_SYSTEM  Normalise a PLM spec and build the closed PLM system (DESIGN 4.2, 12).
 %
 %   sys = hetlearn.plm.build_system(plm, learnVars, allVarNames)
 %   sys = hetlearn.plm.build_system(plm, learnVars, allVarNames, info)
+%   sys = hetlearn.plm.build_system(plm, learnVars, allVarNames, info, suffix)
 %
 %   info (optional, default 'lagged') is the BR information set,
 %   beliefs.info: 'lagged' (data up to t-1) or 'current' (period-t data,
 %   IJCB eq. 12). It is recorded as sys.info, which hetlearn.plm.forecast_expr
 %   and hetlearn.plm.forecast_value use by default; the equations, RLS
 %   regressors and companion matrix do not depend on it.
+%
+%   suffix (optional, default '' = none): the name of an agent type
+%   (expectations.types, DESIGN_br_extensions 1.1). Every parameter name gets
+%   '__<suffix>' appended (alpha_pinf__BR, beta_pinf__BR,
+%   beta_pinf__w_l2__BR), so that several learning types can hold their own
+%   beliefs in one model; sys.suffix records it. Targets, regressors and
+%   everything else are unchanged. Without a suffix the output has no field
+%   suffix and is the same as before (2026-10-20).
 %
 %   Inputs
 %     plm          PLM spec: a shorthand char ('ar1' | 'ar2' | 'ar1_noconst' |
@@ -167,6 +176,14 @@ if ~any(strcmp(info, {'lagged', 'current'}))
     error('hetlearn:plm:info', 'beliefs.info must be ''lagged'' or ''current'' (got ''%s'').', info);
 end
 sys.info = info;
+if nargin >= 5 && ~isempty(suffix)
+    % agent type (DESIGN_br_extensions 1.1): type-suffixed parameter names
+    suffix = char(suffix);
+    for i = 1:numel(sys.eq)
+        sys.eq(i).param_names = strcat(sys.eq(i).param_names, ['__' suffix]);
+    end
+    sys.suffix = suffix;
+end
 end
 
 
@@ -319,9 +336,11 @@ for j = 1:numel(regs)
     e.reg_names{end+1} = tok{1};
     e.reg_lags(end+1) = l;
 end
-key = strcat(e.reg_names, '_', arrayfun(@num2str, e.reg_lags, 'UniformOutput', false));
-if numel(unique(key)) < numel(key)
-    error('hetlearn:plm:regressor', 'Duplicate PLM regressors for %s.', x);
+if ~isempty(e.reg_names)       % (a mean-only PLM, regressors {}, has none: 2026-10-21 fix, strcat failed)
+    key = strcat(e.reg_names, '_', arrayfun(@num2str, e.reg_lags, 'UniformOutput', false));
+    if numel(unique(key)) < numel(key)
+        error('hetlearn:plm:regressor', 'Duplicate PLM regressors for %s.', x);
+    end
 end
 if ~e.constant && isempty(e.reg_names)
     error('hetlearn:plm:empty', 'The PLM for %s has neither a constant nor regressors.', x);
