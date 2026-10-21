@@ -833,6 +833,181 @@ edit `defaults.m` or `load_options.m` beyond deleting their own guard lines.
   guarded options, the header of `test_br_regression.m` (R3 lives in `test_ntypes.m`), and the
   helper `struct2cell_or_empty` in `load_options.m`, unused since its only caller was a P2 guard.
 
+**P3 done (2026-10-21).** Forecast transforms (E3) run through the generator and `load_model`; no
+engine file changed.
+- Options: `expectations.transforms`, all five kinds. The P3 guard is gone from `load_options.m`;
+  `test_options` BR2 expects br04, 05a, 05b, 06, 07, 10, 18, 29 and 31 to load. Without
+  `expectations.types`, `agent_types` spells out the default pair (RE `'re'`, BR `'plm'`), so a
+  transform always takes the N-type writer.
+- Generator version 7 (`extend_model(..., 'types', ..., 'transforms', ...)`, `<name>_ext_n<hash>.model`,
+  key = types plus the transforms' structure). Every factor is a parameter `tf<i>_*` that
+  `load_model` sets from the options, so values do not regenerate the file (05a and 06 share one).
+  Learning branch: `x_exp1 = sum_k n_k_x*T_k(x_exp1_<k>)`, the type forecasts `x_exp1_<k>` stay
+  untransformed; outside the learning set `x_exp1 = T(x{+1})`. Several transforms on one
+  expectation apply in list order. Scope `'learning'` acts in the learning branch of every forward
+  variable, `'all'` and named variables in both branches (minus `exclude`); outside the learning
+  set a transform acts when its types are `'all'` or include RE. `'x@<label>'` writes a copy
+  `x_exp1__<tag>` (tag = initials of the label up to its first comma: pc, wpc, cee, aeftvoc) that
+  replaces x{+1} in that equation only and carries the global transforms of x plus its own. The
+  aggregate x_exp1 stays; when copies cover every equation of x (variant 04) the model does not use
+  it, and `res.paths.pinf_exp1` is then the untransformed aggregate. Only t+1 expectations are
+  transformed (x_expk, k >= 2, keep the chain).
+- Text by kind. Multiplier: `tf<i>_D__<k>*f` per type, D(h) with h = 2 under t-1 information (m^h,
+  lambda, 1/(1 + alpha h)), `tf<i>_d1` for the model-consistent expectations. Myopia:
+  `omega*f + b*x{-1}`. Diagnostic: `(1 + theta)*f - theta*f_ref`, f_ref = `x_REt2{-1}` for period-t
+  types and the model-consistent expectations (chain x_REt1, x_REt2 written where missing) and
+  `x_REt3{-2}` for t-1 types (one more chain element beside the lagged RE chain). Partial
+  adjustment: a state `<x>_pa<i>_<k>` (`_0` outside the learning set). Wedge: `f + mu + lam_x*xi`,
+  `xi_<shock> = rho*xi_<shock>{-1} + <shock>` with the shock declared in the block and
+  `std_<shock>` set by `load_model`; a constant wedge (std 0, no shock) adds mu only.
+- Not built in P3, left out of the type's forecast and refused by `load_model` when the variable
+  learns (`meta.transforms.blocked`): a diagnostic of a learned or rule type (reference not
+  built) or of an explicitly anchored RE type, partial adjustment of a learned or rule type (its
+  state would start the forecast from the RE-limit history). A diagnostic on the RE type that
+  follows `re_variant` is written in the model-consistent branch only (`meta.transforms.deferred`)
+  and refused under `re_variant = 'anchored'` (P4).
+- `load_model` (D11). The anchor economy is the same file at n_RE = 1, `re_anchored` false, every
+  wedge loading 0 (means kept): `re_anchor_coefficients('lagged')` on it, or with period-t
+  information the coefficients of its state space on the original states (new local
+  `tf_anchor_current`; without transforms the source model is used as before). The IRFs of the
+  anchored and the model-consistent RE limits must agree on every shock but the wedge shocks
+  (1e-10; `info.re_info_check`, `info.re_transform_check`). If the anchored forecast loads on a state
+  that a transform adds (diagnostic memory of other variables, partial-adjustment states), the run
+  stops with a message naming P4. Model values: `model:sd_ygap_half` (mean, sd(y - yf)/2) and
+  `model:projection` (loadings, Cov(z, y)/Var(y)) from the wedge-free RE limit by IRIS `acf`;
+  `model:acd51` (std) from the RE limit with the loadings, `acf` with `Filter 'per>=6 & per<=32'`,
+  contributions by shock, NFreq 2048, sigma^2 = 0.51/0.49 * V_other/V_xi. Recorded in
+  `res.meta.model_values` (`.sd_ygap_half`, `.projection`, `.acd51`, `.transforms` with every
+  factor). The factors enter `info.params`, so the RE filter's cache key separates them.
+- Fitness, as 1.1 is written: the forecasts that the engine reads, assesses and records (f_<k>,
+  FE_<k>) are the untransformed `x_exp1_<k>`; the transforms act in the aggregate that enters the
+  model. Consequence for 18: OPT and PES have the same base forecast, so their fitness is equal and
+  their shares stay at 0.5 (c's expectation is then model-consistent exactly). Fitness on
+  transformed forecasts needs an engine change: `ntypes('forecasts')` applying each type's global
+  transform (multiplier, myopia and wedge from the databank; partial adjustment and diagnostic need
+  state). Left to the main session (decision).
+- Gates, `tests/test_transforms.m` (31 checks, about 3 min; registered before `test_br_regression`).
+  N1-N8 each kind at its neutral value (m = 1, lambda = 1 with copies, alpha = 0, myopia [1 0],
+  theta = 0, g = 1, wedge std 0, De Grauwe means 0) on the baseline = its RE limit (IRFs 0 to
+  3.7e-13, the anchored = model-consistent check 1.9e-13 to 3.8e-13); N9 period-t anchored: m = 1
+  equals the source-model anchor. H1-H7 generated = hand-written (the prototype's text edits, built
+  in the test from `sw07.model`): CD 0.62, GHL shallow reasoning with four copies, hyperbolic
+  0.176, DE 0.44, myopia (0.52, 0.4343), DE with inflation RE(t-1) (`pinf_REt3{-2}`) and partial
+  adjustment 0.6 (pinf's RE type and the model-consistent w; 0.6 on c has no stable solution):
+  1.2e-13 to 8.1e-13; the hand models reproduce the impact responses of `proto3.log`. C1 equal copies = one
+  global multiplier (3.8e-13); C2 the copies replace pinf{+1} in their four equations only; C3 bad
+  labels rejected. W1 e_wpinf enters with std 0.182, impact of pinf_exp1 = sigma, xi at h = 2 =
+  rho*sigma; W2 = a hand-written AR(1) wedge model (2.9e-13); W3 a 2019Q4 forecast run with
+  `shocks.add` moves pinf_exp1 by 0.182 on impact; W4 loadings c 0.8157, inve 1.7491, lab 0.4139
+  (independent Lyapunov 3e-13), std 0.2446 gives a band share of 0.51001 by Simpson on the transfer
+  function. V1 g = 2.160 (sd(y - yf) 4.32, independent Lyapunov), equal OPT/PES shares = OPT alone
+  without bias (4.5e-13, steady state 0). E1 seven settings stop with their errors. R4a-f (R4):
+  the baseline run with a transform at its identity value against the two-type run, both on the
+  transform model's RE filter: 0 for the multiplier without copies; where the transform adds model
+  variables (copies, chains, states, the wedge factor) learning <= 5.9e-13, final state <= 1.9e-13,
+  paths <= 5.8e-12 (IRIS solves a larger system, as test_ntypes H1). On their own fresh filters:
+  paths <= 1.6e-11, learning <= 1.4e-12. Whole suite at the default thread count
+  (`test_generator` alone, `test_re_info` alone, the rest in two sessions): 388 checks in 24
+  suites, all pass; `test_br_regression` exact (R1 byte-identical, R2 max diff 0), `test_ntypes` R3
+  max diff 0. The first pass failed only H7, then set with g = 0.6 on c as well (no stable
+  solution); H7 now uses pinf and w.
+- Application 1 (live baseline, `a1_learn` plus the section 3 changes, not saved; average
+  inflation 2022Q3-2026Q2 annualised, shares at the end of 2022Q2): baseline 3.45% (BR 0.591); 04
+  6.71% (RE 0.395, BR 0.605); 05a 4.60% (0.319, 0.681); 05b 4.01% (0.415, 0.585); 06 4.92% (0.362,
+  0.638); 07 3.42% (0.483, 0.517); 10 is refused as defined (anchored RE: P4) and its
+  model-consistent part (`re_variant = 'model_consistent'`) stops under facility `'none'` in 2022Q3
+  (forecast stage, NO_STABLE; shares in force RE 0.429, BR 0.571, beta 1.059; the baseline with
+  model-consistent RE, `v1_mc_learn`, stops at the same date); 18 5.72% (c: OPT 0.500, PES 0.500;
+  pinf: TAR 0.215, EXT 0.785; g = 2.16, a 2.16% bias on expected consumption); 29 stops in 2023Q2
+  (NO_STABLE; RE 0.189, BR 0.811 at 2022Q2, BR 0.998 and beta 1.146 by 2023Q1; the RE filter puts
+  xi = 0.34 into the 2022Q2 state); 31 3.07% (RE 0.432, BR 0.568; std of e_xi 0.245).
+- Known limits: with `re_info = 'current'` the RE filter loads every forward variable as learning
+  (`re_filter`), so a transform with scope `'learning'` acts on all of them in the filter model but
+  only on the learning set in the run; the Kalman history refuses N types and so transforms.
+- Not done: the anchored diagnostic reference and anchors over transform states (P4), fitness on
+  transformed forecasts (decision above), USER_GUIDE and FEATURES rows (P6), scenario files (P7).
+  For P4, variant 10 needs more than `x_DEg`: in the DE economy the anchored base forecast of pinf
+  loads on the diagnostic memory states of the other expectations (`c_REt2`, `inve_REt2`, ...), so
+  the anchored expression must take those states too; E4 as written in 1.4 refuses a loading
+  outside `states` (E1's second case shows the refusal).
+
+**P5 done (2026-10-21).** SAC learning, Kalman-filter (KF) learning and the decreasing gain (E5)
+run in the engine.
+- New `toolbox/+hetlearn/+rls/sac.m`, `+rls/kf.m`, `+gain/decreasing.m`. The dispatch took four
+  one-line edits of `update_learning.m`, not one: P2 split the update into a two-type and an
+  N-type path, each with its own `'rls'` gate and RLS call. Both gates admit `'sac'` and `'kf'`
+  and both calls send them to `hetlearn.rls.<rule>`; `'rls'` keeps the original call, so default
+  runs are unchanged. P5's guard lines are gone from `load_options.m` (the `'sac'`, `'kf'` and
+  `'decreasing'` entries of `not_implemented`, and the two wrappers that skipped the rule-existence
+  check for `'decreasing'`); the `'re_mean'` guard (`'P4, P5'`) stays. `test_options`: BR2 expects
+  br17, br20, br25a and br25b to load, and "bad gain.rule rejected" uses a rule that does not
+  exist (it used `'decreasing'`).
+- SAC: the recursion of 1.5 with the period's gain. (a, b, R) live in the AR(1) PLM state,
+  phi = [a(1 - b); b] and R = [1, a; a, a^2 + R], so the generated text, the RE-moment initial
+  beliefs, the record and the facility's keep and revert need no change. The PLM must be an AR(1)
+  with a constant on the own lag (`hetlearn:rls:sacPlm`); b outside [-1, 1] is clipped, event
+  `sac_bound`. The batch identity of 2.20 needs HMOZ's finite-sample terms, which 1.5 drops:
+  `sac('step', s, x, xlag, g, x0)` keeps them (*derived*: the factor (1 - g) on e^2 and the term
+  g e (x0 - a_t) in the b update) and with gain 1/(t+1) equals HMOZ 2.6 to 1e-15. The engine runs
+  the form of 1.5. With gain 1/(t+1) that form gives autocovariance over variance computed from
+  the deviations from the running mean rather than the full-sample mean; in the test sample it is
+  0.039 from HMOZ 2.6 at t = 10, 0.016 at t = 100 and 0.0055 at t = 400.
+- KF: the covariance recursion of 1.5, V = gamma^2/(1 - gamma) s2 inv(R0), P0 = gamma s2 inv(R0),
+  R0 the initial moment matrix; gamma = `beliefs.kf.gamma` ([] = `gain.by_var.<x>`, else
+  `gain.value`); s2 a number, or `'re_moments'` = E[x^2] - phi0' R0 phi0 with E[x^2] read from
+  R0 at the own lag (needs the own lag and RE-moment initial beliefs, `hetlearn:rls:kfS2`).
+  State: `S.R.<target>` holds M = gamma s2 inv(P) (M0 = R0, the record's R stays a moment
+  diagonal, keep and revert restore P), `S.kf.<target>` the constants. Two findings. s2 cancels
+  from the beliefs, because V and P scale with it. The step is the RLS step with gain gamma and
+  M_t = (M_{t-1}^-1 + gamma/(1 - gamma) R0^-1)^-1 + gamma z z', so the first update from R0 is
+  the constant-gain RLS step and a mean-only PLM is constant-gain RLS in every period (the RLS
+  limit of 2.25). The gain rule's period gain is not used, but `res.learning.<x>.gain` still
+  records it (under the baseline's KOZ rule an unused KOZ path): P7's 25a/25b files can set
+  `gain.rule = 'constant'`, `gain.value = 0.031` to show gamma there, with the same beliefs.
+- Decreasing gain: 1/(k - 1 + n0) at the k-th update of an equation, i.e. 1/(t - t0 + n0) with
+  t0 = `beliefs.init.date` when every quarter has data (a quarter without data does not count).
+  n0 = 1 gives the sample mean from t0; the gains equal those of the P2 test rule
+  `ah_sample_mean`.
+- Gates, `tests/test_learning_rules.m` (15 checks, 15-30 s; registered before
+  `test_br_regression`). Unit: L1 SAC batch identity (finite-sample form = HMOZ 2.6 over t =
+  1..400: mean 5.6e-16, variance 1.1e-15, autocorrelation 1.0e-15; engine form = its own batch
+  moments 1.1e-15); L2 SAC constant gain = hand loop (1.6e-15); L3 clipping and `sac_bound`, four
+  non-AR(1) PLMs rejected; L4 KF = hand loop of the covariance recursion (2.6e-16 relative); L5
+  RLS limit (z = 1: 2.2e-16 from RLS, gain within 6.9e-18 of gamma; from 50 x P0 the gain reaches
+  gamma to 4.2e-17; first step = RLS 1.4e-16); L6 s2 cancels (1.7e-16), s2 `'re_moments'` of an
+  AR(1) = sigma^2, errors; L7 decreasing gain = hand count (0), n0 = t0 + 1 after OLS gives 1/t
+  exactly and full-sample OLS (5.6e-16). Toy engine: L8 SAC = hand loop (1.4e-14); L9 the bound
+  binds from forced initial beliefs (2 events, = hand loop); L10 KF with AR(2) PLMs = hand loop
+  (4.3e-15); L11 KF on mean-only PLMs = RLS (2.8e-14); L12 s2 `'re_moments'` vs 2.5 (8e-13); L13
+  decreasing gain = running mean (1.8e-15), with n0 = 8 = hand RLS loop (0); L14 RE and BR
+  spelled out with BR `'sac'` or `'kf'` = the two-type runs (0). AH: L15 the LAA anchor on
+  `'decreasing'` = on `ah_sample_mean` (0, three cases). `test_options` 27, `test_ntypes` 20 and
+  `test_br_regression` 14 (R1 byte-identical, R2 max diff 0) pass.
+- Application 1 (live baseline, `a1_learn` plus the section 3 changes, not saved; average
+  inflation 2022Q3-2026Q2 annualised, shares at the end of 2022Q2): baseline 3.45% (BR 0.591); 17
+  with the decreasing LAA anchor 5.45% (ADA 0.256, WTR 0.261, STR 0.236, LAA 0.247; anchor = the
+  sample mean of pinf from 1966Q1, gain 1/226 at 2022Q2; P2's test-rule run gave 5.45%); 20 SAC
+  5.88% (BR 1 in the model, mode 'learning'; autocorrelations at 2022Q2 0.30 (pk) to 0.99 (c),
+  never clipped); 25a stops under facility `'none'` in 2022Q4 (forecast stage, NO_STABLE; largest
+  PLM roots pinf 1.0067 and w 1.0185 after the 2022Q3 update, w already 1.0148 at the origin);
+  25b 5.65% (M1-M5 0.2 each in the model; 35 KF equations plus auxiliary r and y; for pinf M4 =
+  M1). 25b used `beliefs.kf.gamma = 0.031` from mechanism 25: its section 3 row names only
+  `update 'kf'`, and without it gamma would be `gain.value` (0.05).
+- Variant 23 (left to P4, guard kept). Its PLM part needs no new P5 code: abar is a mean-only PLM
+  on the generated target z_t = x_t - x_exp1_RE_{t-1}, and once the `'re_mean'` type has a PLM
+  system (`ty.sys`, `eq.var` = the generated target, parameters with the type suffix, as the
+  rule types' `mean` beliefs) `update_learning` updates it with the type's `update` and `gain`:
+  `'rls'` with the KOZ gain (mechanism 23) or `'decreasing'`; `'kf'` only with a numeric s2 (a
+  mean-only PLM has no own lag); `'sac'` is refused. P4 supplies the generated variable z in the
+  variant's model and in its RE limit (the history databank must hold it, built on the RE
+  forecasts the history uses: the predictions under `'filtered'` RE states), the forecast
+  x_exp1_IO = x_exp1_RE + abar, the type's system and its `ntypes('forecasts')` branch (history:
+  f^RE + abar; model: read and assert), and the removal of the `'re_mean'` guards in
+  `load_options.m` and `agent_types.m` (br23 in `test_options` BR2 then loads).
+- Not done: USER_GUIDE and FEATURES rows (P6), scenario files (P7). Left as they were: the header
+  of `update_learning.m` (describes the 'rls' step only), the `defaults.m` comment that lists P5
+  among the guarded options, and the summary label of `test_options` BR2.
+
 ---------------------------------------------------------------------------------------------
 
 ## 7. Decisions for the main session
