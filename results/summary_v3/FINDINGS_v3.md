@@ -1,5 +1,36 @@
 # Findings, SW07 with anchored RE and learning on inflation (2026-10-18)
 
+> **2026-10-21: projection facility `'alm'`.** The user set `projection.facility = 'alm'` (was
+> `'none'`) in `config/master_options.m`: "impose the projection facility on the actual law of motion
+> across the board". Every other baseline setting is unchanged. Every SW07 run, the decompositions,
+> the evaluation and `build_summary_v3.m` were rerun; `checks_v3.txt` 15 of 15 pass (C8 now expects
+> every run to complete and lists the facility events). The tables, this memo and the report of
+> 2026-10-20 are in `archive/2026-10-21_facility_none/`. Headlines, from `key_numbers.csv`:
+>
+> - Every run completes: 40 of 40 runs, 1380 of 1380 evaluation runs, 500 of 500 draws in both
+>   density cases (on 2026-10-20: `v1_mc_learn`, 5 evaluation origins and 23 mark-up draws stopped).
+> - The facility never acts in the point forecasts of applications 1-6 and variants 2 and 4, so they
+>   are unchanged. App 1: average inflation 2022Q3-2026Q2 3.45% with learning and 2.59% under RE with
+>   t-1 information; learners' end-of-quarter share 0.467 at the end of 2021Q2 and 0.591 at the end
+>   of 2022Q2; AR(1) coefficient 1.061 at the origin (explosive PLM, kept: the facility checks only the
+>   model).
+> - App 5: with mark-up shocks the facility acts in 23 of the 500 learning draws (46 reverts, 13 kept
+>   shares); with every draw in, the average 90% inflation band is 14.59 pp with learning against
+>   4.76 pp under RE (10.85 pp on 2026-10-20 without the 23 stopped draws). Demand shocks unchanged
+>   (1.16 vs 1.18 pp). The price mark-up impulse run completes (beliefs reverted in 2022Q3, 2023Q2-Q4).
+> - Variant 1 (model-consistent RE agents) now has a forecast: the facility reverts the beliefs at the
+>   end of 2022Q2 (beta 1.033, the 2022Q1 value, against 1.061 in `a1_learn`) and in 2023Q1-Q3;
+>   average inflation 8.14% (a boom to 14.02% in 2024Q1, then a bust to -3.72% in 2026Q2).
+> - Variant 3: `v3_all` (now = `v3_all_alm`) 14.50% average inflation (33.48% without a facility),
+>   `plm_alm` 2.72%; the facility acts in 9 of its 16 forecast quarters.
+> - Evaluation: no stops; the relative RMSEs change only for model-consistent RE (inflation, h = 1 / 4
+>   / 8: 0.747 / 1.161 / 1.564, was 0.734 / 0.918 / 1.153 on fewer origins), all agents learn
+>   (0.720 / 1.210 / 1.681, was 0.626 / 0.862 / 1.147) and all 12 variables (0.812 / 1.323 / 1.620);
+>   baseline learning is unchanged at 0.753 / 1.000 / 1.030.
+>
+> The 2026-10-20 note below is kept as written (facility `'none'`); where it reports stops or the
+> 33.48%, the 2026-10-21 note above replaces it.
+
 > **2026-10-20: new baseline.** The project baseline changed on 2026-10-20 (user decision,
 > `config/master_options.m`): the published Smets-Wouters (2007) parameters (1966Q1-2004Q4 mode,
 > `models/sw07/sw07_params_original.m`), t-1 information for both RE agents and learners, filtered RE
@@ -505,8 +536,9 @@ shares and beliefs: average inflation moves by at most 0.03 pp under baseline le
 
 - Baseline (2026-10-20, `config/master_options.m`): published SW07 parameters, t-1 information for
   RE agents and learners, filtered RE values in the history, KOZ gain from 0.05, chi 2, memory 0.8,
-  no projection facility. Two scenario files differ: application 4 sets `expectations.re_info =
-  'current'` (Ramsey policy is not supported with t-1 RE information; the only deviation), and
+  projection facility `'alm'` (user decision 2026-10-21; `'none'` on 2026-10-20). Two scenario
+  files differ: application 4 sets `expectations.re_info = 'current'` (Ramsey policy is not
+  supported with t-1 RE information; the only deviation), and
   `a6_inv_learn` sets `history.re_states = 'smoothed'`, the only value the option check accepts with
   the inversion, which is one-sided already. Under t-1 RE information the RE benchmark is the RE
   model with E_{t-1} pinf_{t+1}, not `models/sw07/sw07.model` (checks C2 and C3b use the hand-written
@@ -517,8 +549,8 @@ shares and beliefs: average inflation moves by at most 0.03 pp under baseline le
   puts part of that level difference into the hours states. The filter still fits every observable.
 - Covid quarters (user decision 2026-10-19): every SW07 observable is NaN in 2020Q1-2020Q3, so the
   RE filter treats them as missing. The learners learn on the filtered values there (the filter's
-  prediction); the evaluation drops those targets (1,680 errors, plus the 280 errors of the five
-  stopped origins); the inversion backs out zero shocks in those quarters and catches up in 2020Q4.
+  prediction); the evaluation drops those targets (1,680 errors; since the facility became `'alm'`
+  every origin runs); the inversion backs out zero shocks in those quarters and catches up in 2020Q4.
 - Share drift to 0.5 with zero shocks: with no new errors both fitness measures decay towards zero,
   so the discrete-choice shares tend to 0.5 by construction (no cost term for RE). The shares near 0.5
   at the end of the zero-shock forecasts are this mechanism, not a finding.
@@ -527,14 +559,22 @@ shares and beliefs: average inflation moves by at most 0.03 pp under baseline le
 - chi = 2 and memory 0.8 are the user's choice of 2026-10-20. The previous baseline used IJCB's
   estimates, 0.51 and 0.6; with chi = 2 the shares respond about four times as strongly to the same
   gap in squared errors, so shares are not comparable with the archived results.
-- No projection facility: nothing restricts beliefs or shares. The learners' AR(1) coefficient in
-  `a1_learn` is 1.061 at the 2022Q2 origin (above 1 in 1974Q3, 2022Q1 and 2022Q2), so every learning
-  run built on it starts from an explosive PLM, and every PLM of variant 2 has a largest root of 1 or
-  more there. Runs that lose the model solution stop and are reported as such: `v1_mc_learn` in
-  2022Q3, 3 origins of `e03_learn_mc` and 2 of `e04_learn_all_learners`, 23 of the 500 learning
-  mark-up density draws, and the application 5 impulse run with one unit of the price mark-up shock
-  (2022Q4). Learning on all 12 variables (`v3_all`) has no leads and is simulated as it is: it is
-  explosive in 12 of the 16 forecast quarters.
+- Projection facility `'alm'` (since 2026-10-21): only the model is checked, never the PLM. The
+  learners' AR(1) coefficient in `a1_learn` is 1.061 at the 2022Q2 origin (above 1 in 1974Q3, 2022Q1
+  and 2022Q2), so the learning runs built on it start from an explosive PLM, and every PLM of variant
+  2 has a largest root of 1 or more there; the facility keeps such beliefs while the model solves,
+  which it does in every point forecast of applications 1-6 and variants 2 and 4 (no facility events,
+  so those runs are the ones of 2026-10-20). It reverts the beliefs, or keeps last quarter's shares,
+  where the model has no stable solution: `v1_mc_learn` (end of 2022Q2, so its forecast starts from
+  the 2022Q1 beliefs, and 2023Q1-Q3), 23 of the 500 learning mark-up density draws (46 reverts, 13
+  kept shares), the application 5 impulse run with one unit of the price mark-up shock (2022Q3,
+  2023Q2-Q4), learning on all 12 variables (`v3_all` = `v3_all_alm`: 4 reverts and 17 kept shares,
+  9 of the 16 forecast quarters) and 151 of the 1380 evaluation runs (11 origins of `e03_learn_mc`, 2
+  of `e04_learn_all_learners`, all 138 of `e10_allvars`). Every run completes. On 2026-10-20, without
+  a facility, `v1_mc_learn` (2022Q3), 5 evaluation origins, 23 mark-up draws and the impulse run
+  (2022Q4) stopped with no model solution, and `v3_all` was explosive in 12 of the 16 forecast quarters
+  (33.48% average inflation; 14.50% now). The paths of the runs with facility events depend on the
+  beliefs the facility holds.
 - App 4: the Ramsey losses with anchored RE agents (RE and learning) rest on the open design question
   above; only the model-consistent runs `a4_ramsey_<w>_re_mc` are RE Ramsey plans. All of application
   4 uses period-t RE information.
