@@ -65,7 +65,7 @@ o = struct();
 %   beliefs.info                'lagged'                'lagged' (unchanged, set here to be explicit)
 %   expectations.re_info        'lagged'                'current'
 %   history.re_states           'filtered'              'smoothed'
-%   projection.facility         'none'                  'plm_alm'
+%   projection.facility         'alm' (from 2026-10-21; 'none' 2026-10-20)   'plm_alm'
 %   expectations.re_variant     'anchored'              'anchored' (unchanged, set here to be explicit)
 %   shares.init_n2              0.5                     0.5 (unchanged)
 %
@@ -94,7 +94,7 @@ o.beliefs.info = 'lagged';                 % learners see data up to t-1 (unchan
 o.expectations.re_info = 'lagged';         % RE agents: E_{t-1} x_{t+1} for the learning set; was 'current'
 o.expectations.re_variant = 'anchored';    % (unchanged)
 o.history.re_states = 'filtered';          % RE forecasts and learners' data from the one-sided filter; was 'smoothed'
-o.projection.facility = 'none';            % no projection facility; was 'plm_alm'
+o.projection.facility = 'alm';             % facility on the actual law of motion (user, 2026-10-21); was 'none', before that 'plm_alm'
 
 % --- Other knobs (commented: the values above or the defaults apply) -------------------------
 % o.gain.by_var.pinf = 0.02;        % gain for one variable
