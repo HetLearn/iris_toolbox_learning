@@ -9,6 +9,11 @@ scenario files in scenarios/sw07/; writes one page (content only, no <html>/<hea
 the claude.ai artifact publisher wraps it; the file name stays so the published link stays).
 Every number in the prose is read from those files at build time (K() for key_numbers.csv,
 the dictionaries below for the other CSVs); none is typed by hand. Rerunnable, offline.
+Since the facility switch of 2026-10-21 (projection.facility 'none' -> 'alm', dated in the comment table of
+config/master_options.m) it also reads key_numbers.csv, scenarios.csv, v3_facility.csv, paths_long.csv and
+eval_relative.csv of the version before the switch, archive/<date>_facility_<old>/results/summary_v3/, for the
+before/after statements (which runs changed, the stops and the band of that version); without that folder those
+statements are left out.
 The CSS and the JS chart engine (lines, fan bands, stacked bars, dots, table views, legends,
 light/dark themes, palette slots s1-s8) come from the round 1-2 builder, now in
 archive/2026-10-18_rounds1-2/reports/build_report_round2.py.
@@ -462,6 +467,24 @@ def range_txt(xs, d=3):
     return f"{f(min(xs), d)}-{f(max(xs), d)}"
 
 
+def qnext(q):
+    y, k = int(q[:4]), int(q[-1])
+    return f"{y + 1}Q1" if k == 4 else f"{y}Q{k + 1}"
+
+
+def qlist(qs):
+    """Quarters as text, consecutive ones as a range: '2022Q2, 2023Q1-2023Q3'."""
+    qs = sorted(set(qs))
+    out, i = [], 0
+    while i < len(qs):
+        j = i
+        while j + 1 < len(qs) and qs[j + 1] == qnext(qs[j]):
+            j += 1
+        out.append(qs[i] if i == j else f"{qs[i]}-{qs[j]}")
+        i = j + 1
+    return ", ".join(out)
+
+
 # ============================================================================= sections
 SEC = []
 
@@ -496,6 +519,67 @@ PREV = dict(gain=rx(r"^o\.gain\.value\s*=\s*([0-9.]+)", _pm, flags=re.M),
             facility=rx(r"'facility',\s*'(\w+)'", _df))
 PREV_FAC = PREV["facility"]
 STOPPED = {i: str(sc.loc[i, "error_message"]) for i in sc.index if str(sc.loc[i, "status"]) != "ok"}
+# the facility switch of 2026-10-21 (master options comment: "'alm' (from <date>; '<old>' <old date>)") and the
+# tables of the version before it (archived; read for the before/after statements)
+_fm = re.search(r"projection\.facility\s+'(\w+)' \(from (\d{4}-\d{2}-\d{2}); '(\w+)' (\d{4}-\d{2}-\d{2})\)", master_m)
+FAC_DATE, FAC_OLD, FAC_OLD_DATE = (_fm.group(2), _fm.group(3), _fm.group(4)) if _fm and _fm.group(1) == FAC else (None, None, None)
+ARCHIVE_OLDFAC = f"archive/{FAC_DATE}_facility_{FAC_OLD}/" if FAC_DATE else None
+_ao = (ROOT / ARCHIVE_OLDFAC / "results" / "summary_v3") if ARCHIVE_OLDFAC else None
+HAVE_OLD = bool(_ao) and (_ao / "key_numbers.csv").exists()
+if HAVE_OLD:
+    _kn0 = pd.read_csv(_ao / "key_numbers.csv")
+    KN0 = dict(zip(_kn0.name, _kn0.value))
+    SC0 = pd.read_csv(_ao / "scenarios.csv").set_index("id")
+    FAC0 = pd.read_csv(_ao / "v3_facility.csv").set_index("scenario")
+    _p0 = pd.read_csv(_ao / "paths_long.csv")
+    PTH0 = {(r.scenario, r.variable, r.date): float(r.value) for r in _p0.itertuples()}
+    _r0 = pd.read_csv(_ao / "eval_relative.csv")
+    ER0 = {(r.sample, r.variant, r.variable, int(r.h)): float(r.relative_rmse) for r in _r0.itertuples()}
+else:
+    KN0, SC0, FAC0, PTH0, ER0 = {}, None, None, {}, {}
+RUNS = [i for i in sc.index if sc.loc[i, "app"] != "eval"]
+
+
+def run_fac(sid):
+    """The facility of a run: its own setting where v3_facility.csv lists one, else the baseline's."""
+    return str(fac.loc[sid, "facility"]) if sid in fac.index and not pd.isna(fac.loc[sid, "facility"]) else FAC
+
+
+def fac_counts(sid, stages=("history", "inversion", "forecast")):
+    """(beliefs reverted, shares kept, PLM blocks kept) over the given stages, from scenarios.csv."""
+    def g(k):
+        return sum(int(sc.loc[sid, c]) for c in (f"projection_{k}_{st}" for st in stages)
+                   if c in sc.columns and not pd.isna(sc.loc[sid, c]))
+    return g("alm"), g("alm_shares"), g("plm")
+
+
+FAC_RUNS = [i for i in RUNS if sum(fac_counts(i)) > 0]                      # runs with a facility event
+FAC_BASE_RUNS = [i for i in FAC_RUNS if run_fac(i) == FAC]                 # ... under the baseline facility
+
+
+def old_diff(sid):
+    """Largest |difference| of the plotted paths (paths_long.csv) from the archived version before the facility
+    switch; None when the run has no archived paths."""
+    ks = [k for k in PTH if k[0] == sid and k in PTH0]
+    ds = [abs(PTH[k] - PTH0[k]) for k in ks if not (math.isnan(PTH[k]) or math.isnan(PTH0[k]))]
+    return max(ds) if ds else None
+
+
+CHANGED = [i for i in RUNS if old_diff(i) is None or old_diff(i) > 1e-9] if HAVE_OLD else []
+_ud = [old_diff(i) for i in RUNS if i not in CHANGED and old_diff(i) is not None] if HAVE_OLD else []
+UNCH_MAX = max(_ud) if _ud else None
+
+
+def fac_txt(a, s, p=0):
+    """'beliefs reverted 3 times, shares kept twice' from the counts."""
+    parts = []
+    if a:
+        parts.append(f"beliefs reverted {times(a)}")
+    if s:
+        parts.append(f"shares kept {times(s)}")
+    if p:
+        parts.append(f"PLM-block beliefs kept {times(p)}")
+    return ", ".join(parts) if parts else "no facility event"
 
 
 def stop_txt(sid):
@@ -521,6 +605,31 @@ def sec_baseline():
                     (("crpi", "inflation response of the rule"), ("crhopinf", "price mark-up persistence"),
                      ("cprobp", "price Calvo probability"), ("constepinf", "steady-state inflation, % per quarter")))
     nstop = len([i for i in STOPPED if sc.loc[i, "app"] != "eval"])
+    fac_code = code(f"projection.facility = '{FAC}'")
+    if FAC == "none":
+        fac_sent = (f"There is no projection facility ({fac_code}): beliefs and shares are never restricted, and a quarter "
+                    f"in which the model has no solution stops the run. Such a run is reported as failed, with its error "
+                    f"({nstop} scenario run{'s' if nstop != 1 else ''} and some evaluation origins).")
+    else:
+        old_code = code(f"'{FAC_OLD}'") if FAC_DATE else ""
+        since = f", since {FAC_DATE}; {old_code} on {FAC_OLD_DATE}" if FAC_DATE else ""
+        lead = {"alm": "acts on the actual law of motion (ALM), the model with the learners in it",
+                "plm_alm": "acts on the PLM blocks and then on the actual law of motion (ALM)"}.get(FAC, "acts")
+        how = ("at the end of every quarter of the history and the forecast the model is solved with the new beliefs and "
+               "shares; if it has no stable solution, every belief goes back to its value before that quarter's update, and "
+               "if that is not enough the previous quarter's shares stay in force as well (the discrete-choice shares keep "
+               "updating). The learners' perceived law of motion itself is not checked, so their beliefs can be explosive "
+               "as long as the model solves. " if FAC == "alm" else
+               "a PLM block whose updated beliefs have a largest root above 1 keeps its previous beliefs; then the model is "
+               "checked: beliefs reverted, and if needed the previous quarter's shares kept. ")
+        fl = [f"{code(i)} ({fac_txt(*fac_counts(i))})" for i in FAC_BASE_RUNS]
+        where = (f"Of the {len(RUNS)} runs of this report it acts in {len(FAC_BASE_RUNS)}: " + "; ".join(fl) + ". "
+                 if fl else f"It never acts in the {len(RUNS)} runs of this report. ")
+        stops_ = ("Every run completes" if not STOPPED else
+                  f"{len(STOPPED)} scenario{'s' if len(STOPPED) != 1 else ''} with runs that stop "
+                  f"({', '.join(code(i) for i in STOPPED)})")
+        fac_sent = (f"The projection facility {lead} ({fac_code}{since}): " + how + where + stops_
+                    + "; the density draws and the evaluation runs have their own counts (sections 5 and 11).")
     return f"""<section id="baseline"><div class="box base">
 <h3>Baseline, used everywhere unless a section says otherwise</h3>
 <p>Smets-Wouters (2007) model at the published posterior mode for 1966Q1-2004Q4 ({code('models/sw07/' + PFUN + '.m')},
@@ -535,10 +644,8 @@ performance (discrete choice on squared forecast errors): intensity of choice {c
 learners {n0}. Over the history from {FIRST} to {ORIGIN} the RE forecasts, the learners' data and the realised values in
 the forecast errors are the filtered values of the RE model (the one-sided filter, data up to t;
 {code("history.re_states = '" + mopt('history.re_states') + "'")}), not the smoothed ones; the states of the history, and
-so the point each forecast starts from, are still the RE smoother's. There is no projection facility
-({code("projection.facility = '" + FAC + "'")}): beliefs and shares are never restricted, and a quarter in which the
-model has no solution stops the run. Such a run is reported as failed, with its error ({nstop} scenario run{'s' if nstop != 1 else ''} and some evaluation
-origins). One exception: Ramsey policy is not supported with t-1 RE information, so application 4 runs with period-t RE
+so the point each forecast starts from, are still the RE smoother's. {fac_sent} One exception: Ramsey policy is not
+supported with t-1 RE information, so application 4 runs with period-t RE
 information ({code("expectations.re_info = 'current'")}). {COVID_SENT}Forecasts start at the {ORIGIN} inflation peak and
 run {H} quarters ({HOR[0]}-{END}) with zero shocks unless stated.</p>
 <p>Units: inflation, the policy rate and growth rates in % annualised; pp = percentage points. Two share measures
@@ -567,24 +674,32 @@ def sec_app1():
     last_pos = HOR[HOR.index(first_neg) - 1] if first_neg and HOR.index(first_neg) > 0 else (pos[-1] if pos else None)
     n2m = {q: L(le, "pinf", "n2_model", q) for q in HOR}
     avl, avr = K(f"avg_pinfobs__{le}"), K(f"avg_pinfobs__{re_}")
-    fev = sum(ev_count(le, k, "forecast") for k in ("plm", "alm", "alm_shares"))
-    hd = ev_dates(le, stage="history")
     hroots = [float(x) for x in re.findall(r"largest root ([0-9.]+)", " ".join(
-        evl[(evl.scenario == le) & (evl.stage == "history")].sort_values("date").detail))]
+        evl[(evl.scenario == le) & (evl.stage == "history") & (evl.type == "projection_plm")].sort_values("date").detail))]
     QO = qrange(FIRST, ORIGIN)
-    held = QO[QO.index(hd[0]) - 1] if hd and hd[-1] == ORIGIN else None
     front = HOR.index(qmax) < 4
     ans = (f"Learning raises the inflation path{', front-loaded' if front else ''}. Average inflation over {HOR[0]}-{END} is "
            f"{pct(avl)} with learning and {pct(avr)} under RE, {f(avl - avr)} pp higher. The gap peaks at {pp(gmax)} in {qmax}"
            + (f", stays positive through {last_pos} and is negative from {first_neg} ({END}: {pct(P(le, 'pinfobs', END))} vs "
               f"{pct(P(re_, 'pinfobs', END))})." if first_neg else f" and stays positive through {END}."))
     nev = int(sc.loc[le, "n_events"]) if not pd.isna(sc.loc[le, "n_events"]) else 0
+    nfac = sum(fac_counts(le))
+    d0 = old_diff(le) if HAVE_OLD else None
+    if FAC == "none":
+        ftxt = f"With no projection facility the model solves in every quarter ({nev} engine events)."
+    elif nfac == 0:
+        ftxt = (f"The projection facility ({code(FAC)}) never acts in this run: the model solves in every quarter of the "
+                f"history and the forecast with the learners' beliefs and shares"
+                + (f", so the run is the one of {FAC_OLD_DATE} without a facility (largest difference in the plotted "
+                   f"paths {sci(d0) if d0 > 0 else '0'})" if (d0 is not None and d0 <= 1e-9 and FAC_OLD == "none") else "")
+                + ".")
+    else:
+        ftxt = (f"Projection facility ({code(FAC)}): {fac_txt(*fac_counts(le, ('history',)))} in the history and "
+                f"{fac_txt(*fac_counts(le, ('forecast',)))} in the forecast.")
     p2 = (f"Inflation was {pct(K('a1_pinf_data_2022Q2'))} in {ORIGIN} (data). The policy rate follows inflation, "
           f"{pct(K('avg_robs__' + le))} vs {pct(K('avg_robs__' + re_))} on average, and output growth is "
           f"{'lower' if K('avg_dy__' + le) < K('avg_dy__' + re_) else 'higher'}, {pct(K('avg_dy__' + le))} vs "
-          f"{pct(K('avg_dy__' + re_))}. "
-          + (f"With no projection facility the model solves in every quarter ({nev} engine events)." if FAC == "none" else
-             f"{'No' if fev == 0 else fev} projection-facility events in the forecast."))
+          f"{pct(K('avg_dy__' + re_))}. " + ftxt)
     e = {q: K(f"a1_n2_end_{q}") for q in qrange("2019Q4", ORIGIN) if f"a1_n2_end_{q}" in KN}
     qlo, nlo = argmin(e)
     qn_hi, n_hi = argmax(n2m)
@@ -598,15 +713,33 @@ def sec_app1():
           f"peaks at {f(n_hi, 3)} in {qn_hi} and is {f(n2m[END], 3)} in {END}; with zero shocks the shares drift towards 0.5 "
           f"by construction (<a href=\"#caveats\">caveats</a>). Over {FIRST}-{ORIGIN} the end-of-quarter share averaged "
           f"{f(K('a1_n2_hist_mean'), 3)} (range {f(K('a1_n2_hist_min'), 3)}-{f(K('a1_n2_hist_max'), 3)}).")
+    # learning runs that start from the same inflation beliefs at the origin (beta to 1e-10)
+    b0 = L(le, "pinf", "beta_pinf", ORIGIN)
+    _lr = sorted({s for (s, v, fl, q) in LL if v == "pinf" and fl == "beta_pinf" and q == ORIGIN and s != le})
+    same = [s for s in _lr if abs(L(s, "pinf", "beta_pinf", ORIGIN) - b0) < 1e-10]
+    diff_ = [s for s in _lr if s not in same]
+    same_txt = (f"{len(same)} of the other {len(_lr)} learning runs start from these beliefs ({', '.join(code(s) for s in same)})"
+                + (f"; the other {len(diff_)} change a setting that changes them" if diff_ else "") + ".")
     flagbox = ""
+    hd = ev_dates(le, stage="history", types=["projection_plm"])        # PLM-block events (facility 'plm_alm')
+    held = QO[QO.index(hd[0]) - 1] if hd and hd[-1] == ORIGIN else None
+    fdates = ev_dates(le, stage="history") + ev_dates(le)                # every facility event, history and forecast
+    if FAC == "none":
+        hold = ("With no projection facility nothing holds these beliefs back; the model with them in it still solves in "
+                "every forecast quarter")
+    elif not fdates:
+        hold = (f"The {code(FAC)} facility checks the model, not the PLM, and the model with these beliefs in it solves in "
+                f"every quarter, so nothing holds them back")
+    else:
+        hold = (f"The {code(FAC)} facility checks the model, not the PLM: it keeps these beliefs and acts only in "
+                f"{', '.join(fdates)}")
     if hd:
         flagbox = (f'<aside class="box warn" role="note"><p><b>Facility note.</b> The candidate inflation beliefs have a root '
                    f'above 1 in {", ".join(hd)} ({", ".join(f(r, 3) for r in hroots)}), so the projection facility keeps the '
                    f'previous ones' + (f': the beliefs in force at the origin are those of the end of {held}' if held else '')
                    + f'. Their persistence (beta) is {f(K("a1_beta_origin"), 3)} and alpha {f(K("a1_alpha_origin"), 3)}, so the '
                    f'implied perceived mean ({pct(K("a1_pmean_origin"), 1)}; steady state {pct(K("ss_pinf"))}) is not a useful '
-                   f'guide; by {END} it is {pct(K("a1_pmean_2026Q2"))}. Every learning run built on this baseline carries these '
-                   f'beliefs.</p></aside>')
+                   f'guide; by {END} it is {pct(K("a1_pmean_2026Q2"))}. {same_txt}</p></aside>')
     elif K("a1_beta_origin") >= 1:
         bq = [q for q in qrange(FIRST, ORIGIN) if (le, "pinf", "beta_pinf", q) in LL and LL[(le, "pinf", "beta_pinf", q)] >= 1]
         b26 = L(le, "pinf", "beta_pinf", END)
@@ -614,10 +747,8 @@ def sec_app1():
                    f'coefficient (beta) is {f(K("a1_beta_origin"), 3)} at {ORIGIN}, above 1 '
                    + (('in ' + (', '.join(bq[:-1]) + ' and ' + bq[-1] if len(bq) > 1 else bq[0]) if len(bq) <= 6 else
                        f'in {len(bq)} quarters of the history, first {bq[0]}') if bq else '')
-                   + f', so their perceived law of motion is explosive and has no finite perceived mean. With no projection '
-                   f'facility nothing holds these beliefs back; the model with them in it still solves in every forecast '
-                   f'quarter, and beta is back to {f(b26, 3)} by {END}. Every learning run built on this baseline starts from '
-                   f'these beliefs.</p></aside>')
+                   + f', so their perceived law of motion is explosive and has no finite perceived mean. {hold}, and beta is '
+                   f'back to {f(b26, 3)} by {END}. {same_txt}</p></aside>')
     lines = [dict(ent="re", scen=re_), dict(ent="learn", scen=le)]
     shares = {"pinfobs": [("Share of learners in force (n2_model), inflation", "toolbox field n2_model of pinf",
                            [dict(ent="learn", scen=le)], "pinf")]}
@@ -881,8 +1012,12 @@ def sec_app4():
            f"RE and learning, uses period-t RE information ({code(f'expectations.re_info = {chr(39)}{a4info}{chr(39)}')}, set "
            f"in {code('a4_rule_re.m')} and {code('a4_rule_learn.m')}, the parents of the other twelve). This is the only "
            f"deviation from the baseline in the report: the parameters, the filtered RE values, the endogenous gain, the "
-           f"switching settings, the learners' t-1 data and the absence of a projection facility are the baseline's. The "
-           f"rule runs here therefore differ from applications 1 and 3, where the RE agents use t-1 information.")
+           f"switching settings, the learners' t-1 data and "
+           + ("the absence of a projection facility" if FAC == "none" else f"the projection facility ({code(FAC)})")
+           + f" are the baseline's"
+           + (f" (the facility never acts in the {len([s for s in sc.index if sc.loc[s, 'app'] == 'app4'])} runs)"
+              if FAC != "none" and not any(s in FAC_RUNS for s in sc.index if sc.loc[s, "app"] == "app4") else "")
+           + f". The rule runs here therefore differ from applications 1 and 3, where the RE agents use t-1 information.")
     body = f"""<p class="answer">{ans}</p>
 <aside class="box warn" role="note"><p>{dev}</p></aside>
 <aside class="box warn" role="note"><p>{caveat}</p></aside>
@@ -938,7 +1073,25 @@ def sec_app5():
     ans = (f"Under mark-up shock uncertainty learning makes the average 90% inflation band {effect(r_mk)}: "
            f"{f(w(mk, 'learn', 'pinfobs'))} vs {f(w(mk, 're', 'pinfobs'))} pp under RE (ratio {f(r_mk)}). Under demand shock "
            f"uncertainty it is {effect(r_dm)}: {f(w(dm, 'learn', 'pinfobs'))} vs {f(w(dm, 're', 'pinfobs'))} pp (ratio "
-           f"{f(r_dm)})." + (f" With no projection facility {lost}." if lost else ""))
+           f"{f(r_dm)})." + ((f" With no projection facility {lost}." if FAC == "none" else f" {lost[0].upper() + lost[1:]}.")
+                            if lost else ""))
+    # facility events of the draws (key numbers a5_fac_*), and the version before the facility switch (archived)
+    fdr = {c: int(K(f"a5_fac_draws_{c}_learn")) if f"a5_fac_draws_{c}_learn" in KN else 0 for c in (mk, dm)}
+    fev5 = {c: (int(K(f"a5_fac_alm_{c}_learn")), int(K(f"a5_fac_shares_{c}_learn"))) if f"a5_fac_alm_{c}_learn" in KN
+            else (0, 0) for c in (mk, dm)}
+    old5 = {c: (int(KN0[f"a5_n_used_{c}_learn"]), float(KN0[f"a5_w90_avg_{c}_learn_pinfobs"]))
+            for c in (mk, dm) if f"a5_n_used_{c}_learn" in KN0 and f"a5_w90_avg_{c}_learn_pinfobs" in KN0}
+    if FAC == "none":
+        fac5 = ""
+    else:
+        acts = [f"in {fdr[c]} of the {nd0} {CL[c]} draws ({fac_txt(*fev5[c])})" for c in (mk, dm) if fdr[c]]
+        fac5 = (f"The projection facility acts " + " and ".join(acts) if acts else
+                f"The projection facility never acts in the draws") + "."
+        lost0 = [(c, nd0 - old5[c][0], old5[c][1]) for c in old5 if old5[c][0] < nd0]
+        if lost0 and FAC_OLD == "none":
+            fac5 += (" Without a facility (" + FAC_OLD_DATE + ") " + "; ".join(
+                f"{n} of the {CL[c]} draws stopped with no model solution and were left out (average inflation band "
+                f"{f(wo)} pp)" for c, n, wo in lost0) + "; they are in the bands now.")
 
     def hwords(ws):
         return "; ".join(f"h = {h[1:]}: {f(a)} vs {f(b_)} ({word})" for h, (a, b_, word) in zip(hs, ws))
@@ -960,6 +1113,7 @@ def sec_app5():
     p3 = (f"{nd} draws per case, normal with the model's calibrated standard deviations, seed {seed}; "
           + ("all draws are used (none explosive or failed). " if all(u == nd for u in used) else
              f"{used[0]} (mark-up) and {used[1]} (demand) draws are used; the others stop with no model solution. ")
+          + (fac5 + " " if fac5 else "")
           + f"Learning runs take {f(K('a5_s_per_draw_markup_learn'))} s per draw; the RE runs use the fast linear "
           f"path, equal to the general path to {sci(CHK['C5']['nums'][-1])} on a 10-draw check (C5).")
     mech = pd.read_csv(SUM / "app5_mechanism.csv")
@@ -991,8 +1145,26 @@ def sec_app5():
     rb = code("expectations.re_info = 'lagged'")
     stop_p = "".join(
         f" With one unit of the {SW[sh]} shock the learning run itself stops in {stop_d[sh][0]}: the learners' AR(1) "
-        f"coefficient reaches {f(stop_d[sh][1], 3)} and their share {f(stop_d[sh][2], 3)}, and with no projection facility the "
-        f"model has no solution there, so that row of the table is empty." for sh in stop_sh)
+        f"coefficient reaches {f(stop_d[sh][1], 3)} and their share {f(stop_d[sh][2], 3)}, and "
+        + ("with no projection facility " if FAC == "none" else "") + "the model has no solution there, so that row of "
+        f"the table is empty." for sh in stop_sh)
+    # facility events of the learning impulse runs (key numbers a5m_fac_*; quarters in the description)
+    for sh in ok_sh:
+        na, ns = (int(KN.get(f"a5m_fac_alm__{sh}_learn", 0)), int(KN.get(f"a5m_fac_shares__{sh}_learn", 0)))
+        if na + ns == 0:
+            continue
+        dsc = str(kn.loc[kn.name == f"a5m_fac_alm__{sh}_learn", "description"].iloc[0])
+        mq = re.search(r"\(quarters ([0-9Q ]+)\)", dsc)
+        qs = mq.group(1).split() if mq else []
+        old = ""
+        if f"a5m_stop__{sh}_learn" in KN0:
+            _d0 = str(_kn0.loc[_kn0.name == f"a5m_stop__{sh}_learn", "description"].iloc[0])
+            _m0 = re.search(r"stopped with noSolution in (\d{4}Q\d)", _d0)
+            old = (f"; without a facility ({FAC_OLD_DATE}) this run stopped in {_m0.group(1)} with no model solution"
+                   if _m0 else "")
+        stop_p += (f" With one unit of the {SW[sh]} shock the model has no stable solution with the learners' updated "
+                   f"beliefs in {' and '.join(qs) if len(qs) <= 2 else ', '.join(qs[:-1]) + ' and ' + qs[-1]}, so the "
+                   f"facility steps in: {fac_txt(na, ns)}{old}.")
     mech_p = (f"Why the bands differ: timing and explosive beliefs. In the quarter a shock hits no inflation expectation "
               f"moves ({'zero' if ex1 < 5e-3 else 'at most ' + f(ex1) + ' pp'} on impact, RE and learning alike), because both the RE agents ({rb}) and the "
               f"learners ({bi}) forecast with data up to t-1, so on impact inflation responds about the same in both economies "
@@ -1002,8 +1174,10 @@ def sec_app5():
               + ((f"(from h = {min(cr)}) " if min(cr) == max(cr) else f"(from h = {min(cr)}-{max(cr)}) ") if cr else "")
               + f"and, summed over {len(HM)} quarters, the absolute responses are {f(min(sums.values()))}-{f(max(sums.values()))} "
               f"times the RE ones; the share in force ({code('n2_model')}) moves by up to {f(n2mv, 3)}. The learners start the "
-              f"forecast with an explosive AR(1) (beta {f(K('a1_beta_origin'), 3)} at {ORIGIN}) and nothing restricts it, so "
-              f"inflation shocks feed into their beliefs and share: under mark-up shocks the share in force moves within a 90% "
+              f"forecast with an explosive AR(1) (beta {f(K('a1_beta_origin'), 3)} at {ORIGIN}) and "
+              + ("nothing restricts it" if FAC == "none" else
+                 "the facility restricts it only in a quarter in which the model has no stable solution")
+              + f", so inflation shocks feed into their beliefs and share: under mark-up shocks the share in force moves within a 90% "
               f"band {f(w(mk, 'learn', 'n2_model_pinf'), 3)} wide on average ({f(w(dm, 'learn', 'n2_model_pinf'), 3)} under "
               f"demand shocks), and the inflation band widens.{stop_p}")
     mrows = []
@@ -1245,8 +1419,10 @@ def sec_var1_stopped(mc, le, re_):
     nfail, ntxt = ev_stop_txt("e03_learn_mc")
     rel = " / ".join(f(ER[("full", "e03_learn_mc", "pinfobs", h)], 3) for h in (1, 4, 8))
     ans = (f"With model-consistent RE agents the forecast from {ORIGIN} {stop_txt(mc)}: with the learners' beliefs and "
-           f"shares in force the heterogeneous economy has no stable solution, and with no projection facility nothing "
-           f"restricts them. Under the baseline that stop is the result, so this variant has no forecast path to show.")
+           f"shares in force the heterogeneous economy has no stable solution, and "
+           + ("with no projection facility nothing restricts them" if FAC == "none" else
+              f"the {code(FAC)} facility cannot restore one") + ". Under the baseline that stop is the result, so this "
+           f"variant has no forecast path to show.")
     p2 = (f"The engine's message: {esc(msg[:600])}{'...' if len(msg) > 600 else ''}")
     p3 = (f"Anchored RE agents use the forecast of the pure-RE model with information up to t-1. Model-consistent RE agents "
           f"forecast the heterogeneous economy itself ({code('x{+1}')} of the model with the learners in it, dated t-1 under "
@@ -1264,20 +1440,94 @@ def sec_var1_stopped(mc, le, re_):
     return section("var1", 7, "Model variant 1: anchored vs model-consistent RE", body)
 
 
+def sec_var1_alm(mc, le, re_, evd, path, pm, held, qpk, vpk):
+    """Variant 1 under the baseline facility 'alm' (since 2026-10-21): its events are ALM events (beliefs reverted,
+    shares kept), so the text gives their dates and what they do; there are no PLM roots to report."""
+    hd1 = ev_dates(mc, stage="history")
+    b_mc, b_le = K(f"coef_origin__{mc}__beta_pinf"), K(f"coef_origin__{le}__beta_pinf")
+    qd = next((q for q in QF if q <= ORIGIN and (mc, "pinf", "beta_pinf", q) in LL and (le, "pinf", "beta_pinf", q) in LL
+               and abs(L(mc, "pinf", "beta_pinf", q) - L(le, "pinf", "beta_pinf", q)) > 1e-10), None)
+    QO = qrange(FIRST, ORIGIN)
+    shared = QO[QO.index(qd) - 1] if qd and QO.index(qd) > 0 else ORIGIN     # last quarter of the common history
+    bq = [q for q in HOR if (mc, "pinf", "beta_pinf", q) in LL and LL[(mc, "pinf", "beta_pinf", q)] >= 1]
+    fa, fs_, _ = fac_counts(mc, ("forecast",))
+    ans = (f"With model-consistent RE agents learning raises average inflation by {f(K('avg_pinfobs__' + mc) - K('avg_pinfobs__' + re_))} pp "
+           f"over RE instead of {f(K('avg_pinfobs__' + le) - K('avg_pinfobs__' + re_))} pp: {pct(K('avg_pinfobs__' + mc))} vs "
+           f"{pct(K('avg_pinfobs__' + le))} (anchored) and {pct(K('avg_pinfobs__' + re_))} (RE). The average hides a boom and bust: "
+           f"inflation is {path}.")
+    org = (f"At the end of {ORIGIN} the model-consistent economy has no stable solution with the learners' updated beliefs, "
+           f"so the facility reverts them, and the forecast starts from the beliefs of the end of {shared} (beta "
+           f"{f(b_mc, 3)}; {f(b_le, 3)} in {code(le)}, whose anchored economy solves). " if ORIGIN in hd1 and qd == ORIGIN else "")
+    other_h = [q for q in hd1 if not (q == ORIGIN and org)]
+    p2 = (org
+          + (f"In the history the facility also acts in {qlist(other_h)}. " if other_h else "")
+          + (f"In the forecast it acts in {held} ({fac_txt(fa, fs_)}; rings on the line): there too the model has no stable "
+             f"solution with the updated beliefs and shares. " if evd else "In the forecast it never acts. ")
+          + (f"The learners' AR(1) coefficient is at or above 1 in {len(bq)} of the {H} forecast quarters ({qlist(bq)}), so "
+             f"their perceived law of motion is explosive there and has no finite perceived mean"
+             + (f"; in {END} their perceived mean inflation is {pct(pm[END], 1)}" if END in pm else "") + ". " if bq else
+             (f"Their perceived mean inflation is {pct(pm[END], 1)} in {END}. " if END in pm else ""))
+          + "Mechanism: model-consistent RE agents forecast the heterogeneous economy as if the learners' current beliefs and "
+            "share were permanent, so the learners' beliefs feed into the RE agents' expectation as well.")
+    rel = {h: {v: ER[("full", v, "pinfobs", h)] for v, _ in EVV[1:]} for h in (1, 4, 8)}
+    worst = all(max(rel[h], key=rel[h].get) == "e03_learn_mc" for h in (1, 4, 8))
+    rtxt = " / ".join(f(rel[h]["e03_learn_mc"], 3) for h in (1, 4, 8))
+    p3 = (f"Anchored RE agents use the forecast of the pure-RE model with information up to t-1. Model-consistent RE agents "
+          f"forecast the heterogeneous economy itself ({code('x{+1}')} of the model with the learners in it, dated t-1 under "
+          f"the baseline), which is re-solved every quarter with the current beliefs and shares. Policy rate "
+          f"{pct(K('avg_robs__' + mc))} vs {pct(K('avg_robs__' + le))}; output growth {pct(K('avg_dy__' + mc))} vs "
+          f"{pct(K('avg_dy__' + le))}. The end-of-quarter share ({code('n2')}) at the end of {ORIGIN} is "
+          + (f"the same ({f(K('n2_origin__' + mc), 3)}: the facility does not touch the discrete-choice shares), "
+             if abs(K('n2_origin__' + mc) - K('n2_origin__' + le)) < 1e-10 else
+             f"{f(K('n2_origin__' + mc), 3)} ({f(K('n2_origin__' + le), 3)} anchored), ")
+          + f"but the share in force ({code('n2_model')}) differs: {f(K('v1_n2_model_2022Q4'), 3)} in 2022Q4, "
+          f"{f(K('v1_n2_model_2024Q1'), 3)} in 2024Q1, {f(K('v1_n2_model_2025Q2'), 3)} in 2025Q2 and "
+          f"{f(K('n2_model_2026Q2__' + mc), 3)} in {END}. In the evaluation "
+          + (f"it is the weakest inflation variant (relative RMSE {rtxt} " if worst else f"its relative RMSE for inflation is {rtxt} (")
+          + f"at h = 1 / 4 / 8, <a href=\"#evaluation\">section 11</a>).")
+    lines = [dict(ent="re", scen=re_), dict(ent="learn", scen=le, name="Learning, anchored RE agents", short="Anchored"),
+             dict(ent="mc", scen=mc, rings=evd)]
+    shares = {"pinfobs": [("Share of learners in force (n2_model), inflation", "toolbox field n2_model of pinf", lines[1:], "pinf")]}
+    caps = {"pinfobs": default_cap("pinfobs", lines, True, Q18) + f" Model-consistent: {path}"
+                       + (f"; beliefs reverted by the facility in {held} (rings)." if evd else ".")}
+    g1 = forecast_grid("v1", lines, shares=shares, caps=caps)
+    hcap = (f"The two runs share the history to {ORIGIN}; they part in the forecast. Beta at {ORIGIN}: {f(b_mc, 3)} in both."
+            if qd is None else
+            f"The two runs share the history to {shared}; at the end of {qd} the facility reverts the model-consistent run's "
+            f"update (beta at {ORIGIN}: {f(b_mc, 3)}, anchored {f(b_le, 3)}).")
+    g2 = history_figure("v1h", "Share of learners and perceived persistence, inflation", hcap,
+                        [("learn", le, "pinf", dict(name="Anchored", short="Anchored")), ("mc", mc, "pinf", {})],
+                        [("learn", le, "pinf", "beta_pinf", dict(name="Anchored", short="Anchored")),
+                         ("mc", mc, "pinf", "beta_pinf", {})])
+    body = f"""<p class="answer">{ans}</p>
+<p>{p2}</p>
+<p>{p3}</p>
+{scode("var1_re_variant", "v1_mc_learn")}
+{fig_title(f"Anchored vs model-consistent RE agents, {Q18[0]}-{END}: with model-consistent RE agents inflation peaks at {pct(vpk)} in {qpk} and falls to {pct(P(mc, 'pinfobs', END))} in {END}")}
+{legend("v1", [leg("data"), leg("re"), leg("learn", name="Learning, anchored RE agents (baseline)"), leg("mc")]
+              + ([dict(name="Projection-facility event (beliefs reverted)", color="s3", kind="dot")] if evd else []))}
+{g1}
+{tables("v1")}
+{fig_title(f"Share and perceived persistence, both RE variants, {FIRST}-{END}")}
+<div class="grid g-1w">{g2}</div>
+{tables("v1h")}"""
+    return section("var1", 7, "Model variant 1: anchored vs model-consistent RE", body)
+
+
 def sec_var1():
     mc, le, re_ = "v1_mc_learn", "a1_learn", "a1_re"
     if mc in STOPPED:
         return sec_var1_stopped(mc, le, re_)
     evd = ev_dates(mc)
-    roots = [float(x) for x in re.findall(r"largest root ([0-9.]+)", " ".join(
-        evl[(evl.scenario == mc) & (evl.stage == "forecast")].sort_values("date").detail))]
     pq = [q for q in ("2022Q3", "2023Q2", "2024Q2", "2025Q2", "2026Q2") if f"v1_pinf_{q}" in KN]
     items = [f"{pct(K('v1_pinf_' + q))} in {q}" for q in pq]
     path = ", ".join(items[:-1]) + " and " + items[-1]
-    pm = {q: LL[(mc, "pinf", "perceived_mean_report", q)] for q in HOR}
-    qmx, pmx = argmax(pm)
-    held = f"{evd[0]}-{evd[-1]}" if len(evd) > 1 else evd[0]
+    pm = {q: LL[(mc, "pinf", "perceived_mean_report", q)] for q in HOR if (mc, "pinf", "perceived_mean_report", q) in LL}
+    held = qlist(evd) if evd else ""
     qpk, vpk = argmax({q: P(mc, "pinfobs", q) for q in HOR})
+    if FAC != "plm_alm":
+        return sec_var1_alm(mc, le, re_, evd, path, pm, held, qpk, vpk)
+    qmx, pmx = argmax(pm)                       # the 'plm_alm' text below (the previous baseline's facility)
     ans = (f"With model-consistent RE agents learning raises average inflation by {f(K('avg_pinfobs__' + mc) - K('avg_pinfobs__' + re_))} pp "
            f"over RE instead of {f(K('avg_pinfobs__' + le) - K('avg_pinfobs__' + re_))} pp: {pct(K('avg_pinfobs__' + mc))} vs "
            f"{pct(K('avg_pinfobs__' + le))} (anchored) and {pct(K('avg_pinfobs__' + re_))} (RE). The average hides a boom and bust: "
@@ -1365,7 +1615,10 @@ def sec_var2():
            f"({', '.join(f'{V2N[s]} {pct(avg[s])}' for s in sorted(ids, key=lambda s: avg[s]))}), while the learners' "
            f"end-of-quarter share ({code('n2')}) at the origin stays within {range_txt(n2o.values())}."
            + (f" At the origin every PLM has a largest root of 1 or more ({range_txt(roots.values())}), so none has a finite "
-              f"perceived mean there; with no projection facility nothing holds the beliefs back." if len(expl) == len(ids) else
+              f"perceived mean there; "
+              + ("with no projection facility nothing holds the beliefs back." if FAC == "none" else
+                 f"the {code(FAC)} facility checks only the model, not the PLMs, so nothing holds the beliefs back while the "
+                 f"model solves.") if len(expl) == len(ids) else
               (f" At the origin {', '.join(pshort(s) for s in expl)} {'has' if len(expl) == 1 else 'have'} a largest root of 1 "
                f"or more and no finite perceived mean; the others' perceived means span {range_txt(pm_ok.values(), 1)}%."
                if expl else f" Their perceived means at the origin span {range_txt(pmo.values(), 1)}%.")))
@@ -1391,14 +1644,25 @@ def sec_var2():
              + f"; its lowest share in force is {f(v3_min, 3)} ({v3_min_q}). Read its path with that in mind. ")
     nev2 = {s: (int(sc.loc[s, "n_events"]) if not pd.isna(sc.loc[s, "n_events"]) else 0) for s in ids}
     anyfac = any(ev_count(s, k, st) for s in ids for k in ("plm", "alm", "alm_shares") for st in ("history", "forecast"))
+    anyplm = any(ev_count(s, "plm", st) for s in ids for st in ("history", "forecast"))
+    if not anyfac:
+        ftail = ((f"With no projection facility no PLM's beliefs are held, and every one of the six runs solves in all {H} "
+                  f"forecast quarters" if FAC == "none" else
+                  f"The projection facility ({code(FAC)}) never acts in the six runs: the model solves in every quarter of "
+                  f"the history and the forecast, so no belief is reverted")
+                 + f" ({sum(nev2.values())} engine events in all). The share in force of the VAR(1) in inflation, output gap "
+                   f"and rate is lowest at {f(v3_min, 3)} ({v3_min_q}).")
+    elif anyplm:
+        ftail = (v3txt + "The regression and the 12-variable VAR also have forecast events (rings on the lines, counts in "
+                 "the table). " + ar2_txt)
+    else:
+        ftail = (f"The projection facility ({code(FAC)}) acts in "
+                 + "; ".join(f"the {V2N[s]} run ({fac_txt(*fac_counts(s))})" for s in ids if sum(fac_counts(s)))
+                 + f" (forecast events as rings on the lines, counts in the table); the share in force of the VAR(1) in "
+                   f"inflation, output gap and rate is lowest at {f(v3_min, 3)} ({v3_min_q}).")
     p2 = (f"Only the inflation expectation uses the PLM; the other equations of the regression and VAR PLMs (output gap, "
           f"rate, and the 11 other variables of the 12-variable VAR) are auxiliary: learned the same way and used only to "
-          f"forecast the regressors. "
-          + ((v3txt + "The regression and the 12-variable VAR also have forecast events (rings on the lines, counts in the "
-              "table). " + ar2_txt) if anyfac else
-             (f"With no projection facility no PLM's beliefs are held, and every one of the six runs solves in all {H} "
-              f"forecast quarters ({sum(nev2.values())} engine events in all). The share in force of the VAR(1) in inflation, "
-              f"output gap and rate is lowest at {f(v3_min, 3)} ({v3_min_q}).")))
+          f"forecast the regressors. " + ftail)
     rows = []
     for sid, ent, nm, _, _, _ in PLMS:
         coefs = [(n.split("__", 2)[2], v) for n, v in KN.items() if n.startswith(f"coef_origin__{sid}__")]
@@ -1419,7 +1683,8 @@ def sec_var2():
                      rows, num_from=1, cls="plm", caption="Average inflation over the forecast; 12-variable VAR: own lag "
                                                           f"and the four largest other coefficients."
                                                           + (f" AR(2): the coefficients of {held2}, held by the facility (text)." if pre else
-                                                             f" Facility events are zero with {code('projection.facility')} = {code(FAC)}.")
+                                                             f" Facility events are zero with {code('projection.facility')} = {code(FAC)}."
+                                                             if not anyfac else "")
                                                           + " Source: key_numbers.csv, scenarios.csv.")
     PS = {"v2_ar2": "AR(2)", "v2_ar1nc": "AR(1) nc", "v2_reg": "Regr.", "v2_var3": "VAR(1) 3", "v2_var12": "VAR(1) 12"}
     base = dict(ent="learn", scen="a1_learn", name="AR(1), the baseline", short="AR(1)")
@@ -1444,6 +1709,10 @@ def sec_var2():
                    (f"{fb} in the forecast" if fb else "none in the forecast")))
         if FAC == "none":
             flag = f"no projection facility; {nev2[sid]} engine event{'s' if nev2[sid] != 1 else ''}"
+        elif FAC == "alm":
+            fh, ff = fac_counts(sid, ("history",)), fac_counts(sid, ("forecast",))
+            flag = (f"facility {FAC}: no events" if sum(fh) + sum(ff) == 0 else
+                    f"facility {FAC}: {fac_txt(*fh)} in the history, {fac_txt(*ff)} in the forecast")
         if sid == "v2_ar2" and pre:
             flag = (f"projection facility: {hist} events in the history, {len(pre)} of them in the quarters just before the "
                     f"origin, so the {held2} beliefs are in force at {ORIGIN}; none in the forecast")
@@ -1516,26 +1785,54 @@ def sec_var2():
 # ----------------------------------------------------------------------------- variant 3
 def sec_var3():
     le, al = "a1_learn", "v3_all"
-    V3 = ("v3_all", "v3_all_plm_alm", "v3_all_alm")          # facility none (the baseline), plm_alm, alm
+    V3 = ("v3_all", "v3_all_plm_alm", "v3_all_alm")          # the baseline facility, plm_alm, alm
     avs = {s: float(fac.loc[s, "avg_pinfobs_2022Q3_2026Q2"]) for s in V3}
     xh, xf = int(fac.loc[al, "explosive_history"]), int(fac.loc[al, "explosive_forecast"])
-    ans = (f"Learning on all {N12} forward-looking variables with no projection facility makes the forecast explosive: "
-           f"average inflation is {pct(K('avg_pinfobs__' + al))}, against {pct(K('avg_pinfobs__' + le))} with learning on "
-           f"inflation only and {pct(K('avg_pinfobs__a1_re'))} under RE"
-           + (f"; {xf} of the {H} forecast quarters are explosive." if xf else ".")
-           + f" With the previous baseline's facility ({code('plm_alm')}) it is {pct(avs['v3_all_plm_alm'])}, with "
-           f"{code('alm')} {pct(avs['v3_all_alm'])}." if xf else
-           f"Learning on all {N12} forward-looking variables gives average inflation of {pct(K('avg_pinfobs__' + al))}, "
-           f"against {pct(K('avg_pinfobs__' + le))} with learning on inflation only and {pct(K('avg_pinfobs__a1_re'))} under RE.")
-    spread = max(avs.values()) - min(avs.values())
     fe = ev_dates(al)
-    p2 = (f"End-of-quarter shares ({code('n2')}) at the end of {ORIGIN}, mean over the {N12} variables: {f(K('n2_origin_mean_all__' + al), 3)} (highest "
-          f"{f(K('n2_origin_max_all__' + al), 3)}); inflation {f(K('n2_origin__' + al), 3)}. With anchored RE and every "
-          f"forward-looking variable learning, the model has no leads, so the engine simulates it as it is, and with no "
-          f"facility nothing is restricted: {xh} quarter{'s' if xh != 1 else ''} of the history and {xf} of the forecast are "
-          f"explosive (rings mark the {len(fe)} forecast quarters with an event). Policy rate "
-          f"{pct(K('avg_robs__' + al))} vs {pct(K('avg_robs__' + le))}; output growth {pct(K('avg_dy__' + al))} vs "
-          f"{pct(K('avg_dy__' + le))}.")
+    # the all-variables run before the facility switch (archived v3_facility.csv), shown as an extra row
+    old3 = FAC0.loc[al] if (HAVE_OLD and FAC0 is not None and al in FAC0.index
+                            and str(FAC0.loc[al, "facility"]) != str(fac.loc[al, "facility"])) else None
+    if FAC == "none":
+        ans = (f"Learning on all {N12} forward-looking variables with no projection facility makes the forecast explosive: "
+               f"average inflation is {pct(K('avg_pinfobs__' + al))}, against {pct(K('avg_pinfobs__' + le))} with learning on "
+               f"inflation only and {pct(K('avg_pinfobs__a1_re'))} under RE"
+               + (f"; {xf} of the {H} forecast quarters are explosive." if xf else ".")
+               + f" With the previous baseline's facility ({code('plm_alm')}) it is {pct(avs['v3_all_plm_alm'])}, with "
+               f"{code('alm')} {pct(avs['v3_all_alm'])}." if xf else
+               f"Learning on all {N12} forward-looking variables gives average inflation of {pct(K('avg_pinfobs__' + al))}, "
+               f"against {pct(K('avg_pinfobs__' + le))} with learning on inflation only and {pct(K('avg_pinfobs__a1_re'))} under RE.")
+        p2 = (f"End-of-quarter shares ({code('n2')}) at the end of {ORIGIN}, mean over the {N12} variables: {f(K('n2_origin_mean_all__' + al), 3)} (highest "
+              f"{f(K('n2_origin_max_all__' + al), 3)}); inflation {f(K('n2_origin__' + al), 3)}. With anchored RE and every "
+              f"forward-looking variable learning, the model has no leads, so the engine simulates it as it is, and with no "
+              f"facility nothing is restricted: {xh} quarter{'s' if xh != 1 else ''} of the history and {xf} of the forecast are "
+              f"explosive (rings mark the {len(fe)} forecast quarters with an event). Policy rate "
+              f"{pct(K('avg_robs__' + al))} vs {pct(K('avg_robs__' + le))}; output growth {pct(K('avg_dy__' + al))} vs "
+              f"{pct(K('avg_dy__' + le))}.")
+    else:
+        ha, hs_, _ = fac_counts(al, ("history",))
+        fa, fs_, _ = fac_counts(al, ("forecast",))
+        ans = (f"Learning on all {N12} forward-looking variables gives average inflation of {pct(K('avg_pinfobs__' + al))}, "
+               f"against {pct(K('avg_pinfobs__' + le))} with learning on inflation only and {pct(K('avg_pinfobs__a1_re'))} "
+               f"under RE. The run leans on the projection facility ({code(FAC)}), which acts in {len(fe)} of the {H} "
+               f"forecast quarters ({fac_txt(fa, fs_)})"
+               + (f"; without a facility ({FAC_OLD_DATE}) the forecast was explosive in "
+                  f"{int(old3.explosive_forecast)} of the {H} quarters and average inflation {pct(float(old3.avg_pinfobs_2022Q3_2026Q2))}"
+                  if old3 is not None and FAC_OLD == "none" else "") + ".")
+        p2 = (f"End-of-quarter shares ({code('n2')}) at the end of {ORIGIN}, mean over the {N12} variables: {f(K('n2_origin_mean_all__' + al), 3)} (highest "
+              f"{f(K('n2_origin_max_all__' + al), 3)}); inflation {f(K('n2_origin__' + al), 3)}. With anchored RE and every "
+              f"forward-looking variable learning, the model has no leads, so the facility checks the roots of its transition "
+              f"matrix: when one is above 1 in modulus with the updated beliefs, every belief reverts "
+              f"({times(ha)} in the history, {times(fa)} in the forecast), and when that is not enough the previous "
+              f"quarter's shares stay in force as well ({times(hs_)} and {times(fs_)}; the discrete-choice shares {code('n2')} "
+              f"keep moving). " + ("No quarter is explosive" if xh + xf == 0 else
+                                   f"{xh + xf} quarter{'s' if xh + xf != 1 else ''} {'are' if xh + xf != 1 else 'is'} explosive")
+              + f"; rings mark the {len(fe)} forecast quarters with a facility event. "
+              f"Policy rate {pct(K('avg_robs__' + al))} vs {pct(K('avg_robs__' + le))}; output growth "
+              f"{pct(K('avg_dy__' + al))} vs {pct(K('avg_dy__' + le))}.")
+    spread_s = dict(avs)
+    if old3 is not None:
+        spread_s["old"] = float(old3.avg_pinfobs_2022Q3_2026Q2)
+    spread = max(spread_s.values()) - min(spread_s.values())
     lines = [dict(ent="re", scen="a1_re"), dict(ent="learn", scen=le, name="Learning on inflation only", short="Infl. only"),
              dict(ent="all12", scen=al, rings=fe)]
     shares = {"pinfobs": [("Share of learners in force (n2_model), inflation", "toolbox field n2_model of pinf", lines[1:], "pinf")],
@@ -1564,29 +1861,64 @@ def sec_var3():
                       f"{int(r.projection_alm_history)} / {int(r.projection_alm_forecast)}",
                       f"{int(r.projection_alm_shares_history)} / {int(r.projection_alm_shares_forecast)}",
                       f"{int(r.explosive_history)} / {int(r.explosive_forecast)}", pct(float(r.avg_pinfobs_2022Q3_2026Q2))])
+    if old3 is not None:
+        r = old3
+        frows.append([code(al) + f" ({FAC_OLD_DATE}, archived)", code(r.facility), f"all {N12}", esc(str(r.status)),
+                      "none" if pd.isna(r.error_message) else esc(str(r.error_message)),
+                      f"{int(r.projection_plm_history)} / {int(r.projection_plm_forecast)}",
+                      f"{int(r.projection_alm_history)} / {int(r.projection_alm_forecast)}",
+                      f"{int(r.projection_alm_shares_history)} / {int(r.projection_alm_shares_forecast)}",
+                      f"{int(r.explosive_history)} / {int(r.explosive_forecast)}", pct(float(r.avg_pinfobs_2022Q3_2026Q2))])
     ftbl = html_table(["Run", "Facility", "Learning on", "Status", "Error message", "PLM-block events", "ALM events",
                        "Shares kept", "Explosive quarters", "Average inflation"], frows, num_from=5,
-                      caption="Events as history / forecast. Source: v3_facility.csv.")
+                      caption="Events as history / forecast. Source: v3_facility.csv"
+                              + (f"; last row: the same file in {esc(ARCHIVE_OLDFAC)} (before the facility switch)"
+                                 if old3 is not None else "") + ".")
     rn = fac.loc["v3_all"]
     stopped = not pd.isna(rn.error_message)
     pa, aa = fac.loc["v3_all_plm_alm"], fac.loc["v3_all_alm"]
-    p3 = (f"{code('none')}, the baseline, restricts nothing; "
-          + (f"the run stopped: {esc(str(rn.error_message))}. " if stopped else
-             f"{code('v3_all')} runs to the end, with {int(rn.explosive_history)} explosive quarters in the history and "
-             f"{int(rn.explosive_forecast)} in the forecast. ")
-          + f"{code('plm_alm')} keeps a block's previous beliefs when its largest root would exceed 1: "
-          f"{int(pa.projection_plm_history)} times in the history and {int(pa.projection_plm_forecast)} in the forecast "
-          f"({code('v3_all_plm_alm')}). {code('alm')} lets the PLMs go explosive and reverts every belief only when the "
-          f"model has no stable solution: {times(int(aa.projection_alm_history))} in the history and "
-          f"{times(int(aa.projection_alm_forecast))} in the forecast ({code('v3_all_alm')}). Average inflation: "
-          f"{pct(avs['v3_all'])} with {code('none')}, {pct(avs['v3_all_plm_alm'])} with {code('plm_alm')} and "
-          f"{pct(avs['v3_all_alm'])} with {code('alm')}, so the facility choice moves it by {f(spread, 1)} pp here.")
+    if FAC == "none":
+        p3 = (f"{code('none')}, the baseline, restricts nothing; "
+              + (f"the run stopped: {esc(str(rn.error_message))}. " if stopped else
+                 f"{code('v3_all')} runs to the end, with {int(rn.explosive_history)} explosive quarters in the history and "
+                 f"{int(rn.explosive_forecast)} in the forecast. ")
+              + f"{code('plm_alm')} keeps a block's previous beliefs when its largest root would exceed 1: "
+              f"{int(pa.projection_plm_history)} times in the history and {int(pa.projection_plm_forecast)} in the forecast "
+              f"({code('v3_all_plm_alm')}). {code('alm')} lets the PLMs go explosive and reverts every belief only when the "
+              f"model has no stable solution: {times(int(aa.projection_alm_history))} in the history and "
+              f"{times(int(aa.projection_alm_forecast))} in the forecast ({code('v3_all_alm')}). Average inflation: "
+              f"{pct(avs['v3_all'])} with {code('none')}, {pct(avs['v3_all_plm_alm'])} with {code('plm_alm')} and "
+              f"{pct(avs['v3_all_alm'])} with {code('alm')}, so the facility choice moves it by {f(spread, 1)} pp here.")
+    else:
+        _ds = [abs(PTH[k] - PTH[("v3_all_alm",) + k[1:]]) for k in PTH
+               if k[0] == al and ("v3_all_alm",) + k[1:] in PTH and not math.isnan(PTH[k])]
+        dsame = max(_ds) if _ds else None
+        same_run = (str(fac.loc[al, "facility"]) == str(aa.facility) and dsame is not None and dsame <= 1e-12)
+        p3 = (f"{code(FAC)}, the baseline since {FAC_DATE}, checks only the model ({code('v3_all')}). "
+              + (f"{code('v3_all_alm')} sets the same facility explicitly and is the same run (largest difference in the "
+                 f"plotted paths {sci(dsame) if dsame > 0 else '0'}). " if same_run else
+                 f"{code('v3_all_alm')} ({code(str(aa.facility))}): {fac_txt(int(aa.projection_alm_history) + int(aa.projection_alm_forecast), int(aa.projection_alm_shares_history) + int(aa.projection_alm_shares_forecast))}. ")
+              + f"{code('plm_alm')} first keeps a block's previous beliefs when its largest root would exceed 1: "
+              f"{int(pa.projection_plm_history)} times in the history and {int(pa.projection_plm_forecast)} in the forecast "
+              f"({code('v3_all_plm_alm')})"
+              + (f"; after that the model check reverts beliefs {times(int(pa.projection_alm_history) + int(pa.projection_alm_forecast))} "
+                 f"and keeps the shares {times(int(pa.projection_alm_shares_history) + int(pa.projection_alm_shares_forecast))}"
+                 if int(pa.projection_alm_history) + int(pa.projection_alm_forecast) + int(pa.projection_alm_shares_history)
+                 + int(pa.projection_alm_shares_forecast) else "") + ". "
+              + (f"Without a facility, the baseline of {FAC_OLD_DATE} ({code(ARCHIVE_OLDFAC)}), nothing was restricted: the "
+                 f"run had {int(old3.explosive_history)} explosive quarter{'s' if int(old3.explosive_history) != 1 else ''} in "
+                 f"the history and {int(old3.explosive_forecast)} in the forecast. " if old3 is not None else "")
+              + f"Average inflation: {pct(avs['v3_all'])} with {code(FAC)}, {pct(avs['v3_all_plm_alm'])} with "
+              f"{code('plm_alm')}" + (f" and {pct(float(old3.avg_pinfobs_2022Q3_2026Q2))} with {code(str(old3.facility))}"
+                                       if old3 is not None else "")
+              + f", so the facility choice moves it by {f(spread, 1)} pp here.")
     body = f"""<p class="answer">{ans}</p>
 <p>{p2}</p>
 {scode("var3_allvars", "v3_all")}
 {fig_title(f"Learning on inflation only vs on all {N12} forward-looking variables, {Q18[0]}-{END}")}
 {legend("v3", [leg("data"), leg("re"), leg("learn", name="Learning on inflation only"), leg("all12"),
-               dict(name="Quarter with an engine event (all 12; with no facility: explosive)", color="s3", kind="dot")])}
+               dict(name=("Quarter with an engine event (all 12; with no facility: explosive)" if FAC == "none" else
+                          "Quarter with a facility event (all 12: beliefs reverted or shares kept)"), color="s3", kind="dot")])}
 {g1}
 {tables("v3")}
 {fig_title(f"Share and perceived persistence, {FIRST}-{END}")}
@@ -1638,7 +1970,7 @@ def sec_var4():
           f"{pct(K('avg_dy__' + cs))}. End-of-quarter share at the end of {ORIGIN}: {f(K('n2_origin__' + le), 3)} vs "
           f"{f(K('n2_origin__' + cs), 3)}; share in force ({code('n2_model')}) in {END}: "
           f"{f(K('n2_model_2026Q2__' + le), 3)} vs {f(K('n2_model_2026Q2__' + cs), 3)}. Engine events: {xe[le]} and "
-          f"{xe[cs]} (no projection facility).")
+          f"{xe[cs]} (" + ("no projection facility" if FAC == "none" else f"facility {code(FAC)}") + ").")
     gfull = line("v4g-full", "v4g", f"Gain over the history {FIRST}-{END} (baseline, endogenous)",
                  f"Average {f(K('v4_gain_hist_mean'), 4)}; thin line: the constant gain {gs} of the variant.", QF,
                  [S("learn", lser(lf, "pinf", "gain", QF, end=END), name="Endogenous gain (KOZ), history to " + END,
@@ -1716,17 +2048,37 @@ def sec_eval():
     n_orig = int(K('ev_n_runs')) // len(EVV)
     fails = [(vid, int(K(f"ev_failures__{vid}"))) for vid, _ in EVV
              if f"ev_failures__{vid}" in KN and int(K(f"ev_failures__{vid}")) > 0]
-    ftxt = ("no failures" if not fails else
-            f"{sum(n for _, n in fails)} runs stop with no model solution, as there is no projection facility ("
+    old_f = [(v, int(KN0[f"ev_failures__{v}"])) for v, _ in EVV
+             if f"ev_failures__{v}" in KN0 and int(KN0[f"ev_failures__{v}"]) > 0] if FAC != "none" else []
+    ftxt = (("no failures" + (f" (without a facility, {FAC_OLD_DATE}, {sum(n for _, n in old_f)} runs stopped with no "
+                              f"model solution: " + "; ".join(f"{lc1(nm[v])} {n}" for v, n in old_f) + ")" if old_f else ""))
+            if not fails else
+            f"{sum(n for _, n in fails)} runs stop with no model solution"
+            + (", as there is no projection facility" if FAC == "none" else "") + " ("
             + "; ".join(f"{lc1(nm[v])}: {n} origin{'s' if n != 1 else ''}" for v, n in fails)
             + "); relative RMSE and the DM tests compare a variant with RE on the origins both have")
+    # origins with engine events, and which variants' tables changed with the facility switch (archived tables)
+    wev = [(v, int(K(f"ev_origins_with_events__{v}"))) for v, _ in EVV if f"ev_origins_with_events__{v}" in KN
+           and int(K(f"ev_origins_with_events__{v}")) > 0]
+    ch_v = {}
+    for v, _ in EVV[1:]:
+        ds = [abs(ER[k] - ER0[k]) for k in ER if k[1] == v and k in ER0 and not (math.isnan(ER[k]) or math.isnan(ER0[k]))]
+        ch_v[v] = max(ds) if ds else None
+    changed_v = [v for v, d in ch_v.items() if d is not None and d > 1e-9]
+    evtxt = (" Origins whose run has an engine event: " + "; ".join(f"{lc1(nm[v])} {n} of {n_orig}" for v, n in wev) + "."
+             if wev else " No run has an engine event.")
+    if HAVE_OLD and FAC != FAC_OLD and ER0:
+        evtxt += (f" Against the {FAC_OLD_DATE} evaluation without a facility the relative RMSEs change only for "
+                  + ", ".join(lc1(nm[v]) for v in changed_v)
+                  + f" (largest change {f(max(ch_v[v] for v in changed_v), 3)}); the others are unchanged."
+                  if changed_v else f" Against the {FAC_OLD_DATE} evaluation without a facility no relative RMSE changes.")
     p2 = (f"{int(K('ev_n_runs'))} runs ({len(EVV)} variants x {n_orig} origins, "
           f"{o0}-{o1}), {ftxt}; horizons 1-{hmax}; zero future shocks, real-time filters; "
           f"benchmark RE{'; targets dated ' + NANTXT + ' have no data and drop out' if NANTXT else ''}. Diebold-Mariano tests use the uniform kernel with the HLN correction ({int(K('ev_dm_fallbacks'))} "
           f"cells fall back to Bartlett). RE RMSE, full sample, h = 1 / 4 / 8: inflation {re_r('pinfobs')} pp, output growth "
           f"{re_r('dy')} pp. Subsamples by target date ({int(K('ev_n_targets_s2020_2026_h1'))} targets in 2020-2026 at h = 1, "
           f"{int(K('ev_n_targets_s2020_2026_h8'))} at h = 8, so those p-values are fragile). The evaluation records only the "
-          f"total number of engine events per run, not their type.")
+          f"total number of engine events per run, not their type." + evtxt)
     X = [str(h) for h in range(1, hmax + 1)]
     ch = []
     H8 = list(range(1, hmax + 1))
@@ -1923,11 +2275,24 @@ n_scen = len(sc)
 n_eval = int((sc.app == "eval").sum())
 n_ok = int((sc.status == "ok").sum())
 toc = "".join(f'<a href="#{sid}"><span class="tn">{no}</span> {esc(t.split(":")[0])}</a>' for sid, no, t in SEC)
-NEWBASE = (f"New baseline, {BASELINE_DATE}. Every SW07 result in this report was rerun on the baseline the user chose on "
+if FAC == "none":
+    _facb = "and no projection facility. "
+else:
+    _chg = ", ".join(code(i) for i in CHANGED)
+    _facb = (f"and the projection facility on the actual law of motion ({code(FAC)}"
+             + (f", since {FAC_DATE}; the {FAC_OLD_DATE} version had {'none' if FAC_OLD == 'none' else code(FAC_OLD)}"
+                if FAC_DATE else "") + "). "
+             + (f"Of the {len(RUNS)} runs the switch changes {len(CHANGED)} ({_chg}); every other run is the same as on "
+                f"{FAC_OLD_DATE} (largest difference in the plotted paths {sci(UNCH_MAX) if UNCH_MAX else '0'}). The "
+                f"density draws and the evaluation change as sections 5 and 11 say. The {FAC_OLD_DATE} tables and report "
+                f"are archived in {code(ARCHIVE_OLDFAC)}. " if HAVE_OLD else ""))
+NEWBASE = (f"New baseline, {BASELINE_DATE}" + (f", projection facility since {FAC_DATE}" if FAC_DATE else "") + ". "
+           f"Every SW07 result in this report was rerun on the baseline the user chose on "
            f"{BASELINE_DATE}: the published Smets-Wouters (2007) parameters, t-1 information for both RE agents and learners, "
            f"filtered rather than smoothed RE values in the history, an endogenous gain starting at {mopt('gain.value', True)}, "
-           f"intensity of choice {mopt('switching.intensity', True)}, memory {mopt('switching.memory', True)}, and no "
-           f"projection facility. The previous baseline (the swX1 re-estimate on data to 2026Q2, a constant gain of "
+           f"intensity of choice {mopt('switching.intensity', True)}, memory {mopt('switching.memory', True)}, "
+           + _facb +
+           f"The previous baseline (the swX1 re-estimate on data to 2026Q2, a constant gain of "
            f"{PREV['gain']}, intensity {PREV['chi']}, memory {PREV['omega']}, period-t RE information, smoothed RE values "
            f"and the {code(PREV['facility'])} facility) and all its results are archived in {code(ARCHIVE)}.")
 body = f"""
