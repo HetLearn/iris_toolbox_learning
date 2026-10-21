@@ -13,7 +13,7 @@ t-1 information it uses data dated t-1 or earlier. `h` = target date minus infor
 (h = 1 for `E_t x_{t+1}`, h = 2 for `E_{t-1} x_{t+1}`). Baseline (`config/master_options.m`):
 published SW07 mode, learning set `{pinf}`, types {RE anchored with `re_info = 'lagged'`, AR(1)
 learner with `beliefs.info = 'lagged'`}, KOZ gain from 0.05, chi 2, memory 0.8, init n2 0.5,
-`history.re_states = 'filtered'`, `projection.facility = 'none'`.
+`history.re_states = 'filtered'`, `projection.facility = 'none'` (`'alm'` since 2026-10-21, user decision).
 
 Prototype evidence (scratchpad `br_design/`, run on a copy of the project; the scripts
 `br_proto1.m` to `br_proto4.m` and their logs are listed at the end) is quoted where it settles
@@ -201,7 +201,7 @@ argument), so E6 applies unchanged.
 | `+engine/state_init.m`, `update_learning.m`, `shares_for_mode.m`, `facility.m` (`params`, PLM blocks per learner type), `record.m`, `assemble.m`, `save_results.m`, `history_db.m` | N types: beliefs, gains and fitness per type, share vectors, per-type forecasts read from `x_exp1_<k>` (timing assert per learner type), outputs `n_<k>`, `f_<k>`, `FE_<k>`, `U_<k>` |
 | `+engine/forecast.m`, `history.m` | read N forecasts; call `anchor_update` when level types exist. On the RE-smoothed history nothing is simulated, so each type's forecast is evaluated on the history databank: PLM types as today (`forecast_value`), rule types from their expression, level and `re_mean` types from their coefficients at the filtered states (the `H.predicted` convention of `history_db` for t-1 types) |
 | new | `+switching/discrete_choice_n.m`, `anchor_coefficients.m`, `+engine/anchor_update.m`, `+engine/kalman_history.m`, `+rls/sac.m`, `+rls/kf.m`, `+gain/decreasing.m` |
-| later (phase 6) | `decompose.m`, `+density/*`, `evaluate.m`, `+policy/*`: N types, or an explicit `hetlearn:options:unsupported` |
+| later (phase 6) | `decompose.m`, `+density/*`, `evaluate.m`, `+policy/*`: N types, or an explicit `hetlearn:options:unsupported` (done 2026-10-21: density, evaluate and decompose take N types, Ramsey and the inversion are refused; "P6 done" in section 6) |
 
 ### 1.7 Regression test
 
@@ -1121,6 +1121,94 @@ term `re1(...)`, the anchored diagnostic reference, and fitness on transformed f
   - USER_GUIDE and FEATURES rows, and the `defaults.m` and `load_options.m` header comments that still
     describe the phase guards (no option is guarded now);
   - scenario files (P7).
+
+**P6 done (2026-10-21).** N agent types and transforms in the Kalman history, the other stages
+supported or refused, and the documentation.
+- Kalman history (`+engine/kalman_history.m`). With `ctx.nt` it builds the RE-limit share vectors
+  (1 on RE before `beliefs.init.date`) and puts the level coefficients in force into the ALM
+  parameters (`anchor_update('params')`). Each type's forecast made in t comes from
+  `ntypes('forecasts', ..., 'history', t)` on the agents' data. These are the real-time filtered
+  values x_{s|s}, with two exceptions:
+  - under `re_info = 'lagged'` every `<x>_exp1_RE` and `<x>_DEg_RE` is the prediction x_{t|t-1},
+    the convention `history_db` follows with `H.predicted`;
+  - the `'re_mean'` target `<x>_feRE` is rebuilt as x_{t|t} minus the RE forecast of t-1 in those
+    data, so it is the error of the forecast the agents used (rebuilt under `'current'` too).
+
+  `update_learning` takes its N-type path unchanged. New output
+  `res.kalman.ftypes_model_maxdiff`: per type, |forecast before the transforms - the model's
+  `<x>_exp1_<k>`|, predicted for t-1 information and filtered for period t. The forecast stage
+  needs no change. `ntypes('seed')` writes the rule types' own forecasts, and with a `'re_mean'`
+  type the RE forecast, at the origin, so those elements of the starting state are the agents'
+  values, not a_{origin|origin}. `ntypes('init')` accepts `'kalman'` and still refuses
+  `'inversion'`. Two-type runs keep the old code path unchanged.
+- Stages:
+
+  | Stage | Choice | How |
+  |---|---|---|
+  | Density forecasts | support | general path for N types (each draw re-runs the forecast stage, which takes N types); the fast path stays two-type; summarised series `n_model_<k>_<x>` per type and the beliefs of each learning type's PLM equation of x (`alpha_pinf__BR`, `alpha_pinf_feRE__IO`); the refusal in `ntypes('init')` is gone |
+  | `hetlearn.evaluate` | support | an N-type variant shares an RE filter only with variants of the same generated file, parameter and std values, toggles and learning set (its RE filter model is its own RE limit; before, it could be grouped with a two-type variant of the same PLM) |
+  | `hetlearn.decompose` | support, two refusals | `'tv'` over the forecast takes the keyed beliefs and every type's `n_model_<k>` as its share parameter; in the RE-model periods the type forecasts (`'plm'`, `'rule'`, `'level'`, `'re_mean'`) are left out of the reconstruction check, as `<x>_exp1_BR`. Refused with `hetlearn:options:unsupported`: `'tv'` with level types (their coefficients are not recorded), and any result of `history.mode = 'kalman'`, two-type ones included (the filtered path is not a model path with the filtered shocks, since P_{t|t} never collapses) |
+  | Ramsey policy | refuse | `load_options` (`validate_ntype_stages`): `policy.mode = 'ramsey'` with types, transforms or an E2 switching option, `hetlearn:options:unsupported`, naming the options; the Ramsey wrap of the N-type file is not built. The `load_model` errors stay as a fallback |
+  | Inversion history | refuse | same function and message pattern (the inversion reads the two-type forecasts from the model) |
+- Portfolio through the Kalman history: every scenario of `scenarios/sw07/br_portfolio/` with
+  `history.mode = 'kalman'`, `history.re_states = 'smoothed'`, origin 2026Q2, horizon 4,
+  `'stochastic'` start, under `config/master_options.m` (facility `'alm'`). Not saved; scratch
+  script `p6/p6_variants.m`. All 23 runs (21 variants, `a1_re`, `a1_learn`) complete, 3-12 s each.
+  The baseline reproduces P1 (log likelihood -1839.753, inflation RMSE 0.3093). Log likelihood
+  from 1966Q1, one-step RMSE 1966Q1-2026Q2 (% per quarter) and facility events:
+
+  | Run | log lik | RMSE pinfobs | RMSE dy | events |
+  |---|---|---|---|---|
+  | a1_re | -2182.12 | 0.3707 | 0.8287 | |
+  | a1_learn | -1839.75 | 0.3093 | 0.8386 | |
+  | br01a | -1835.25 | 0.3060 | 0.8618 | 1 projection_level |
+  | br01b | -1914.91 | 0.3208 | 0.8546 | 1 projection_level |
+  | br04 | -3799.52 | 0.2876 | 1.3109 | |
+  | br05a | -5892.81 | 0.2823 | 1.4803 | |
+  | br05b | -1709.37 | 0.2799 | 0.8513 | |
+  | br06 | -3543.44 | 0.2716 | 1.2485 | |
+  | br07 | -1825.28 | 0.3023 | 0.8471 | |
+  | br10 | -2025.72 | 0.3312 | 0.8780 | |
+  | br17 | -2080.81 | 0.3467 | 0.8831 | |
+  | br18 | -2854.69 | 0.2784 | 0.9364 | |
+  | br19 | -1723.22 | 0.2803 | 0.8656 | |
+  | br20 | -3692.23 | 0.2886 | 0.6974 | |
+  | br23 | -2192.77 | 0.3721 | 0.8295 | |
+  | br24 | -1702.58 | 0.2814 | 0.8366 | |
+  | br25a | -4111.73 | 0.2905 | 0.7113 | 7 projection_alm |
+  | br25b | -3661.56 | 0.2915 | 0.6783 | 8 projection_alm |
+  | br26 | -1857.61 | 0.3117 | 0.8395 | |
+  | br27 | -1785.35 | 0.2953 | 0.8729 | |
+  | br29 | -1579.75 | 0.3229 | 0.8407 | |
+  | br31 | -1788.24 | 0.3089 | 0.7216 | |
+  | br33 | -2487.29 | 0.4288 | 0.8021 | |
+
+  29 and 31 add a shock, so their rows are not like-for-like (D10). The model gap is rounding
+  (<= 4.6e-14) for every type whose forecast uses data of one date only. It is not rounding where
+  the forecast uses two dates, because the model's lagged states are revised and the agents' data
+  real time (the P1 note): 25a 13 (AR(2) on seven variables), 33 5.6 (`dn{-1}`), 25b 5.3 (M3,
+  AR(2)), 17 0.2-0.9 (rules with `x{-2}` or `self{-1}`). These are the forecasts the ALM uses
+  against the ones the agents record and score. P7 should report it for those variants.
+- Options and docs: `defaults.m` and `load_options.m` lose the phase-guard comments; the empty
+  `not_implemented` and its two helpers (`rule_expr`, `struct2cell_or_empty`) are gone. New: USER_GUIDE
+  section 9 (options, one example per mechanism with its parameter source, stage matrix, outputs),
+  FEATURES rows 200-224 (machinery) and 230-250 (mechanisms), and a README_PIPELINE log line. The
+  USER_GUIDE baseline rows now give facility `'alm'`.
+- Gates (new checks): `test_kalman` K6: the RE/BR pair spelled out equals the two-type Kalman run,
+  max diff 0 in errors, l_t, F_t, filtered and predicted databanks, a and P at the origin,
+  learning, paths, events and state. K7: a TB type at share 0 differs from the two-type run by
+  1.9e-12 in the errors and 6.4e-12 in the log likelihood (larger state vector); a multiplier at 1
+  differs by 0. K8: L0, L1, L2 and IO model gaps 6e-15 to 1.4e-14, share sums 2e-16. `test_density`
+  D10 (pair = two-type density, 0; TB shares sum to 1 in every draw), `test_evaluate` V5 (pair =
+  two-type, 0; TB = separate real-time runs, 0), `test_decompose` C7 (pair = two-type, 0; TB
+  additive, rebuild 6.8e-14; both refusals), `test_options` BR4 (8 cases).
+- Whole suite at the default thread count: `test_generator` alone, `test_re_info` alone, then
+  `test_anchored`, the other suites of the first half and those of the second half in three
+  parallel sessions. 403 checks in 25 suites, all pass (21, 24, 16, 142, 200; about 9 minutes
+  of wall time). `test_br_regression` is exact (R1 byte-identical, R2 max diff 0 in all 30 runs),
+  K1-K5 as in P1 (K1 8.7e-13, K4 log likelihood diff 4.6e-13).
+- Left for P7: the portfolio runner with the Kalman RMSE tables (the rows above are this phase's
+  check, not saved), the report section, and the flag for the model gap of 17, 25a, 25b and 33.
 
 ---------------------------------------------------------------------------------------------
 
