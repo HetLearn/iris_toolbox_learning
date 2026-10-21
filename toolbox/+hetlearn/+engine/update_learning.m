@@ -65,9 +65,28 @@ function [S, out, ev] = update_learning(ctx, S, t, getVal, fRE, fBR, first, A)
 %   [S.gain, ev] = hetlearn.gain.<rule>('update', S.gain, errors, opts.gain)
 %   moves the gain state to the end of t with the errors of (3), whatever
 %   the projection facility did with the candidates.
+%
+%   N agent types (ctx.nt, docs/DESIGN_br_extensions.md 1.1-1.2): fRE is then
+%   the struct F.<x>.<type> of hetlearn.engine.ntypes('forecasts', ...) and
+%   fBR is ignored. (1) FE^k_t(x) = (x_t - f^k_{t-1}(x))^2 for every type
+%   (out.FE.<x>.<type>); per share group the population types' sums over G go
+%   to hetlearn.switching.discrete_choice_n with switching.memory, .inertia,
+%   .fitness, the group's intensity and costs (two types, RE first, no
+%   inertia, no costs, 'normalized': hetlearn.switching.discrete_choice,
+%   as in the two-type code) -> S.U{g}, S.n{g} (event 'shares_nan' as
+%   before). (2) S.f = F (hetlearn.engine.ntypes 'store'). (3) RLS on every
+%   equation of every learning type whose update is 'rls' (ctx.sys keyed by
+%   <target>__<type>), each type with its own gain rule and state
+%   S.gain.<type> (its errors: its residuals and its signed forecast errors),
+%   then the projection facility on the keyed system and the ALM check as
+%   before. (4) Each type's gain update; its events name the keyed targets.
 
 if nargin < 8
     A = [];
+end
+if isfield(ctx, 'nt') && ~isempty(ctx.nt)
+    [S, out, ev] = update_nt(ctx, S, t, getVal, fRE, first, A);
+    return
 end
 o = ctx.opts;
 sys = ctx.sys;
@@ -232,4 +251,186 @@ end
 
 function e = mkev(t, type, var, detail)
 e = struct('date', double(t), 'type', type, 'variable', var, 'detail', detail);
+end
+
+
+% =========================================================================
+function [S, out, ev] = update_nt(ctx, S, t, getVal, F, first, A)
+% End-of-period update with N agent types (DESIGN_br_extensions 1.1-1.2).
+o = ctx.opts;
+nt = ctx.nt;
+sys = ctx.sys;
+lv = ctx.learnVars;
+ev = struct('date', {}, 'type', {}, 'variable', {}, 'detail', {});
+out = struct('FE', struct(), 'gain', struct(), 'alm', []);
+if ~isfield(ctx, 'blocks') || isempty(ctx.blocks)
+    ctx.blocks = hetlearn.plm.blocks(sys);
+end
+S.n1m_last = hetlearn.engine.shares_for_mode(ctx, S);
+
+% ---- (1) own squared errors, fitness, shares -------------------------------------------
+feF = struct();
+for i = 1:numel(lv)
+    x = lv{i};
+    if ~first
+        xt = getVal(x, 0);
+    end
+    for k = nt.byvar.(x).names
+        if first
+            out.FE.(x).(k{1}) = NaN;
+            feF.(x).(k{1}) = NaN;
+        else
+            e = xt - S.f.(x).(k{1});
+            out.FE.(x).(k{1}) = e^2;
+            feF.(x).(k{1}) = e;
+        end
+    end
+end
+sw = o.switching;
+if ~first
+    for g = 1:numel(ctx.groups)
+        gr = ctx.groups(g);
+        names = {nt.types(gr.types).name};
+        FEg = zeros(1, numel(names));
+        for v = gr.G
+            for q = 1:numel(names)
+                FEg(q) = FEg(q) + out.FE.(v{1}).(names{q});
+            end
+        end
+        if numel(names) == 2 && gr.types(1) == nt.re && sw.inertia == 0 && all(gr.C == 0) ...
+                && strcmp(sw.fitness, 'normalized')
+            % the two-type case of hetlearn.switching.discrete_choice (RE first)
+            [n1, zRE, zBR] = feval(['hetlearn.switching.' sw.rule], FEg(1), FEg(2), S.U{g}(1), ...
+                S.U{g}(2), gr.chi, sw.memory);
+            n = [n1, 1 - n1];
+            U = [zRE, zBR];
+        else
+            [n, U] = hetlearn.switching.discrete_choice_n(FEg, S.U{g}, gr.chi, sw.memory, ...
+                'inertia', sw.inertia, 'nprev', S.n{g}, 'costs', gr.C, 'fitness', sw.fitness);
+        end
+        if any(~isfinite(n))
+            ev(end+1) = mkev(t, 'shares_nan', strjoin(gr.members, ','), ...
+                'non-finite share; previous fitness and shares kept'); %#ok<AGROW>
+        else
+            S.n{g} = n;
+            S.U{g} = U;
+        end
+    end
+end
+
+% ---- (2) forecasts made in t ---------------------------------------------------------------
+S = hetlearn.engine.ntypes('store', ctx, S, F);
+
+% ---- (3) RLS of every learning type and the projection facility ---------------------------------
+S.prev = struct('phi', S.phi, 'R', S.R);
+nE = numel(sys.eq);
+for i = 1:nE
+    out.gain.(sys.eq(i).target) = NaN;
+end
+cand = S.phi;
+Rcand = S.R;
+upd = false(1, nE);
+anyRLS = false;
+errsT = struct();
+eqType = {};
+if nE > 0
+    eqType = {sys.eq.type};
+end
+for j = 1:numel(nt.types)
+    ty = nt.types(j);
+    if isempty(ty.sys) || ~strcmp(ty.update, 'rls')
+        continue
+    end
+    anyRLS = true;
+    k = ty.name;
+    ix = find(strcmp(eqType, k));
+    tgs = cell(1, numel(ix));
+    Z = cell(1, numel(ix));
+    Y = zeros(1, numel(ix));
+    rls = struct();
+    fh = struct();
+    ph = struct();
+    for q = 1:numel(ix)
+        e = sys.eq(ix(q));
+        tgs{q} = e.var;
+        [Z{q}, Y(q)] = regressors_nt(e, getVal);
+        fe = Y(q) - S.phi.(e.target)' * Z{q};
+        S.fe_hist.(e.target)(end+1, 1) = fe;
+        if all(isfinite([Z{q}; Y(q)]))
+            rls.(e.var) = fe;
+        else
+            rls.(e.var) = NaN;
+        end
+        fh.(e.var) = S.fe_hist.(e.target);
+        ph.(e.var) = S.phi_hist.(e.target);
+    end
+    fk = struct();
+    for v = ty.vars
+        fk.(v{1}) = feF.(v{1}).(k);
+    end
+    gk = ty.gain;
+    rule = ['hetlearn.gain.' gk.rule];
+    if ~isfield(S, 'gain') || ~isfield(S.gain, k) || isempty(S.gain.(k))
+        S.gain.(k) = feval(rule, 'init', ty.sys, intersect(ty.vars, ty.sys.targets, 'stable'), gk);
+    end
+    errs = struct('t', t, 'first', logical(first), 'targets', {tgs}, 'rls', rls, ...
+        'forecast', fk, 'fe_hist', fh, 'phi_hist', ph);
+    G = feval(rule, 'gain', S.gain.(k), errs, gk);
+    errsT.(k) = errs;
+    for q = 1:numel(ix)
+        e = sys.eq(ix(q));
+        if ~all(isfinite([Z{q}; Y(q)]))
+            ev(end+1) = mkev(t, 'rls_missing', e.target, 'missing data; beliefs kept'); %#ok<AGROW>
+            continue
+        end
+        g = G.(e.var);
+        out.gain.(e.target) = g;
+        [cand.(e.target), Rcand.(e.target)] = hetlearn.rls.update(S.phi.(e.target), S.R.(e.target), Z{q}, Y(q), g);
+        upd(ix(q)) = true;
+    end
+end
+if anyRLS
+    if strcmp(hetlearn.engine.facility('name', o), 'plm_alm')
+        [S, e] = hetlearn.engine.facility('plm', ctx, S, cand, Rcand, upd, t);
+        ev = [ev, e];
+    else
+        S.phi = cand;
+        S.R = Rcand;
+    end
+end
+S.n1m_keep = [];
+if ~isempty(A)
+    [A.m, S, r, e] = hetlearn.engine.facility('alm', ctx, A.m, S, t, A.stage);
+    ev = [ev, e];
+    out.alm = r;
+end
+for i = 1:nE
+    tg = sys.eq(i).target;
+    S.phi_hist.(tg)(:, end+1) = S.phi.(tg);
+end
+
+% ---- (4) gain updates, after the RLS and projection step ------------------------------------------
+ks = fieldnames(errsT);
+for q = 1:numel(ks)
+    k = ks{q};
+    ty = nt.types(strcmp(nt.names, k));
+    [S.gain.(k), gev] = feval(['hetlearn.gain.' ty.gain.rule], 'update', S.gain.(k), errsT.(k), ty.gain);
+    for i = 1:numel(gev)
+        p = strsplit(gev(i).variable, ',');
+        gev(i).variable = strjoin(strcat(p, ['__' k]), ',');
+    end
+    ev = [ev, gev]; %#ok<AGROW>
+end
+end
+
+
+function [z, y] = regressors_nt(e, getVal)
+z = zeros(numel(e.reg_vars), 1);
+for j = 1:numel(e.reg_vars)
+    z(j) = getVal(e.reg_vars{j}, -e.reg_lags(j));
+end
+if e.constant
+    z = [1; z];
+end
+y = getVal(e.var, 0);
 end
