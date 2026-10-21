@@ -38,11 +38,13 @@ function varargout = ntypes(cmd, varargin)
 %                switching.intensity 'model:bma': chi = 1/(2 sigma^2) per
 %                group, sigma^2 the mean over its variables of
 %                ctx.info.nt.model_values.bma.sigma2. Errors
-%                (hetlearn:engine:types): history.mode other than
-%                're_smoother', density forecasts, mode 'learning' with
-%                more than one non-RE type in a group, fixed_n2 without
-%                exactly one non-RE type, universal groups whose variables
-%                have different types.
+%                (hetlearn:engine:types): history.mode 'inversion' (the
+%                history stages are 're_smoother' and, since phase P6,
+%                'kalman'), mode 'learning' with more than one non-RE type
+%                in a group, fixed_n2 without exactly one non-RE type,
+%                universal groups whose variables have different types.
+%                Density forecasts run on the general path of
+%                hetlearn.density.run (phase P6).
 %   'forecasts'  [F, X]: F.<x>.<type> the forecast of x_{t+1} made in t by
 %                each type, as it enters the aggregate expectation x_exp1:
 %                the type's forecast <x>_exp1_<type> after the forecast
@@ -50,7 +52,9 @@ function varargout = ntypes(cmd, varargin)
 %                transforms the forecast itself), the forecast that fitness,
 %                FE_<type> and f_<type> use. X.base.<x>.<type> = the forecast
 %                before the transforms, X.pa = partial-adjustment values. src
-%                'history' (RE smoother history, nothing simulated): 're'
+%                'history' (RE smoother history, nothing simulated; also the
+%                Kalman history, whose getVal serves the agents' real-time
+%                data, hetlearn.engine.kalman_history): 're'
 %                types read <x>_exp1_<type>(t) from the history databank (a
 %                second RE type that forecasts as the RE type reads
 %                <x>_exp1_RE, which hetlearn.engine.history_db takes from the
@@ -108,12 +112,10 @@ function [S, ctx] = init(ctx, m, H)
 o = ctx.opts;
 nt = ctx.info.nt;
 ID = 'hetlearn:engine:types';
-if ~strcmp(o.history.mode, 're_smoother')
-    error(ID, ['N agent types (or the switching options of DESIGN_br_extensions 1.2) with history.mode = ''%s'' ' ...
-        'are not supported yet: use history.mode = ''re_smoother''.'], o.history.mode);
-end
-if logical(o.density.enabled)
-    error(ID, 'Density forecasts (density.enabled) with N agent types are not supported yet (phase P6).');
+if ~any(strcmp(o.history.mode, {'re_smoother', 'kalman'}))
+    % hetlearn.load_options refuses this first (hetlearn:options:unsupported); kept for direct engine calls
+    error(ID, ['N agent types, forecast transforms or the switching options of DESIGN_br_extensions 1.2 with ' ...
+        'history.mode = ''%s'' are not supported: use history.mode = ''re_smoother'' or ''kalman''.'], o.history.mode);
 end
 lv = ctx.learnVars;
 sys = ctx.sys;
