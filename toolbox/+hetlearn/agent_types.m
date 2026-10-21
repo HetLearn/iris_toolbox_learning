@@ -24,7 +24,7 @@ function A = agent_types(opts)
 %                    n2_x, alpha_x, beta_x)
 %     .types(i)      one struct per type, the RE type first, then the others in
 %                    the order given:
-%                      name, kind ('re' | 'plm' | 'rule')
+%                      name, kind ('re' | 'plm' | 'rule' | 'level' | 're_mean')
 %                      variant   're': type.variant, '' = expectations.re_variant
 %                                (the re_anchored switch of the generated file)
 %                      variant_resolved
@@ -43,16 +43,23 @@ function A = agent_types(opts)
 %                      gain      gain subtree (type.gain merged over gain)
 %                      inpop     true for a listed type; false for the RE type
 %                                when it is not listed (always generated, share 0)
+%                      base, k   'level' (phase P4, DESIGN_br_extensions 1.4): the
+%                                level-0 type (a 'plm', 'rule' or 're' type of the
+%                                list, or RE) and the level k >= 1; info resolved
+%                                ([] = expectations.re_info), update 'fixed'
 %     .names         {types.name}; .re index of the RE type (1)
 %     .default_pair  true when the population is exactly RE (kind 're') and
 %                    BR (kind 'plm'): shares.init = [] then means shares.init_n2
 %     .gen           the generator's view (hetlearn.extend_model option 'types'):
-%                    name, kind, variant, info, plm, rule, variables
+%                    name, kind, variant, info, plm, rule, variables, base, k
 %
-%   Restrictions of phase P2 (error hetlearn:types:unsupported): kinds 'level'
-%   and 're_mean' (P4, P5); a second 're' type must be model-consistent with
-%   period-t information, or forecast exactly as the RE type (same variant and
-%   information); only switching.rule = 'discrete_choice'.
+%   Kind 're_mean' (phase P4, mechanism 23): the RE type's forecast plus a learned
+%   mean of its own error; variant and information are the RE type's (an own
+%   value that differs is an error), update and gain as a 'plm' type.
+%   Restrictions (error hetlearn:types:unsupported): a second 're' type must be
+%   model-consistent with period-t information, or forecast exactly as the RE type
+%   (same variant and information); a 'level' type on another 'level' type; only
+%   switching.rule = 'discrete_choice'.
 %
 %   See also hetlearn.load_model, hetlearn.extend_model, hetlearn.engine.ntypes.
 
@@ -85,7 +92,7 @@ end
 
 base = struct('name', '', 'kind', '', 'variant', '', 'variant_resolved', '', 'info', '', ...
     'info_resolved', '', 'plm', [], 'rule', [], 'variables', {{}}, 'cost', 0, 'update', '', ...
-    'gain', [], 'inpop', true);
+    'gain', [], 'inpop', true, 'base', '', 'k', 0);
 types = base([]);
 if ~A.ntype
     if A.engine
@@ -144,11 +151,57 @@ else
                 b.info_resolved = b.info;
                 b.update = pick(t.update, opts.beliefs.update);
                 b.gain = type_gain(opts.gain, t.gain);
+            case 'level'
+                % level k on a level-0 type (DESIGN_br_extensions 1.4, phase P4): an anchored forecast
+                % whose coefficients hetlearn.engine.anchor_update computes each quarter
+                b.info = pick(t.info, opts.expectations.re_info);
+                b.info_resolved = b.info;
+                b.base = char(t.base);
+                b.k = double(t.k);
+                b.update = 'fixed';
+            case 're_mean'
+                % the RE type's forecast plus a learned mean of its error (mechanism 23, phase P4)
+                rv = char_or_empty(t.variant);
+                ri = char_or_empty(t.info);
+                if (~isempty(rv) && ~strcmp(rv, opts.expectations.re_variant)) ...
+                        || (~isempty(ri) && ~strcmp(ri, opts.expectations.re_info))
+                    error('hetlearn:types:unsupported', ['Type %s (kind ''re_mean'') adds its learned mean to the ' ...
+                        'RE type''s forecast, so it has the RE type''s variant and information (%s, ''%s''); set ' ...
+                        'expectations.re_variant / expectations.re_info instead.'], t.name, ...
+                        opts.expectations.re_variant, opts.expectations.re_info);
+                end
+                b.variant = '';
+                b.variant_resolved = opts.expectations.re_variant;
+                b.info = opts.expectations.re_info;
+                b.info_resolved = b.info;
+                b.update = pick(t.update, opts.beliefs.update);
+                b.gain = type_gain(opts.gain, t.gain);
             otherwise
-                error('hetlearn:types:unsupported', ['expectations.types: kind ''%s'' (type %s) is built in ' ...
-                    'phase P4/P5 (docs/DESIGN_br_extensions.md sec. 6).'], t.kind, t.name);
+                error('hetlearn:types:unsupported', 'expectations.types: kind ''%s'' (type %s) is not known.', ...
+                    t.kind, t.name);
         end
         types(end+1) = b; %#ok<AGROW>
+    end
+    names = {types.name};
+    for i = 2:numel(types)
+        b = types(i);
+        if ~strcmp(b.kind, 'level')
+            continue
+        end
+        q = find(strcmp(names, b.base), 1);
+        if isempty(q)
+            error('hetlearn:types:unsupported', 'Type %s (kind ''level''): its base %s is not an agent type of the run.', ...
+                b.name, b.base);
+        end
+        if strcmp(types(q).kind, 'level')
+            error('hetlearn:types:unsupported', ['Type %s (kind ''level''): its base %s is itself a level type; give ' ...
+                'the level-0 type as base and the level as k.'], b.name, b.base);
+        end
+        bv = types(q).variables;
+        if ~isempty(bv) && ~(~isempty(b.variables) && all(ismember(b.variables, bv)))
+            error('hetlearn:types:unsupported', ['Type %s (kind ''level''): it must forecast only variables that its ' ...
+                'base %s forecasts (set its variables).'], b.name, b.base);
+        end
     end
     re = types(1);
     for i = 2:numel(types)
@@ -172,11 +225,12 @@ A.re = 1;
 pop = types([types.inpop]);
 A.default_pair = numel(pop) == 2 && all(ismember({'RE', 'BR'}, {pop.name})) ...
     && strcmp(pop(strcmp({pop.name}, 'RE')).kind, 're') && strcmp(pop(strcmp({pop.name}, 'BR')).kind, 'plm');
-gen = struct('name', {}, 'kind', {}, 'variant', {}, 'info', {}, 'plm', {}, 'rule', {}, 'variables', {});
+gen = struct('name', {}, 'kind', {}, 'variant', {}, 'info', {}, 'plm', {}, 'rule', {}, 'variables', {}, ...
+    'base', {}, 'k', {});
 for i = 1:numel(types)
     b = types(i);
     gen(i) = struct('name', b.name, 'kind', b.kind, 'variant', b.variant, 'info', b.info, ...
-        'plm', b.plm, 'rule', b.rule, 'variables', {b.variables}); %#ok<AGROW>
+        'plm', b.plm, 'rule', b.rule, 'variables', {b.variables}, 'base', b.base, 'k', b.k); %#ok<AGROW>
 end
 A.gen = gen;
 end
