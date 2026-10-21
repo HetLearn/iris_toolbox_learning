@@ -26,7 +26,8 @@ function [res, F] = core(ctx, m, H)
 %     res  struct with .cfg, .paths, .learning, .events, .state, .dates,
 %          .meta (partial; hetlearn.run adds timing), .history_mode; with
 %          'inversion' also .inversion (hetlearn.engine.history hinfo
-%          without the snapshots), see hetlearn.run.
+%          without the snapshots); with 'kalman' also .kalman
+%          (hetlearn.engine.kalman_history), see hetlearn.run.
 %     F    forecast-stage bundle, to re-run the forecast stage from the same
 %          origin state with other shocks (hetlearn.density.run):
 %            .ctx   engine context (with share groups)
@@ -42,7 +43,10 @@ function [res, F] = core(ctx, m, H)
 %
 %   Steps: dates and checks; the engine.step flag in the model's user data
 %   (field hetlearn_step, read by hetlearn.engine.solve_model);
-%   hetlearn.engine.state_init; hetlearn.engine.history;
+%   hetlearn.engine.state_init; hetlearn.engine.history (history.mode =
+%   'kalman': hetlearn.engine.kalman_history, whose filtered history then
+%   replaces the RE-smoothed one, so the forecast starts from the filtered
+%   state at the origin, DESIGN_br_extensions 5, D12);
 %   hetlearn.engine.build_shocks (with 'inversion' the backed-out history
 %   then replaces the RE-smoothed one over [history.inversion.start,
 %   origin], variables and shocks); reference runs for 'delta' conditions
@@ -64,6 +68,7 @@ if ~isfield(ctx, 'quiet')
     ctx.quiet = false;
 end
 invMode = strcmp(o.history.mode, 'inversion');
+kalMode = strcmp(o.history.mode, 'kalman');     % time-varying Kalman filter of the ALM (DESIGN_br_extensions 5)
 
 % ---- dates -----------------------------------------------------------------------
 if isempty(o.forecast.origin)
@@ -151,6 +156,8 @@ elseif invMode
     hc = struct('key', cache_key(o), 'init_date', double(initDate), 'start', double(ctx.inv_start), ...
         'origin', double(origin), 'rec', rec, 'ev', evH, 'd', dInv, ...
         'info', rmfield(hinfo, {'snapshots', 'warm'}), 'snapshots', hinfo.snapshots);
+elseif kalMode
+    [S, rec, evH, dInv, hinfo] = hetlearn.engine.kalman_history(ctx, S, H, rec, m);
 else
     [S, rec, evH, ~, hinfo] = hetlearn.engine.history(ctx, S, H, rec, m);
 end
@@ -161,6 +168,10 @@ if ~ctx.quiet
             '%d events, %.1f s%s\n'], char(dat2str(ctx.inv_start)), char(dat2str(origin)), ...
             numel(ctx.inv_start:origin), hinfo.max_obs_miss, hinfo.n_solve, numel(evH), toc(t0), ...
             ternary(isfield(hinfo, 'from_cache'), ' (cached)', ''));
+    elseif kalMode
+        fprintf('  history (kalman, %s start) %s-%s: %d quarters, log likelihood %.4f from %s, %d solves, %d events, %.1f s\n', ...
+            hinfo.kalman.init, char(dat2str(hinfo.start)), char(dat2str(origin)), numel(hinfo.kalman.dates), ...
+            hinfo.kalman.loglik, char(dat2str(initDate)), hinfo.n_solve, numel(evH), toc(t0));
     elseif logical(o.history.learn)
         fprintf('  history %s-%s: %d periods, %d events, %d ALM checks (%.1f s), %.1f s\n', ...
             char(dat2str(initDate)), char(dat2str(origin)), kStart, numel(evH), hinfo.alm_n_check, ...
@@ -172,8 +183,12 @@ end
 
 % ---- shocks, references, conditions ---------------------------------------------------
 d = hetlearn.engine.build_shocks(ctx, H);
-if invMode
-    rng = ctx.inv_start:origin;
+if invMode || kalMode
+    if invMode
+        rng = ctx.inv_start:origin;
+    else
+        rng = hinfo.db_start:origin;            % filtered history; the origin's state lags from a_{origin|origin}
+    end
     nmAll = [ctx.xList(:); ctx.yList(:); ctx.eList(:)]';
     for i = 1:numel(nmAll)
         if isfield(dInv, nmAll{i})              % Ramsey multipliers are not in the rule-model history
@@ -251,6 +266,9 @@ if invMode
     hi = hinfo;
     hi = rmfield(hi, intersect({'snapshots', 'warm'}, fieldnames(hi)));
     res.inversion = hi;
+end
+if kalMode
+    res.kalman = hinfo.kalman;
 end
 end
 
