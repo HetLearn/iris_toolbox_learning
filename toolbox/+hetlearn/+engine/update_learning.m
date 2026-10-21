@@ -80,12 +80,17 @@ function [S, out, ev] = update_learning(ctx, S, t, getVal, fRE, fBR, first, A)
 %   S.gain.<type> (its errors: its residuals and its signed forecast errors),
 %   then the projection facility on the keyed system and the ALM check as
 %   before. (4) Each type's gain update; its events name the keyed targets.
+%   Phase P4: fRE holds the forecasts as they enter the aggregate (after the
+%   transforms; fitness and errors use them), fBR the second output of
+%   hetlearn.engine.ntypes('forecasts') (forecasts before the transforms); with
+%   level types, hetlearn.engine.anchor_update computes the levels in force in
+%   t+1 between (3) and the ALM check.
 
 if nargin < 8
     A = [];
 end
 if isfield(ctx, 'nt') && ~isempty(ctx.nt)
-    [S, out, ev] = update_nt(ctx, S, t, getVal, fRE, first, A);
+    [S, out, ev] = update_nt(ctx, S, t, getVal, fRE, first, A, fBR);
     return
 end
 o = ctx.opts;
@@ -255,8 +260,10 @@ end
 
 
 % =========================================================================
-function [S, out, ev] = update_nt(ctx, S, t, getVal, F, first, A)
-% End-of-period update with N agent types (DESIGN_br_extensions 1.1-1.2).
+function [S, out, ev] = update_nt(ctx, S, t, getVal, F, first, A, X)
+% End-of-period update with N agent types (DESIGN_br_extensions 1.1-1.2). F: the forecasts as they
+% enter the aggregate (fitness); X: the second output of hetlearn.engine.ntypes('forecasts') (forecasts
+% before the transforms, partial-adjustment values; phase P4), [] = F itself.
 o = ctx.opts;
 nt = ctx.nt;
 sys = ctx.sys;
@@ -319,10 +326,13 @@ if ~first
 end
 
 % ---- (2) forecasts made in t ---------------------------------------------------------------
-S = hetlearn.engine.ntypes('store', ctx, S, F);
+S = hetlearn.engine.ntypes('store', ctx, S, F, X);
 
 % ---- (3) RLS of every learning type and the projection facility ---------------------------------
 S.prev = struct('phi', S.phi, 'R', S.R);
+if isfield(S, 'levels')
+    S.prev.levels = S.levels;      % level coefficients in force in t (an ALM revert keeps them)
+end
 nE = numel(sys.eq);
 for i = 1:nE
     out.gain.(sys.eq(i).target) = NaN;
@@ -397,6 +407,11 @@ if anyRLS
         S.phi = cand;
         S.R = Rcand;
     end
+end
+if hetlearn.engine.anchor_update('on', ctx)
+    % level types (phase P4): the levels from the updated beliefs, in force in t+1 (before the ALM check)
+    [S, e] = hetlearn.engine.anchor_update('compute', ctx, S, t);
+    ev = [ev, e];
 end
 S.n1m_keep = [];
 if ~isempty(A)
