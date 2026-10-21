@@ -76,6 +76,10 @@ end
 doAlm = ~strcmp(hetlearn.engine.facility('name', ctx.opts), 'none');
 lastP = [];
 [d, C] = hetlearn.policy.forecast_setup(ctx, d, C);     % Ramsey: multipliers 0 up to the origin
+isNT = hetlearn.engine.ntypes('on', ctx);              % N agent types (DESIGN_br_extensions 1.1)
+if isNT
+    d = hetlearn.engine.ntypes('seed', ctx, S, d, hz(1) - 1);   % rule types' own lagged forecasts
+end
 for k = 1:numel(hz)
     t = hz(k);
     % (1) parameters
@@ -109,18 +113,23 @@ for k = 1:numel(hz)
         d.(names{i})(t) = s.(names{i})(t);
     end
     getVal = @(name, j) d.(name)(t + j);
-    fRE = struct();
-    fBR = struct();
-    for i = 1:numel(lv)
-        x = lv{i};
-        fRE.(x) = d.([x '_exp1_RE'])(t);
-        fBR.(x) = d.([x '_exp1_BR'])(t);
-        chk = hetlearn.plm.forecast_value(sys, S.phi, getVal, x);
-        if ~(abs(chk - fBR.(x)) < 1e-9)
-            error('hetlearn:engine:timing', ...
-                ['Period %s: %s_exp1_BR from the model (%.12g) differs from the PLM ' ...
-                'forecast with phi_{t-1} (%.12g, beliefs.info = ''%s'').'], char(dat2str(t)), x, ...
-                fBR.(x), chk, sys.info);
+    if isNT
+        fRE = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'model', t);   % asserts PLM and rule types
+        fBR = [];
+    else
+        fRE = struct();
+        fBR = struct();
+        for i = 1:numel(lv)
+            x = lv{i};
+            fRE.(x) = d.([x '_exp1_RE'])(t);
+            fBR.(x) = d.([x '_exp1_BR'])(t);
+            chk = hetlearn.plm.forecast_value(sys, S.phi, getVal, x);
+            if ~(abs(chk - fBR.(x)) < 1e-9)
+                error('hetlearn:engine:timing', ...
+                    ['Period %s: %s_exp1_BR from the model (%.12g) differs from the PLM ' ...
+                    'forecast with phi_{t-1} (%.12g, beliefs.info = ''%s'').'], char(dat2str(t)), x, ...
+                    fBR.(x), chk, sys.info);
+            end
         end
     end
     % (5) learning update with the projection facility (ALM check of the model in t+1)
