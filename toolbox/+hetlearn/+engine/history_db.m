@@ -27,6 +27,11 @@ function db = history_db(o, H)
 %   for lagged models), not x_{t|t}, which would use data dated t: every
 %   <x>_exp1_RE series of db is taken from H.predicted. The learners' data and
 %   the realised values stay x_{t|t}. Under 'smoothed' nothing changes.
+%   Phase P4 (DESIGN_br_extensions 1.4): the anchored diagnostic reference
+%   <x>_DEg_RE (E_{t-1} x_{t+2}, a function of the t-1 state) is taken from
+%   H.predicted as well, and the target of the 're_mean' types, <x>_feRE = x -
+%   <x>_exp1_RE{-1}, is rebuilt from x_{t|t} and those predictions, so it is the
+%   error of the RE forecast the history stage uses.
 
 db = H.smooth;
 if ~isfield(o, 'history') || ~isfield(o.history, 're_states') || ~strcmp(o.history.re_states, 'filtered')
@@ -48,8 +53,16 @@ if ~isfield(H, 'predicted') || ~isstruct(H.predicted) || isempty(fieldnames(H.pr
 end
 f = fieldnames(db);
 for i = 1:numel(f)
-    if endsWith(f{i}, '_exp1_RE') && isfield(H.predicted, f{i})
+    if (endsWith(f{i}, '_exp1_RE') || endsWith(f{i}, '_DEg_RE')) && isfield(H.predicted, f{i})
         db.(f{i}) = H.predicted.(f{i});
+    end
+end
+for i = 1:numel(f)
+    if endsWith(f{i}, '_feRE')
+        x = f{i}(1:end-5);
+        if isfield(db, x) && isfield(db, [x '_exp1_RE'])
+            db.(f{i}) = db.(x) - db.([x '_exp1_RE']){-1};
+        end
     end
 end
 end
