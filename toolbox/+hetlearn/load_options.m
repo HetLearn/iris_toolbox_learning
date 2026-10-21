@@ -626,18 +626,9 @@ end
 function not_implemented(o)
 % Options of docs/DESIGN_br_extensions.md that are validated but that the engine does not read
 % yet. A phase deletes its own lines when it lands (section 6 of the design).
-T = o.expectations.types;
-L = {};
-kinds = {T.kind};
-if any(strcmp(kinds, 'level'))
-    L(end+1, :) = {'types of kind ''level''', 'P4'};
-end
-if any(strcmp(kinds, 're_mean'))
-    L(end+1, :) = {'types of kind ''re_mean''', 'P4, P5'};
-end
-if any(cellfun(@(e) ~isempty(regexp(e, '\<re1\s*\(', 'once')), arrayfun(@rule_expr, T, 'UniformOutput', false)))
-    L(end+1, :) = {'rule term re1(...)', 'P4'};
-end
+% Phases P1 to P5 have landed (P4 on 2026-10-21 removed the last entries: kinds 'level' and
+% 're_mean', the rule term re1(...)), so no option is guarded at present.
+L = cell(0, 2);
 if ~isempty(L)
     items = cellfun(@(a, b) sprintf('%s (phase %s)', a, b), L(:, 1), L(:, 2), 'UniformOutput', false);
     error('hetlearn:options:notImplemented', ['Not implemented yet: %s. These options of ' ...
