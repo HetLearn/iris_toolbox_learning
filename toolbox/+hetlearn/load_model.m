@@ -126,8 +126,17 @@ function [m, info] = load_model(spec, opts)
 %   and a transform the generator left out of a learning variable's type
 %   (meta.transforms.blocked).
 %
+%   Generalised anchor (DESIGN_br_extensions 1.4, phase P4): with extra anchored
+%   terms (transforms that add states, the anchored diagnostic reference) the
+%   RE type's coefficients come from hetlearn.anchor_coefficients in the anchor
+%   economy (anchor_general); re1(...) terms of rule types get their
+%   coefficients from the model-consistent RE limit (info.nt.model_values.re1);
+%   level types get their chain descriptors (info.nt.levels), the coefficients
+%   come per quarter from hetlearn.engine.anchor_update; 're_mean' types get a
+%   mean-only PLM of x_feRE.
+%
 %   See also hetlearn.extend_model, hetlearn.re_filter, hetlearn.run,
-%   hetlearn.re_anchor_coefficients.
+%   hetlearn.re_anchor_coefficients, hetlearn.anchor_coefficients.
 
 if nargin < 2 || isempty(opts)
     opts = struct();
@@ -439,14 +448,21 @@ if anchored && ~(isfield(meta, 'anchor_ok') && meta.anchor_ok && logical(spec.li
         'names are plain (no log variables); %s does not qualify.'], spec.model_file);
 end
 if hasTF && anchTog && ~isempty(meta.transforms.deferred)
-    % a diagnostic transform on an RE type that follows re_variant: the generated file has the
-    % model-consistent reference only; the anchored one is the generalised anchor (phase P4)
-    dv = meta.transforms.deferred(ismember({meta.transforms.deferred.var}, learnVars));
+    % a diagnostic transform on an RE type that follows re_variant: with information up to t-1 the
+    % anchored version has the reference x_DEg_RE{-1} (phase P4, meta.transforms.deg_vars); with
+    % period-t information the anchored reference is not built
+    degv = {};
+    if isfield(meta.transforms, 'deg_vars')
+        degv = meta.transforms.deg_vars;
+    end
+    dv = meta.transforms.deferred(ismember({meta.transforms.deferred.var}, learnVars) ...
+        & ~ismember({meta.transforms.deferred.var}, degv));
     if ~isempty(dv)
         error('hetlearn:load_model:transforms', ['expectations.transforms(%d) (diagnostic) acts on the anchored ' ...
-            'RE forecast of %s (type %s, expectations.re_variant = ''anchored''): its reference, the anchored ' ...
-            'forecast made one period earlier, is built in phase P4 (generalised anchor). Phase P3 runs the ' ...
-            'model-consistent part: set expectations.re_variant = ''model_consistent''.'], dv(1).i, dv(1).var, dv(1).type);
+            'RE forecast of %s (type %s, expectations.re_variant = ''anchored'') with period-t information: its ' ...
+            'anchored reference E_{t-1} x_{t+1} is built for RE information up to t-1 only (phase P4). Set ' ...
+            'expectations.re_info = ''lagged'' or expectations.re_variant = ''model_consistent''.'], dv(1).i, ...
+            dv(1).var, dv(1).type);
     end
 end
 if hasTF && ~isempty(meta.transforms.blocked)
@@ -558,6 +574,39 @@ end
 % ---- PLM systems of the learning types, checked against the generated equations -----------
 xList = cellstr(get(m, 'xList'));
 nt = nt_descriptor(AT, meta, learnVars, xList, opts, [], m, spec);
+if has_re1(meta)
+    % re1(...) terms (phase P4, mechanism 33): anchored E_{t-1} in the variant's RE limit, model-consistent
+    mR = mMC;                          % the anchor economy of the anchored RE type, when it was built
+    if isempty(mR)
+        if anchored
+            mR = mc_limit(spec, meta, A, Pm, Z);
+        else
+            mR = m;                    % the RE limit is model-consistent already
+        end
+    end
+    [Ar, V1] = re1_values(mR, meta, learnVars, A, nt);
+    m = assign(m, Ar);
+    [m, ok, msg] = hetlearn.engine.solve_model(m, spec);
+    if ~ok
+        error('hetlearn:load_model:solveFailed', 'solve failed for %s (RE limit with the re1 coefficients): %s', ...
+            meta.ext_file, msg);
+    end
+    if logical(spec.linear)
+        m = sstate(m);
+    end
+    for j = 1:numel(nt.types)
+        if ~strcmp(nt.types(j).kind, 'rule')
+            continue
+        end
+        for i = 1:numel(nt.types(j).vars)
+            x = nt.types(j).vars{i};
+            for q = 1:numel(nt.types(j).rule.(x).re1)
+                nt.types(j).rule.(x).re1(q).value = V1.(nt.types(j).rule.(x).re1(q).prefix);
+            end
+        end
+    end
+    nt.model_values.re1 = V1;
+end
 for j = 1:numel(nt.types)
     t = nt.types(j);
     if isempty(t.sys) || ~strcmp(t.kind, 'plm')
@@ -646,7 +695,7 @@ anchorInfo = [];
 mA = [];
 mv = struct();
 offRules = {'sd_ygap_half', 'projection'};
-needA = anchored || any(ismember({pend.rule}, offRules));
+needA = anchored || any(ismember({pend.rule}, offRules)) || has_re1(meta);
 if needA
     Amc = A;
     Amc.(meta.anchor_toggle) = false;
@@ -664,16 +713,19 @@ if needA
     m = assign(m, V);
 end
 if anchored
-    if lagged
+    if has_extra(meta, learnVars)
+        % phase P4: the anchored expression has terms on states that the transforms add (memory and
+        % partial-adjustment states, the anchored diagnostic reference): the generalised anchor
+        [Aa, anchorInfo] = anchor_general(mA, meta, learnVars, lagged, A);
+    elseif lagged
         try
             [Aa, anchorInfo] = hetlearn.re_anchor_coefficients(spec, P, 're_info', 'lagged', 'model', mA, ...
                 'vars', learnVars, 'states', meta.re_states, 'chain', meta.re_chain);
         catch err
             if strcmp(err.identifier, 'hetlearn:anchor:lagged') && contains(err.message, 'loads on')
                 error('hetlearn:load_model:transforms', ['Anchored RE agents with information up to t-1 in an ' ...
-                    'economy whose forecast transforms add states: %s The anchored forecast over states other ' ...
-                    'than the original model''s is the generalised anchor of phase P4; set ' ...
-                    'expectations.re_variant = ''model_consistent'' meanwhile.'], err.message);
+                    'economy whose forecast transforms add states: %s The generated file has no anchored term on ' ...
+                    'this state (hetlearn.extend_model, anchor_extra).'], err.message);
             end
             rethrow(err);
         end
@@ -989,8 +1041,240 @@ for f = reshape(fieldnames(meta.anchor_params), 1, [])
         Z.(pn{j}) = 0;
     end
 end
+if isfield(meta, 'anchor_extra')          % phase P4: anchored reference, level and re1 coefficients
+    for f = reshape(fieldnames(meta.anchor_extra), 1, [])
+        pn = meta.anchor_extra.(f{1});
+        for j = 1:numel(pn)
+            Z.(pn{j}) = 0;
+        end
+    end
+end
 for f = reshape(fieldnames(meta.rule_params), 1, [])
     Z.(f{1}) = meta.rule_params.(f{1});
+end
+end
+
+
+% =========================================================================
+% Generalised anchor (DESIGN_br_extensions 1.4, phase P4)
+% =========================================================================
+function tf = has_extra(meta, learnVars)
+% the RE type's anchored expression of a learning variable has terms beyond the original states
+tf = false;
+if ~isfield(meta, 'anchor_xstates') || isempty(meta.anchor_xstates)
+    return
+end
+n0 = numel(meta.re_states);
+for i = 1:numel(learnVars)
+    x = learnVars{i};
+    if isfield(meta.anchor_xstates, x) && numel(meta.anchor_xstates.(x)) > n0
+        tf = true;
+        return
+    end
+end
+end
+
+
+function tf = has_re1(meta)
+tf = isfield(meta, 're1') && isstruct(meta.re1) && ~isempty(fieldnames(meta.re1));
+end
+
+
+function ok = cond_true(c, A)
+% an !if condition of the anchored text ('', 'br_z' or '~br_z') under the toggles A
+if isempty(c)
+    ok = true;
+elseif c(1) == '~'
+    ok = ~logical(A.(c(2:end)));
+else
+    ok = logical(A.(c));
+end
+end
+
+
+function [tg, ch, deg] = anchor_targets(meta, learnVars, lagged, mE)
+% targets of the RE type's anchored forecasts in the model-consistent anchor economy mE, and the chain
+% states that stand for them: x_REt2 = E_{t-1} x_{t+1} (DESIGN 19); with the anchored diagnostic
+% reference also E_{t-1} x_{t+2}, whose chain states are x_REt3 (lag 0) and x_REt3{-1} (lag 1)
+xb = reshape(cellstr(get(mE, 'xbVector')), 1, []);
+degv = {};
+if isfield(meta, 'transforms') && ~isempty(meta.transforms) && isfield(meta.transforms, 'deg_vars')
+    degv = meta.transforms.deg_vars;
+end
+tg = struct('var', {}, 'h', {});
+ch = struct('state', {}, 'target', {}, 'lag', {});
+deg = false(1, numel(learnVars));
+for i = 1:numel(learnVars)
+    x = learnVars{i};
+    tg(end+1) = struct('var', x, 'h', 1); %#ok<AGROW>
+    it = numel(tg);
+    if lagged && isfield(meta, 're_chain') && isfield(meta.re_chain, x) && any(strcmp(xb, meta.re_chain.(x){2}))
+        ch(end+1) = struct('state', meta.re_chain.(x){2}, 'target', it, 'lag', 0); %#ok<AGROW>
+    end
+    if lagged && any(strcmp(degv, x))
+        tg(end+1) = struct('var', x, 'h', 2); %#ok<AGROW>
+        id = numel(tg);
+        deg(i) = true;
+        ch(end+1) = struct('state', [x '_REt3'], 'target', id, 'lag', 0); %#ok<AGROW>
+        ch(end+1) = struct('state', [x '_REt3{-1}'], 'target', id, 'lag', 1); %#ok<AGROW>
+    end
+end
+end
+
+
+function st = active_states(meta, learnVars, A)
+% the original states and the extra anchored states that exist under the toggles A (the anchored
+% diagnostic reference x_DEg_RE is an own lag, not a state of the anchor economy)
+st = reshape(cellstr(meta.re_states), 1, []);
+n0 = numel(st);
+for i = 1:numel(learnVars)
+    x = learnVars{i};
+    if ~isfield(meta, 'anchor_xstates') || ~isfield(meta.anchor_xstates, x)
+        continue
+    end
+    xs = meta.anchor_xstates.(x);
+    cd = meta.anchor_xconds.(x);
+    for j = n0 + 1:numel(xs)
+        if ~strcmp(xs{j}, [x '_DEg_RE']) && cond_true(cd{j}, A) && ~any(strcmp(st, xs{j}))
+            st{end+1} = xs{j}; %#ok<AGROW>
+        end
+    end
+end
+end
+
+
+function [Aa, info] = anchor_general(mA, meta, learnVars, lagged, A)
+% Anchored RE coefficients (D11, phase P4) over the original states and the extra terms of the
+% generated text: E_{t-j} x_{t+1} (and E_{t-1} x_{t+2}, the anchored diagnostic reference) in the anchor
+% economy mA, the chain states of the RE type solved out; the reference's own lag x_DEg_RE{-1} takes
+% the coefficient on x_REt3{-1}. Terms whose state does not exist under the toggles are 0.
+ID = 'hetlearn:load_model:transforms';
+[tg, ch, deg] = anchor_targets(meta, learnVars, lagged, mA);
+st = active_states(meta, learnVars, A);
+[R, ic] = hetlearn.anchor_coefficients(mA, tg, st, 'lag', double(lagged), 'chain', ch, 'check', true, ...
+    'error_id', ID, 'what', 'anchored RE forecast in the economy with the forecast transforms');
+degRows = [];
+for a = 1:numel(R.own_lags)
+    for c = 1:numel(tg)
+        okLag = R.own_lags(a) == 1 && tg(c).h == 2;
+        if ~okLag && max(abs(R.L{a}(:, c))) >= 1e-12
+            error(ID, 'The anchored RE forecast loads on its own forecast of %s{+%d} made %d periods earlier, which the generated text does not carry.', ...
+                tg(c).var, tg(c).h, R.own_lags(a));
+        end
+    end
+end
+Aa = struct();
+info = struct('states', {st}, 'vars', {learnVars}, 'k', struct(), 'c', struct(), 'param_names', struct(), ...
+    'check_maxdiff', ic.check_maxdiff, 're_info', ternary(lagged, 'lagged', 'current'), 'cz', ic.cz, ...
+    'fixed_point_rcond', ic.fixed_point_rcond, 'targets', tg, 'own_lags', R.own_lags, ...
+    'economy', 'RE limit of the variant with its forecast transforms (D11), generalised anchor (phase P4)');
+for i = 1:numel(learnVars)
+    x = learnVars{i};
+    xs = meta.anchor_xstates.(x);
+    cd = meta.anchor_xconds.(x);
+    it = find(strcmp({tg.var}, x) & [tg.h] == 1, 1);
+    sets = {it, meta.anchor_params.(x)};
+    if deg(i)
+        id = find(strcmp({tg.var}, x) & [tg.h] == 2, 1);
+        sets(end+1, :) = {id, meta.anchor_deg.(x)};
+        degRows(end+1) = id; %#ok<AGROW>
+    else
+        id = [];
+    end
+    for r = 1:size(sets, 1)
+        row = sets{r, 1};
+        pn = sets{r, 2};
+        Aa.(pn{1}) = R.k(row);
+        for j = 1:numel(xs)
+            v = 0;
+            if strcmp(xs{j}, [x '_DEg_RE'])
+                a = find(R.own_lags == 1, 1);
+                if ~isempty(a) && ~isempty(id)
+                    v = R.L{a}(row, id);
+                end
+            elseif cond_true(cd{j}, A)
+                v = R.C(row, strcmp(st, xs{j}));
+            end
+            Aa.(pn{1 + j}) = v;
+        end
+    end
+    info.k.(x) = R.k(it);
+    info.c.(x) = R.C(it, :)';
+    info.param_names.(x) = meta.anchor_params.(x);
+end
+info.deg_rows = degRows;
+end
+
+
+function [Ar, V] = re1_values(mR, meta, learnVars, A, nt)
+% Coefficients of the re1(...) terms of rule types (phase P4, mechanism 33): E_{t-1} of their linear
+% expressions in the variant's RE limit mR (model-consistent), on the original states dated t-1, the
+% lagged RE chains solved out (anchor_targets). Ar: parameter values; V.<prefix>: .k, .c, .vars, .lags
+ID = 'hetlearn:load_model:re1';
+[tg0, ch0] = anchor_targets(meta, learnVars, true, mR);
+st = active_states(meta, learnVars, A);
+n0 = numel(meta.re_states);
+[~, sv, sl] = hetlearn.plm.anchor_names('x', meta.re_states);
+Ar = struct();
+V = struct();
+for j = 1:numel(nt.types)
+    t = nt.types(j);
+    if ~strcmp(t.kind, 'rule')
+        continue
+    end
+    for i = 1:numel(t.vars)
+        Rx = t.rule.(t.vars{i});
+        for q = 1:numel(Rx.re1)
+            E = Rx.re1(q);
+            tg = [tg0, E.targets];
+            [R, ic] = hetlearn.anchor_coefficients(mR, tg, st, 'lag', 1, 'chain', ch0, 'check', true, ...
+                'error_id', ID, 'what', sprintf('re1(%s) of type %s', E.expr, t.name));
+            rows = numel(tg0) + (1:numel(E.targets));
+            w = reshape(E.weights, 1, []);
+            k = E.const + w * R.k(rows);
+            c = w * R.C(rows, :);
+            big = max([0, abs(c(n0 + 1:end))]);
+            for a = 1:numel(R.L)
+                big = max([big, max(abs(w * R.L{a}(rows, :)))]);
+            end
+            if big >= 1e-12
+                error(ID, ['re1(%s) of type %s loads on a state that the forecast transforms add (%.3g); re1 terms ' ...
+                    'run over the original states only.'], E.expr, t.name, big);
+            end
+            pn = meta.re1.(E.prefix);
+            Ar.(pn{1}) = k;
+            for s = 1:n0
+                Ar.(pn{1 + s}) = c(s);
+            end
+            V.(E.prefix) = struct('k', k, 'c', c(1:n0)', 'vars', {sv}, 'lags', sl, 'check_maxdiff', ic.check_maxdiff);
+        end
+    end
+end
+end
+
+
+function mR = mc_limit(spec, meta, A, Pm, Z)
+% the RE limit of the variant, model-consistent (re_anchored = false), solved
+Amc = A;
+Amc.(meta.anchor_toggle) = false;
+mR = Model.fromFile(meta.ext_file, 'linear', logical(spec.linear), 'assign', Amc);
+mR = assign(mR, Pm);
+mR = assign(mR, Z);
+[mR, ok, msg] = hetlearn.engine.solve_model(mR, spec);
+if ~ok
+    error('hetlearn:load_model:solveFailed', 'solve failed for %s (model-consistent RE limit): %s', meta.ext_file, msg);
+end
+if logical(spec.linear)
+    mR = sstate(mR);
+end
+end
+
+
+function v = ternary(c, a, b)
+if c
+    v = a;
+else
+    v = b;
 end
 end
 
@@ -998,18 +1282,24 @@ end
 function nt = nt_descriptor(AT, meta, learnVars, xList, opts, sysTwo, m, spec)
 % The engine's description of the agent types (hetlearn.engine.ntypes).
 legacy = AT.legacy_file;
+maxS = 0;                                  % largest lag among the original states (level, re1 terms)
+if isfield(meta, 'anchor_ok') && meta.anchor_ok && ~isempty(meta.re_states)
+    [~, ~, slS] = hetlearn.plm.anchor_names('x', meta.re_states);
+    maxS = max([0, slS]);
+end
 nt = struct();
 nt.legacy_file = legacy;
 nt.names = AT.names;
 nt.re = 1;
 nt.default_pair = AT.default_pair;
 T = struct('name', {}, 'kind', {}, 'variant', {}, 'info', {}, 'inpop', {}, 'cost', {}, 'update', {}, ...
-    'gain', {}, 'vars', {}, 'sys', {}, 'rule', {}, 'self_maxlag', {}, 'data_maxlag', {});
+    'gain', {}, 'vars', {}, 'sys', {}, 'rule', {}, 'self_maxlag', {}, 'data_maxlag', {}, 'base', {}, 'k', {}, ...
+    'lev', {}, 'zvar', {});
 for j = 1:numel(AT.types)
     a = AT.types(j);
     t = struct('name', a.name, 'kind', a.kind, 'variant', a.variant_resolved, 'info', a.info_resolved, ...
         'inpop', a.inpop, 'cost', a.cost, 'update', a.update, 'gain', a.gain, 'vars', {{}}, 'sys', [], ...
-        'rule', struct(), 'self_maxlag', 0, 'data_maxlag', 0);
+        'rule', struct(), 'self_maxlag', 0, 'data_maxlag', 0, 'base', 0, 'k', 0, 'lev', struct(), 'zvar', struct());
     if j == 1 || isempty(a.variables)
         t.vars = learnVars;
     else
@@ -1028,6 +1318,9 @@ for j = 1:numel(AT.types)
             for i = 1:numel(t.vars)
                 x = t.vars{i};
                 R = meta.rules.(a.name).(x);
+                if ~isfield(R, 're1')            % a rule parsed before phase P4 (meta of a cached file)
+                    R.re1 = struct('prefix', {}, 'placeholder', {}, 'expr', {}, 'targets', {}, 'weights', {}, 'const', {});
+                end
                 t.rule.(x) = R;
                 t.self_maxlag = max(t.self_maxlag, R.self_maxlag);
                 t.data_maxlag = max(t.data_maxlag, R.maxlag);
@@ -1044,6 +1337,32 @@ for j = 1:numel(AT.types)
                     'var', struct('variables', {{}}, 'lags', 1, 'constant', true));
                 t.sys = hetlearn.plm.build_system(pl, meanVars, xList, t.info, a.name);
             end
+            for i = 1:numel(t.vars)
+                if ~isempty(t.rule.(t.vars{i}).re1)
+                    t.data_maxlag = max(t.data_maxlag, maxS + 1);    % re1 runs over the states dated t-1
+                end
+            end
+        case 'level'
+            % level k on a level-0 type (phase P4): coefficients set each quarter by
+            % hetlearn.engine.anchor_update, over the original states dated t-1 ('lagged') or t
+            t.base = find(strcmp(AT.names, a.base), 1);
+            t.k = a.k;
+            for i = 1:numel(t.vars)
+                t.lev.(t.vars{i}) = meta.levels.(a.name).(t.vars{i});
+            end
+            t.data_maxlag = maxS + strcmp(t.info, 'lagged');
+        case 're_mean'
+            % RE forecast plus a learned mean of its error (phase P4, mechanism 23): a mean-only PLM of the
+            % generated target <x>_feRE = x - x_exp1_RE{-1}
+            zv = strcat(t.vars, '_feRE');
+            bv = struct();
+            for i = 1:numel(zv)
+                bv.(zv{i}) = struct('regressors', {{}}, 'constant', true);
+                t.zvar.(t.vars{i}) = zv{i};
+            end
+            pl = struct('default', 'ar1', 'by_var', bv, 'derived', struct(), ...
+                'var', struct('variables', {{}}, 'lags', 1, 'constant', true));
+            t.sys = hetlearn.plm.build_system(pl, zv, xList, 'lagged', a.name);
     end
     T(j) = t; %#ok<AGROW>
 end
@@ -1069,6 +1388,32 @@ for i = 1:numel(learnVars)
         || any(strcmp(AT.types(1).variables, x))), ix);
     b.re_pos = find(ix == 1, 1);
     nt.byvar.(x) = b;
+end
+% level types (phase P4, DESIGN_br_extensions 1.4): one chain per level-0 type, whose levels
+% hetlearn.engine.anchor_update computes each quarter (levels 1 .. K from the level-j economies; the
+% level type with the largest k is the slot of the economies j >= 1)
+nt.levels = struct('base', {}, 'types', {}, 'K', {}, 'slot', {}, 'vars', {}, 'lag', {}, 'states', {}, 'chain', {});
+lt = find(strcmp({T.kind}, 'level'));
+for bse = reshape(unique([T(lt).base], 'stable'), 1, [])
+    ix = lt([T(lt).base] == bse);
+    [K, w] = max([T(ix).k]);
+    slot = ix(w);
+    vars = T(slot).vars;
+    for q = ix
+        if ~isequal(T(q).vars, vars) || ~strcmp(T(q).info, T(slot).info)
+            error('hetlearn:load_model:types', ['The level types on %s (%s) must forecast the same variables with ' ...
+                'the same information.'], T(bse).name, strjoin({T(ix).name}, ', '));
+        end
+    end
+    ch = struct('state', {}, 'target', {}, 'lag', {});
+    bt = T(bse);
+    if strcmp(bt.kind, 're') && strcmp(bt.variant, 'model_consistent') && strcmp(bt.info, 'lagged')
+        for i = 1:numel(vars)
+            ch(end+1) = struct('state', meta.re_chain.(vars{i}){2}, 'target', i, 'lag', 0); %#ok<AGROW>
+        end
+    end
+    nt.levels(end+1) = struct('base', bse, 'types', ix, 'K', K, 'slot', slot, 'vars', {vars}, ...
+        'lag', double(strcmp(T(slot).info, 'lagged')), 'states', {reshape(cellstr(meta.re_states), 1, [])}, 'chain', ch);
 end
 nt.model_values = model_values(opts, m, learnVars, opts.expectations.re_info);
 if legacy
