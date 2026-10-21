@@ -42,6 +42,13 @@ function varargout = facility(cmd, varargin)
 %   hetlearn:engine:almUnstable (date, stage, shares, beliefs, IRIS flag).
 %   Gain processes (S.gain) are not touched by the facility.
 %
+%   N agent types (docs/DESIGN_br_extensions.md 1.1): ctx.sys is then the
+%   keyed system of every learning type (hetlearn.load_model), so the PLM
+%   blocks are per type, an ALM revert reverts every type's beliefs, and
+%   'params' sets the share parameters of sys.nt.share_names from the share
+%   vectors of hetlearn.engine.shares_for_mode; the ALM check is skipped when
+%   every share is on the RE type.
+%
 %   Calls
 %     'plm'    PLM part, from hetlearn.engine.update_learning: cand, Rcand
 %              are the RLS candidates by target, upd(i) true when equation
@@ -153,7 +160,7 @@ if strcmp(facility_name(ctx.opts), 'none')
 end
 t0 = tic;
 n1m = hetlearn.engine.shares_for_mode(ctx, S);
-if all_re(ctx.learnVars, n1m)
+if all_re(ctx, n1m)
     r.skipped = true;
     r.time = toc(t0);
     return
@@ -199,7 +206,7 @@ if strcmp(fac, 'none')
         'shares in force, and projection.facility = ''none'' restricts nothing. IRIS stability flag: %s. ' ...
         'BR shares in the model: %s. Largest root of each PLM block: %s. Beliefs: %s. With ' ...
         'projection.facility = ''plm_alm'' or ''alm'' the beliefs are restricted instead.'], ...
-        where, flag_text(si), share_text(lv, n1m), roots_text(B, rho), param_text(sys, S.phi));
+        where, flag_text(si), share_text(lv, n1m, sys), roots_text(B, rho), param_text(sys, S.phi));
 end
 tgs = {sys.eq.target};
 reason1 = flag_text(si);
@@ -215,7 +222,7 @@ if isfield(S, 'prev') && isstruct(S.prev) && ~isempty(fieldnames(S.prev)) && dif
     if stable
         ev(end+1) = mkev(t, 'projection_alm', strjoin(tgs, ','), sprintf( ...
             ['ALM unstable with the updated beliefs (%s; BR shares %s); phi and R of all %d PLM equation(s) ' ...
-            'reverted to their values before this period''s update'], reason1, share_text(lv, n1m), numel(tgs)));
+            'reverted to their values before this period''s update'], reason1, share_text(lv, n1m, sys), numel(tgs)));
         r.pv = cell2mat(struct2cell(P));
         return
     end
@@ -239,8 +246,8 @@ if isfield(S, 'n1m_last') && isstruct(S.n1m_last) && ~isequal(S.n1m_last, n1m)
         ev(end+1) = mkev(t, 'projection_alm_shares', strjoin(tgs, ','), sprintf( ...
             ['ALM unstable %s at BR shares %s; beliefs and model shares kept at the previous quarter''s ' ...
             'values (BR shares in the model %s; phi and R of all %d PLM equation(s) at their values before ' ...
-            'this period''s update); the discrete-choice shares keep updating'], how, share_text(lv, n1m), ...
-            share_text(lv, n1k), numel(tgs)));
+            'this period''s update); the discrete-choice shares keep updating'], how, share_text(lv, n1m, sys), ...
+            share_text(lv, n1k, sys), numel(tgs)));
         r.kept_shares = true;
         r.n1m = n1k;
         r.pv = cell2mat(struct2cell(P));
@@ -254,7 +261,7 @@ error('hetlearn:engine:almUnstable', ['Period %s: no stable solution and no earl
     'back on (projection.facility = ''%s''). The projection facility reverted every belief to its previous ' ...
     'value and kept the previous model shares, but that model is the one the run started from (the initial ' ...
     'beliefs and shares, first check of the run), and it has no stable solution either. IRIS stability ' ...
-    'flag: %s. BR shares in the model: %s. Beliefs: %s.'], where, fac, flag_text(si), share_text(lv, n1k), ...
+    'flag: %s. BR shares in the model: %s. Beliefs: %s.'], where, fac, flag_text(si), share_text(lv, n1k, sys), ...
     param_text(sys, S.phi));
 end
 
@@ -302,8 +309,21 @@ end
 end
 
 
-function tf = all_re(lv, n1m)
+function tf = all_re(ctx, n1m)
 tf = true;
+lv = ctx.learnVars;
+if isfield(ctx, 'nt') && ~isempty(ctx.nt)
+    % N agent types: every share on the RE type
+    for i = 1:numel(lv)
+        v = n1m.(lv{i});
+        v(ctx.nt.byvar.(lv{i}).re_pos) = 0;
+        if any(v ~= 0)
+            tf = false;
+            return
+        end
+    end
+    return
+end
 for i = 1:numel(lv)
     if 1 - n1m.(lv{i}) ~= 0
         tf = false;
@@ -326,6 +346,18 @@ function P = make_params(sys, phi, lv, n1m)
 P = struct();
 if ~isempty(sys.eq)
     P = hetlearn.plm.param_values(sys, phi);
+end
+if isfield(sys, 'nt') && ~isempty(sys.nt)
+    % N agent types: n1m.<x> is the share vector over sys.nt.share_names.<x>
+    for i = 1:numel(lv)
+        x = lv{i};
+        nm = sys.nt.share_names.(x);
+        v = n1m.(x);
+        for j = 1:numel(nm)
+            P.(nm{j}) = v(j);
+        end
+    end
+    return
 end
 for i = 1:numel(lv)
     x = lv{i};
@@ -353,8 +385,18 @@ end
 end
 
 
-function s = share_text(lv, n1m)
-c = cellfun(@(x) sprintf('n2_%s = %.6g', x, 1 - n1m.(x)), lv, 'UniformOutput', false);
+function s = share_text(lv, n1m, sys)
+if isfield(sys, 'nt') && ~isempty(sys.nt)
+    % N agent types: every share parameter
+    c = {};
+    for i = 1:numel(lv)
+        nm = sys.nt.share_names.(lv{i});
+        v = n1m.(lv{i});
+        c = [c, arrayfun(@(j) sprintf('%s = %.6g', nm{j}, v(j)), 1:numel(nm), 'UniformOutput', false)]; %#ok<AGROW>
+    end
+else
+    c = cellfun(@(x) sprintf('n2_%s = %.6g', x, 1 - n1m.(x)), lv, 'UniformOutput', false);
+end
 s = strjoin(c, ', ');
 if isempty(s)
     s = 'none';
