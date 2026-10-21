@@ -713,6 +713,126 @@ edit `defaults.m` or `load_options.m` beyond deleting their own guard lines.
     (D9).
 - Not done (P6): USER_GUIDE and FEATURES rows for the new options.
 
+**P1 done (2026-10-20).** `history.mode = 'kalman'` runs in the engine.
+- New `toolbox/+hetlearn/+engine/kalman_history.m`, called from `core.m` in place of
+  `engine.history` (dispatch, a progress line, the forecast databank, `res.kalman`). Each quarter:
+  `facility('solve', ..., 'kalman')`, the state space on [xf; xb] (the fast-step system cached by
+  `solve_model`, else `step('build')`; a backward system is converted), prediction and update with
+  the rows without data dropped (written for measurement shocks too), the agents' information of
+  step 3, `update_learning` unchanged (ALM check under `'alm'`/`'plm_alm'`), `record` with the model
+  shares in force. `'stochastic'`: asymptotic mean and covariance of the first quarter's ALM (real
+  Schur form, IRIS `covfun.lyapunov`; an error for a root on or outside the unit circle).
+  `'smoothed'`: the filter starts at `beliefs.init.date` from the RE-smoothed state of the quarter
+  before with P = 0, and the agents' earlier data are RE-smoothed (the inversion's convention), so
+  its one-step errors start at the init date. D12: `core` copies the filtered history over the
+  RE-smoothed one; the state's lag elements at the origin take their values in a_{origin|origin}.
+  These differ from the real-time values because P_{t|t} never collapses (four observables are
+  first differences; max diag P about 9 at 2026Q2). `history.learn = false` is an error.
+- Outputs: `res.kalman` (one-step predictions, errors, F_t, l_t, filtered and predicted
+  databanks, a and P at the origin, `fbr_model_maxdiff`); `kalman_errors.csv` (date, n_obs, llt,
+  err_/pred_/var_ per observable). `core` cannot tell whether a run will be saved, so the file is
+  written by one line in `hetlearn.run` after `save_results`. A later non-Kalman run of the id
+  deletes it. `kalman_history('rmse', res)` gives the RMSE table by subsample.
+- Guard lines removed from `load_options.m`; `test_options` BR2 now expects the `'kalman'` entry
+  to load (one line).
+- Gates, `tests/test_kalman.m` (9 checks, about 80 s; registered before `test_br_regression`):
+  K1 8.7e-13 over 1,701 observations; K2 alpha 2.1e-16, beta 3.3e-16, n1 1.4e-14 (fRE 8.4e-14,
+  fBR 1.4e-14); K3 (fixed beliefs and shares, `'smoothed'` start, against IRIS `filter` with
+  `InitCond` = the smoothed databank): errors 2.8e-13 over 1,673 observations, filtered states
+  2.1e-12; K4 (`re_info = 'current'`, a1_learn settings of the test calibration): l_t 1.6e-12, log
+  likelihood -1411.3326921 in both (diff 4.6e-13), beliefs, shares and forecasts within 7.9e-14,
+  facility events 2022Q1 and 2022Q2 in both. K5: D12 exact, `kalman_errors.csv` written and
+  removed.
+- SW07 run: `scenarios/sw07/app6_history/a6_kalman_learn.m` and `a6_kalman_re.m` (origin 2026Q2,
+  `re_states = 'smoothed'`), saved in `results/a6_kalman_*`. They reproduce the prototype numbers
+  above to the digits shown, including the learners' share 0.544 at 2019Q4 (0.709 at 2026Q2).
+- Notes. For an AR(1) PLM the learners' forecast on real-time data equals the model's
+  `<x>_exp1_BR` prediction to rounding (1e-14). With two lags of one variable, the ALM's forecast
+  uses the filter's revised lag and the recorded forecast the real-time one. Events of the Kalman
+  history are labelled stage `'history'` (`assemble`).
+- Not done: USER_GUIDE and FEATURES rows (P6); the `defaults.m` comment that names P1 among the
+  guarded options; `run_applications` and `scenarios/sw07/INDEX.csv` do not list the two new
+  scenarios; the RMSE rows of variants 24 and 26 (existing options) are left to the P7 portfolio
+  (this phase ran the baseline only).
+
+**P2 done (2026-10-21).** N agent types (E1) and shares over N types (E2) run in the engine.
+- Options now read: `expectations.types` with kinds `'re'`, `'plm'`, `'rule'` (`'level'` and
+  `'re_mean'` keep their guards, P4/P5), `shares.init`, `shares.fixed`, `switching.inertia`,
+  `.costs` (or the type's `cost`), `.fitness`, `switching.intensity = 'model:bma'`. The P2 guard
+  lines are gone from `load_options.m`; `test_options` BR2 expects br19, br27 and the spelled-out
+  pair to load and the other variants to name only their later phases.
+- New files: `agent_types.m` (resolves the types: RE first, always generated, share 0 and outside
+  the logit when not listed; the RE type follows `expectations.re_variant` and `.re_info`, since
+  the RE filter and `history_db` read them), `+switching/discrete_choice_n.m`, `init_fitness_n.m`,
+  `+plm/rule_terms.m` (rule parser of generator and engine; terms `x`, `self{-k}`, `mean`, `dn`,
+  constants, model variables; linear, lags >= 1 under `'lagged'`), `+engine/ntypes.m` (state,
+  every type's forecasts, seeding of the rules' own lags at the forecast start).
+- Generator version 6 (`extend_model(..., 'types', ...)`, `<name>_ext_n<hash>.model`): per forward
+  variable one `<x>_exp1_<k>` per type, shares `n_<k>_x`, PLM parameters with `__<k>` (new suffix
+  argument of `build_system`), mean beliefs `alpha_<x>__<k>` of rule types (a mean-only PLM, RLS
+  with the type's gain), rule constants `<p>__<k>`. A type that inherits `re_variant` or
+  `beliefs.info` keeps the `re_anchored` / `br_info_current` switch, a type with its own gets one
+  branch. The lagged RE chain is written only for variables with a lagged `'re'` type. With the
+  types RE and BR the block has the lines of the two-type writer in the same order. Collapse tests
+  at the RE limit (`n_RE_x = 1`) as for the two-type files. The default files are unchanged (R1).
+- Engine: `load_model` returns `info.nt` and a keyed system `info.sys` (targets `<x>__<k>`) of all
+  learning types; `state_init`, `update_learning`, `shares_for_mode`, `facility` (PLM blocks per
+  type, share parameters, skip when every share is on RE), `record` and `assemble` branch on
+  `ctx.nt`. Two small branches outside the P2 file list were needed: `history.m` (two places) and
+  `forecast.m` read every type's forecast through `ntypes('forecasts')`, which asserts the PLM and
+  rule types against the model each quarter (1e-9). `core.m` is unchanged. Without types and with
+  the default switching options the two-type code runs as before; the default pair with any E2
+  option runs the two-type file on the N-type engine path (variant 27). Two types with RE first,
+  no inertia, no costs and `'normalized'` call `discrete_choice`.
+- Outputs: `res.learning.<x>.n_<k>`, `n_model_<k>`, `U_<k>`, `FE_<k>`, `f_<k>` (plus `.types`),
+  `res.learning.<x>__<k>` (PLM series of each learning type), `paths.<x>_exp1_<k>` (the type's
+  forecasts over the record), `res.meta.types`, `res.meta.model_values` (`bma.sigma2`, `.chi`).
+  `learning.csv` carries them through the existing writer (`save_results` unchanged).
+- Not supported with N types yet (explicit errors): `history.mode` `'inversion'` and `'kalman'`,
+  density forecasts, Ramsey policy, a second `'re'` type other than model-consistent with period-t
+  information or a copy of the RE type (P4). `evaluate`, `decompose` with N types: P6.
+- Fix: `build_system` failed on a PLM with an empty regressor list (`strcat` of empty cells), so
+  the mean-only PLM of variant 24 did not run before (the 24/26 note of P0 said "existing
+  options"); it runs now (Application 1 test copy: 3.08%, learners' share 0.290 at 2022Q2).
+- Gates, `tests/test_ntypes.m` (20 checks, about 50 s; registered before `test_br_regression`):
+  U1-U5 share rule and rule parser (two-type case = `discrete_choice` 5.6e-17, inertia and costs
+  2.8e-17, unnormalized at beta = normalized at beta/(1-omega) 3.3e-16, edge cases, 7 malformed
+  rules rejected); R3a-d the types RE and BR spelled out = the two-type run (SW07 baseline, its
+  RE(t-1) benchmark, the two-type file on the N-type engine, the toy), max diff 0 in paths,
+  shares, fitness, forecasts, beliefs, gains, events and final state, with both RE filters
+  recomputed in the session (the cached baseline filter differs from a fresh one by 1.8e-11,
+  thread-count noise); H1 a target-believer type at share 0 leaves the baseline unchanged
+  (learning 5.6e-13, state 8.7e-14, paths 2.3e-11 from the larger state space of the filter);
+  H2 a TB-only population = SW07 with the four `pinf{+1}` replaced by 0 (IRFs 2.1e-13); B1 BMA
+  shares = prior x exp(-chi SSE)/sum (2.2e-16, toy), chi = 1/(2 sigma^2) with sigma^2 from `srf`;
+  B2 SW07 RE(t-1): sigma^2 0.0524766 = the two-step FEV of pinf, chi 9.53; S1 inertia 0.6, a cost
+  and unnormalized fitness = the hand recursion (1.1e-16); M1 mode semantics (`'fixed_shares'` with
+  `shares.fixed` 2.4e-15, `'learning'` on the single non-RE type 1.6e-15, `'rational'` without a
+  listed RE type = the RE run 1.1e-13, `'learning'` with two non-RE types an error); M2
+  `history.learn = false` with RE and BR spelled out = the two-type run (0), an AR(1) and an AR(2)
+  learner beside RE under `'plm_alm'`; A1-A3 Anufriev-Hommes four heuristics
+  (beta 0.4, eta 0.7, delta 0.9) on the new test package `tests/models/ah` (p^f = 60, the LAA
+  anchor on the test gain rule `ah_sample_mean`, the sample mean): engine = an independent loop of
+  the AH equations, prices within 1.9e-13 and shares within 5.3e-15, monotone convergence (prices
+  55, 60, 50, equal shares), damped oscillation (55, 50, 55, LAA 0.85), persistent oscillation
+  (50, 55, 60, STR 0.7); A4 four identical rules keep shares at 0.25 (5.6e-17). Whole suite at
+  the default thread count (`test_generator` alone, `test_re_info` alone, the rest in two
+  sessions): 342 checks in 22 suites, all pass; `test_br_regression` exact (R1 files
+  byte-identical, R2 max diff 0), `test_kalman` 9 of 9.
+- Application 1 (live baseline, `a1_learn` plus the section 3 changes, not saved): average
+  inflation 2022Q3-2026Q2 (annualised) and shares at the end of 2022Q2: baseline 3.45% (BR 0.591);
+  17 four heuristics 7.03% (ADA 0.256, WTR 0.263, STR 0.238, LAA 0.243; the LAA anchor learns on
+  the baseline gain until P5 builds `gain.rule = 'decreasing'`; with the sample mean of the test
+  rule 5.45%); 19 target believers 3.38% (RE 0.340, BR 0.491, TB 0.169); 27 BMA stops under
+  facility `'none'` in 2022Q4 (`noSolution`, NO_STABLE: the learners' share is 1.000 by 2022Q2,
+  RE 6.7e-63, AR(1) beta 1.105), sigma^2 0.0525, chi 9.53.
+- Not done: scenario files and the portfolio runner (P7), USER_GUIDE and FEATURES rows (P6), the
+  LAA anchor's decreasing gain (P5), N types in the Kalman history (`kalman_history` passes the
+  two-type forecasts to `update_learning`; it is refused for N types until it calls
+  `ntypes('forecasts')`). Left as they were: the `defaults.m` comment that lists P2 among the
+  guarded options, the header of `test_br_regression.m` (R3 lives in `test_ntypes.m`), and the
+  helper `struct2cell_or_empty` in `load_options.m`, unused since its only caller was a P2 guard.
+
 ---------------------------------------------------------------------------------------------
 
 ## 7. Decisions for the main session
