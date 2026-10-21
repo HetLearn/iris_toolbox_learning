@@ -19,6 +19,11 @@ function R = test_density(part)
 %   D7 switching (general path, bootstrap): files, CSV columns, n2 in [0,1],
 %      event counts
 %   D8 conditions stay in force: every draw hits the conditioned target
+%   D10 N agent types (phase P6): the switching density with RE and BR spelled
+%      out = the two-type density (observables, the BR model share against
+%      n2_model, beliefs alpha/beta against alpha/beta__BR; quantiles, point
+%      and draws, 1e-9); {RE, BR, TB} on the general path, model shares
+%      summing to 1 in every draw
 %   D9 SW07 smoke: tsw07_peak_re and tsw07_switch_pinf, all 7 shocks,
 %      'calibrated', 100 draws (and 10 general-path RE draws = fast path);
 %      prints seconds per draw, 5/50/95% bands of annualised inflation in
@@ -220,6 +225,61 @@ try
         sprintf('max target miss %.2g, draw std in the first period %.3g', miss, spread));
 catch err
     R = add(R, 'density D8: conditions stay in force in every draw (general path)', false, err.message);
+end
+
+% ---- D10: N agent types (phase P6) ---------------------------------------------------------------
+nm = ['density D10: N agent types: RE and BR spelled out = the two-type density (observables, BR model share = ' ...
+    'n2_model, beliefs; <= 1e-9); {RE, BR, TB} runs on the general path, model shares sum to 1 in every draw'];
+try
+    T = @(varargin) struct(varargin{:});
+    cfg = base;
+    cfg.id = 'toy_d10';
+    cfg.expectations.mode = 'switching';
+    cfg.switching.intensity = 0.25;
+    cfg.density = struct('enabled', true, 'shocks', {shocks}, 'ndraws', 15, 'seed', 4, 'keep_draws', true);
+    ra = run(cfg);
+    cb = cfg;
+    cb.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm')};
+    rb = run(cb);
+    Da = ra.density;
+    Db = rb.density;
+    pairs = {};
+    for i = 1:numel(Da.names)
+        n = Da.names{i};
+        if strcmp(Da.series.(n).kind, 'observable')
+            pairs(end+1, :) = {n, n}; %#ok<AGROW>
+        elseif startsWith(n, 'n2_model_')
+            pairs(end+1, :) = {n, ['n_model_BR_' n(10:end)]}; %#ok<AGROW>
+        else
+            pairs(end+1, :) = {n, [n '__BR']}; %#ok<AGROW>
+        end
+    end
+    d = 0;
+    miss = setdiff(pairs(:, 2), Db.names);
+    for i = 1:size(pairs, 1) * isempty(miss)
+        a = Da.series.(pairs{i, 1});
+        b = Db.series.(pairs{i, 2});
+        d = max([d, max(abs(a.q(:) - b.q(:))), max(abs(a.point(:) - b.point(:))), ...
+            max(abs(Da.draws.series.(pairs{i, 1})(:) - Db.draws.series.(pairs{i, 2})(:)))]);
+    end
+    cc = cfg;
+    cc.expectations.types = [cb.expectations.types, {T('name', 'TB', 'kind', 'rule', 'rule', '0')}];
+    cc.shares.init = struct('RE', 0.4, 'BR', 0.4, 'TB', 0.2);
+    rc = run(cc);
+    Dc = rc.density;
+    S = Dc.draws.series;
+    s = 0;
+    for x = {'y', 'pie'}
+        s = max(s, max(max(abs(S.(['n_model_RE_' x{1}]) + S.(['n_model_BR_' x{1}]) + S.(['n_model_TB_' x{1}]) - 1))));
+    end
+    hasB = all(ismember({'alpha_pie__BR', 'beta_pie__BR', 'n_model_TB_pie'}, Dc.names));
+    ok = isempty(miss) && d <= 1e-9 && strcmp(Db.path, 'general') && strcmp(Dc.path, 'general') && Dc.n_used == 15 ...
+        && s < 1e-12 && hasB && ordered(Dc);
+    R = add(R, nm, ok, sprintf(['pair vs two-type max diff %.3g over %d series (missing %s); TB: %d of 15 draws used, ' ...
+        'share sums %.2g, series %d, %.3f s per draw'], d, size(pairs, 1), strjoin(miss, ','), Dc.n_used, s, numel(Dc.names), ...
+        Dc.s_per_draw));
+catch err
+    R = add(R, nm, false, sprintf('%s (%s, line %d)', err.message, err.stack(1).name, err.stack(1).line));
 end
 end
 
