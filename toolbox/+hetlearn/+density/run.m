@@ -26,7 +26,13 @@ function [D, cols] = run(F, res, H)
 %     .names      series summarised: every observable of spec.observables,
 %                 then per learning variable x: n2_model_<x> (1 - the RE share
 %                 used in the model in t) and its belief parameters
-%                 (sys.eq param_names, e.g. alpha_x, beta_x)
+%                 (sys.eq param_names, e.g. alpha_x, beta_x). N agent types
+%                 and forecast transforms (ctx.nt, phase P6): per learning
+%                 variable x, n_model_<k>_<x> (the model share of type k in
+%                 t) for every type k of x, then the belief parameters of
+%                 each learning type's PLM equation of x (names with the
+%                 suffix __<k>, e.g. alpha_pinf__BR; for a 're_mean' type the
+%                 equation of <x>_feRE)
 %     .series.<name>  .q (H x numel(p), model units), .mean, .std, .point
 %                 (the scenario run), .scale (spec.report.scale.<name>, 1 if
 %                 none; 1 for learning series), .q_report, .mean_report,
@@ -44,9 +50,10 @@ function [D, cols] = run(F, res, H)
 %     .draws      (density.keep_draws) .series.<name> H x N (model units),
 %                 .shocks nT x nS x N (the draws added)
 %
-%   Paths. 'fast' when density.fast_path, mode 'rational' and no conditions:
-%   hetlearn.density.fast_path (one IRIS simulate over the horizon per draw,
-%   learning diagnostics replayed on the simulated path). Otherwise
+%   Paths. 'fast' when density.fast_path, mode 'rational', no conditions and
+%   the two-type engine (no N agent types): hetlearn.density.fast_path (one
+%   IRIS simulate over the horizon per draw, learning diagnostics replayed on
+%   the simulated path). Otherwise
 %   'general': hetlearn.engine.forecast(F.ctx, F.S0, d_draw, ...) per draw,
 %   with fopt.warm = F.warm (the point forecast's period-1 solve is reused:
 %   every draw starts from the same beliefs and shares).
@@ -81,17 +88,27 @@ N = size(E, 3);
 obs = spec.observables(ismember(spec.observables, fieldnames(res.paths)));
 lv = ctx.learnVars;
 sys = ctx.sys;
-spc = struct('name', {}, 'kind', {}, 'var', {}, 'eq', {}, 'row', {});
+isNT = hetlearn.engine.ntypes('on', ctx);       % N agent types, forecast transforms (phase P6)
+% share: '' = 1 - n1_model (two types), else the record field of a type's model share; lkey: the
+% res.learning entry of the point value
+spc = struct('name', {}, 'kind', {}, 'var', {}, 'eq', {}, 'row', {}, 'share', {}, 'lkey', {});
 for i = 1:numel(obs)
-    spc(end+1) = struct('name', obs{i}, 'kind', 'observable', 'var', obs{i}, 'eq', 0, 'row', 0); %#ok<AGROW>
+    spc(end+1) = struct('name', obs{i}, 'kind', 'observable', 'var', obs{i}, 'eq', 0, 'row', 0, ...
+        'share', '', 'lkey', ''); %#ok<AGROW>
 end
-for i = 1:numel(lv)
-    x = lv{i};
-    spc(end+1) = struct('name', ['n2_model_' x], 'kind', 'learning', 'var', x, 'eq', 0, 'row', 0); %#ok<AGROW>
-    ie = find(strcmp({sys.eq.target}, x), 1);
-    pn = sys.eq(ie).param_names;
-    for j = 1:numel(pn)
-        spc(end+1) = struct('name', pn{j}, 'kind', 'learning', 'var', x, 'eq', ie, 'row', j); %#ok<AGROW>
+if isNT
+    spc = nt_series(spc, ctx);
+else
+    for i = 1:numel(lv)
+        x = lv{i};
+        spc(end+1) = struct('name', ['n2_model_' x], 'kind', 'learning', 'var', x, 'eq', 0, 'row', 0, ...
+            'share', '', 'lkey', x); %#ok<AGROW>
+        ie = find(strcmp({sys.eq.target}, x), 1);
+        pn = sys.eq(ie).param_names;
+        for j = 1:numel(pn)
+            spc(end+1) = struct('name', pn{j}, 'kind', 'learning', 'var', x, 'eq', ie, 'row', j, ...
+                'share', '', 'lkey', x); %#ok<AGROW>
+        end
     end
 end
 nS = numel(spc);
@@ -99,7 +116,7 @@ Y = NaN(nH, nS, N);
 
 % ---- draws ----------------------------------------------------------------------------
 fast = logical(o.fast_path) && strcmp(ctx.opts.expectations.mode, 'rational') ...
-    && isempty(ctx.opts.conditions);
+    && isempty(ctx.opts.conditions) && ~isNT;    % N types: the general path (fast_path replays two types)
 pathName = 'general';
 if fast
     pathName = 'fast';
@@ -211,8 +228,10 @@ for s = 1:numel(spc)
         case 'observable'
             V(:, s) = d.(spc(s).name)(hz);
         otherwise
-            if spc(s).eq == 0
+            if spc(s).eq == 0 && isempty(spc(s).share)
                 V(:, s) = 1 - rec.var.(spc(s).var).n1_model(1:numel(hz))';
+            elseif spc(s).eq == 0
+                V(:, s) = rec.var.(spc(s).var).(spc(s).share)(1:numel(hz))';     % N types: a type's model share
             else
                 V(:, s) = rec.eq(spc(s).eq).phi(spc(s).row, 1:numel(hz))';
             end
@@ -226,14 +245,58 @@ switch sp.kind
     case 'observable'
         v = res.paths.(sp.name)(hz);
     otherwise
-        L = res.learning.(sp.var);
-        if sp.eq == 0
+        L = res.learning.(sp.lkey);
+        if sp.eq == 0 && isempty(sp.share)
             v = 1 - L.n1_model(hz);
+        elseif sp.eq == 0
+            v = L.(sp.share)(hz);
         else
             v = L.(sp.name)(hz);
         end
 end
 v = v(:);
+end
+
+
+function spc = nt_series(spc, ctx)
+% N agent types (phase P6): per learning variable x the model share of each of its types (record field
+% n_model_<k>), then the belief parameters of each learning type's PLM equation of x (keyed system
+% ctx.sys: e.type = the type, e.var = x, or <x>_feRE for a 're_mean' type; auxiliary equations left out)
+nt = ctx.nt;
+sys = ctx.sys;
+eqType = {};
+eqVar = {};
+eqAux = false(1, 0);
+if ~isempty(sys.eq)
+    eqType = {sys.eq.type};
+    eqVar = {sys.eq.var};
+    eqAux = logical([sys.eq.isAux]);
+end
+for i = 1:numel(ctx.learnVars)
+    x = ctx.learnVars{i};
+    b = nt.byvar.(x);
+    for jj = 1:numel(b.types)
+        k = b.names{jj};
+        spc(end+1) = struct('name', sprintf('n_model_%s_%s', k, x), 'kind', 'learning', 'var', x, 'eq', 0, ...
+            'row', 0, 'share', ['n_model_' k], 'lkey', x); %#ok<AGROW>
+    end
+    for jj = 1:numel(b.types)
+        ty = nt.types(b.types(jj));
+        tv = x;
+        if isstruct(ty.zvar) && isfield(ty.zvar, x)
+            tv = ty.zvar.(x);
+        end
+        ie = find(strcmp(eqType, ty.name) & strcmp(eqVar, tv) & ~eqAux, 1);
+        if isempty(ie)
+            continue
+        end
+        pn = sys.eq(ie).param_names;
+        for j = 1:numel(pn)
+            spc(end+1) = struct('name', pn{j}, 'kind', 'learning', 'var', x, 'eq', ie, 'row', j, ...
+                'share', '', 'lkey', sys.eq(ie).target); %#ok<AGROW>
+        end
+    end
+end
 end
 
 
