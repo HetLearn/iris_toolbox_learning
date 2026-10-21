@@ -20,10 +20,25 @@ function n1m = shares_for_mode(ctx, S)
 %          are returned instead, for this one quarter (update_learning clears
 %          S.n1m_keep before the next check, which tries the mode shares
 %          again). The discrete-choice shares S.n1 are not affected.
+%
+%   N agent types (ctx.nt, docs/DESIGN_br_extensions.md 1.1): n1m.<x> is a
+%   row vector of model shares over ctx.nt.byvar.<x>.types (the share
+%   parameters ctx.nt.byvar.<x>.share_names, RE first):
+%            'rational'      1 on the RE type
+%            'learning'      1 on the single non-RE type of the variable
+%            'fixed_shares'  shares.fixed (or the shorthand shares.fixed_n2)
+%            'switching'     the discrete-choice shares S.n{g} of the
+%                            variable's group (0 for a type outside the
+%                            population, e.g. an RE type that is not listed)
+%          The same S.n1m_keep exception applies.
 
 o = ctx.opts;
 if isfield(S, 'n1m_keep') && isstruct(S.n1m_keep)
     n1m = S.n1m_keep;
+    return
+end
+if isfield(ctx, 'nt') && ~isempty(ctx.nt)
+    n1m = nt_shares(ctx, S, o);
     return
 end
 n1m = struct();
@@ -46,6 +61,36 @@ for i = 1:numel(ctx.learnVars)
             v = 1 - f2;
         case 'switching'
             v = S.n1(ctx.groupOf.(x));
+    end
+    n1m.(x) = v;
+end
+end
+
+
+function n1m = nt_shares(ctx, S, o)
+nt = ctx.nt;
+n1m = struct();
+for i = 1:numel(ctx.learnVars)
+    x = ctx.learnVars{i};
+    b = nt.byvar.(x);
+    v = zeros(1, numel(b.types));
+    switch o.expectations.mode
+        case 'rational'
+            v(b.re_pos) = 1;
+        case 'learning'
+            v(b.inpop & b.types ~= nt.re) = 1;      % the single non-RE type (checked by ntypes 'init')
+        case 'fixed_shares'
+            v = nt.fixed.(x);
+        case 'switching'
+            g = ctx.groupOf.(x);
+            tix = ctx.groups(g).types;
+            n = S.n{g};
+            for jj = 1:numel(b.types)
+                p = find(tix == b.types(jj), 1);
+                if ~isempty(p)
+                    v(jj) = n(p);
+                end
+            end
     end
     n1m.(x) = v;
 end
