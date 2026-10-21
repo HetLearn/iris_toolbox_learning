@@ -131,7 +131,9 @@ ip = inputParser;
 ip.addParameter('force', false);
 ip.addParameter('validate', true);
 ip.addParameter('re_info', 'current');
+ip.addParameter('types', []);      % N agent types (DESIGN_br_extensions 1.1): generator version 6, see ntype_generate
 ip.parse(varargin{:});
+ntypes = ip.Results.types;
 force = logical(ip.Results.force);
 doValidate = logical(ip.Results.validate);
 reInfo = char(ip.Results.re_info);
@@ -217,6 +219,15 @@ sys = hetlearn.plm.build_system(plm, fwd, [S.tvars, derNames]);
 [plmN, plmKey, plmtag] = normalise_plm(plm, sys);
 assignKey = struct_key(assign);
 pol = policy_setup(spec, code, masked, S, POLICY_TOGGLE);     % spec.policy (DESIGN 13)
+if ~isempty(ntypes)
+    % N agent types (DESIGN_br_extensions 1.1): own writer and files; the two-type code below is not used
+    B = struct('spec', spec, 'assign', assign, 'srcFile', srcFile, 'srcHash', srcHash, 'code', code, ...
+        'preparsed', preparsed, 'S', S, 'occ', occ, 'fwd', {fwd}, 'maxLead', maxLead, 'pol', pol, ...
+        'assignKey', assignKey, 'force', force, 'validate', doValidate, 'anchorToggle', ANCHOR_TOGGLE, ...
+        'infoToggle', INFO_TOGGLE, 'policyToggle', POLICY_TOGGLE);
+    meta = ntype_generate(B, ntypes);
+    return
+end
 
 % ---- names and collisions --------------------------------------------------
 gen = {};
@@ -1831,4 +1842,806 @@ for it = 1:200
     txt = strrep(txt, ['$' tok{1} '$'], subs.(tok{1}));
 end
 err = 'substitutions nested too deeply';
+end
+
+
+% =========================================================================
+% N agent types (docs/DESIGN_br_extensions.md 1.1, phase P2, 2026-10-20)
+% =========================================================================
+function meta = ntype_generate(B, types)
+% Extended model of an N-type population, generator version 6: for each
+% forward-looking variable x, one forecast variable <x>_exp1_<k> per type k
+% that forecasts x (the RE type always), the share parameters n_<k>_x, the
+% aggregate <x>_exp1 = sum_k n_<k>_x*<x>_exp1_<k>, type-suffixed PLM
+% parameters (alpha_x__<k>, beta_x__<k>, ...; hetlearn.plm.build_system with
+% a suffix), mean beliefs of rule types (alpha_x__<k>) and rule constants
+% (<p>__<k>). The br_<x>, re_anchored and br_info_current switches keep their
+% meaning: a type that inherits expectations.re_variant / beliefs.info gets
+% the switch, a type with its own variant or information gets that branch
+% only. Files <name>_ext_n<hash>.model and _meta.mat, hash over the
+% resolved types (types is hetlearn.agent_types(...).gen).
+GENERATOR_VERSION = 6;
+spec = B.spec;
+S = B.S;
+fwd = B.fwd;
+assign = B.assign;
+types = reshape(types, 1, []);
+if isempty(types) || ~strcmp(types(1).name, 'RE') || ~strcmp(types(1).kind, 're')
+    error('hetlearn:extend_model:types', 'The first agent type must be the RE type (name RE, kind ''re'').');
+end
+reInfo = char(types(1).info);
+if ~any(strcmp(reInfo, {'current', 'lagged'}))
+    error('hetlearn:extend_model:types', 'The RE type needs a resolved information set (''current'' | ''lagged'').');
+end
+
+% ---- derived regressors of every PLM type ------------------------------------------
+derived = struct();
+for i = 1:numel(types)
+    if ~strcmp(types(i).kind, 'plm') || isempty(types(i).plm) || ~isstruct(types(i).plm)
+        continue
+    end
+    d = derived_defs(types(i).plm, S, assign);
+    f = fieldnames(d);
+    for j = 1:numel(f)
+        if isfield(derived, f{j}) && ~strcmp(derived.(f{j}), d.(f{j}))
+            error('hetlearn:extend_model:derived', ['Derived regressor %s is defined twice with different ' ...
+                'expressions (types of expectations.types).'], f{j});
+        end
+        derived.(f{j}) = d.(f{j});
+    end
+end
+derNames = fieldnames(derived)';
+allVar = [S.tvars, derNames];
+
+% ---- per type: variables, PLM systems, rules ----------------------------------------
+G = struct('name', {}, 'kind', {}, 'variant', {}, 'info', {}, 'vars', {}, 'plm', {}, 'rule', {}, ...
+    'sys', {}, 'key', {}, 'rules', {});
+for i = 1:numel(types)
+    t = types(i);
+    g = struct('name', t.name, 'kind', t.kind, 'variant', char_or(t.variant), 'info', char_or(t.info), ...
+        'vars', {{}}, 'plm', t.plm, 'rule', t.rule, 'sys', [], 'key', '', 'rules', struct());
+    v = t.variables;
+    if i == 1 || isempty(v)
+        g.vars = fwd;
+    else
+        v = reshape(cellstr(v), 1, []);
+        bad = setdiff(v, fwd);
+        if ~isempty(bad)
+            error('hetlearn:extend_model:types', 'Type %s: %s not forward-looking in %s.', t.name, ...
+                strjoin(bad, ', '), spec.model_file);
+        end
+        g.vars = fwd(ismember(fwd, v));
+    end
+    switch t.kind
+        case 're'
+            if ~any(strcmp(g.variant, {'', 'anchored', 'model_consistent'})) || ~any(strcmp(g.info, {'current', 'lagged'}))
+                error('hetlearn:extend_model:types', 'Type %s: variant ''%s'' / info ''%s'' not resolved.', ...
+                    t.name, g.variant, g.info);
+            end
+            g.key = sprintf('%s:re:%s:%s:%s', t.name, g.variant, g.info, strjoin(g.vars, ','));
+        case 'plm'
+            if ~any(strcmp(g.info, {'', 'current', 'lagged'}))
+                error('hetlearn:extend_model:types', 'Type %s: info ''%s''.', t.name, g.info);
+            end
+            sysU = hetlearn.plm.build_system(t.plm, g.vars, allVar);
+            [~, pk] = normalise_plm(t.plm, sysU);
+            g.sys = hetlearn.plm.build_system(t.plm, g.vars, allVar, 'lagged', t.name);
+            g.key = sprintf('%s:plm:%s:%s:{%s}', t.name, g.info, strjoin(g.vars, ','), pk);
+        case 'rule'
+            if ~any(strcmp(g.info, {'current', 'lagged'}))
+                error('hetlearn:extend_model:types', 'Type %s: info ''%s'' not resolved.', t.name, g.info);
+            end
+            meanVars = {};
+            for j = 1:numel(g.vars)
+                x = g.vars{j};
+                R = hetlearn.plm.rule_terms(t.rule, x, t.name, g.info, S.tvars);
+                g.rules.(x) = R;
+                if R.uses_mean
+                    meanVars{end+1} = x; %#ok<AGROW>
+                end
+            end
+            if ~isempty(meanVars)
+                bv = struct();
+                for j = 1:numel(meanVars)
+                    bv.(meanVars{j}) = struct('regressors', {{}}, 'constant', true);
+                end
+                g.plm = struct('default', 'ar1', 'by_var', bv, 'derived', struct(), ...
+                    'var', struct('variables', {{}}, 'lags', 1, 'constant', true));
+                g.sys = hetlearn.plm.build_system(g.plm, meanVars, allVar, 'lagged', t.name);
+            end
+            pn = {};
+            if isstruct(t.rule) && isfield(t.rule, 'params') && isstruct(t.rule.params)
+                pn = sort(fieldnames(t.rule.params))';
+            end
+            ex = t.rule;
+            if isstruct(ex)
+                ex = ex.expr;
+            end
+            g.key = sprintf('%s:rule:%s:%s:%s:%s', t.name, g.info, strjoin(g.vars, ','), ...
+                regexprep(char(ex), '\s', ''), strjoin(pn, ','));
+        otherwise
+            error('hetlearn:extend_model:types', 'Type %s: kind ''%s'' is not built (phases P4, P5).', t.name, t.kind);
+    end
+    G(i) = g; %#ok<AGROW>
+end
+byx = struct();
+for i = 1:numel(fwd)
+    x = fwd{i};
+    byx.(x) = find(arrayfun(@(g) any(strcmp(g.vars, x)), G));
+end
+
+% ---- names and collisions ---------------------------------------------------------
+gen = {};
+expVars = struct();
+shareParams = struct();
+typeOrder = struct();
+toggles = cell(1, numel(fwd));
+reChain = struct();
+beliefParams = struct();
+ruleParams = struct();
+for i = 1:numel(fwd)
+    x = fwd{i};
+    ix = byx.(x);
+    agg = arrayfun(@(k) sprintf('%s_exp%d', x, k), 1:B.maxLead.(x), 'UniformOutput', false);
+    tv = struct();
+    for j = ix
+        tv.(G(j).name) = sprintf('%s_exp1_%s', x, G(j).name);
+    end
+    expVars.(x) = struct('agg', {agg}, 're', [x '_exp1_RE'], 'br', '', 'types', tv);
+    typeOrder.(x) = {G(ix).name};
+    shareParams.(x) = cellfun(@(k) sprintf('n_%s_%s', k, x), typeOrder.(x), 'UniformOutput', false);
+    toggles{i} = ['br_' x];
+    gen = [gen, agg, struct2cell(tv)', shareParams.(x), toggles(i)]; %#ok<AGROW>
+    lagRE = ix(arrayfun(@(j) strcmp(G(j).kind, 're') && strcmp(G(j).info, 'lagged'), ix));
+    if ~isempty(lagRE)
+        reChain.(x) = {[x '_REt1'], [x '_REt2']};
+        gen = [gen, reChain.(x)]; %#ok<AGROW>
+    end
+end
+for j = 1:numel(G)
+    if ~isempty(G(j).sys)
+        for q = 1:numel(G(j).sys.eq)
+            e = G(j).sys.eq(q);
+            beliefParams.([e.target '__' G(j).name]) = e.param_names;
+            gen = [gen, e.param_names]; %#ok<AGROW>
+        end
+    end
+    if strcmp(G(j).kind, 'rule') && ~isempty(G(j).vars)
+        R = G(j).rules.(G(j).vars{1});
+        pf = fieldnames(R.param_names);
+        for q = 1:numel(pf)
+            ruleParams.(R.param_names.(pf{q})) = R.param_values.(pf{q});
+            gen{end+1} = R.param_names.(pf{q}); %#ok<AGROW>
+        end
+    end
+end
+gen = [gen, derNames, {B.anchorToggle, B.infoToggle}, B.pol.gen_names];
+clash = intersect(gen, [S.declared, fieldnames(assign)']);
+if ~isempty(clash)
+    error('hetlearn:extend_model:nameCollision', ...
+        'Generated name(s) already used in %s or spec.assign: %s.', B.srcFile, strjoin(clash, ', '));
+end
+if numel(unique(gen)) < numel(gen)
+    [u, iu] = unique(gen);
+    dup = unique(gen(setdiff(1:numel(gen), iu)));
+    error('hetlearn:extend_model:nameCollision', 'Generated names are not unique (%s); rename types or model variables.', ...
+        strjoin(intersect(u, dup), ', '));
+end
+
+% ---- file names and cache -----------------------------------------------------------
+dk = cellfun(@(n) sprintf('%s=%s', n, regexprep(derived.(n), '\s', '')), sort(derNames), 'UniformOutput', false);
+fileKey = sprintf('v%d|%s|derived:%s', GENERATOR_VERSION, strjoin({G.key}, ';'), strjoin(dk, ','));
+h = md5hex(unicode2native(fileKey, 'UTF-8'));
+tag = ['n' h(1:8)];
+genDir = fullfile(spec.folder, 'generated');
+if exist(genDir, 'dir') ~= 7
+    mkdir(genDir);
+end
+extFile = fullfile(genDir, sprintf('%s_ext_%s.model', spec.name, tag));
+metaFile = fullfile(genDir, sprintf('%s_ext_%s_meta.mat', spec.name, tag));
+normFile = fullfile(genDir, sprintf('%s_norm.model', spec.name));
+if ~B.force && exist(metaFile, 'file') == 2 && exist(extFile, 'file') == 2
+    L = load(metaFile, 'meta');
+    old = L.meta;
+    usedNorm = isfield(old, 'ref_file') && isfield(old, 'source_file') && ~strcmp(old.ref_file, old.source_file);
+    refNow = B.srcFile;
+    if usedNorm
+        refNow = normFile;
+    end
+    if isfield(old, 'generator_version') && old.generator_version == GENERATOR_VERSION ...
+            && strcmp(old.source_hash, B.srcHash) && strcmp(old.plm_key, fileKey) ...
+            && isfield(old, 'assign_key') && strcmp(old.assign_key, B.assignKey) ...
+            && isfield(old, 'policy_key') && strcmp(old.policy_key, B.pol.key) ...
+            && ~(B.validate && isfield(old, 'anchor_error') && ~isempty(old.anchor_error)) ...
+            && exist(refNow, 'file') == 2
+        meta = old;
+        meta.source_file = B.srcFile;
+        meta.ref_file = refNow;
+        meta.ext_file = extFile;
+        if B.validate && ~meta.validated
+            [meta.collapse_maxdiff, meta.collapse_info_maxdiff, meta.collapse_lagged_sets] = ...
+                collapse_test_nt(spec, assign, meta);
+            meta.validated = true;
+            save(metaFile, 'meta');
+        end
+        return
+    end
+end
+
+% ---- rewrite (as the two-type writer) -------------------------------------------------
+code = B.code;
+extBody = code;
+normBody = code;
+spl = [B.occ, B.pol.inserts];
+[~, ord] = sort([spl.s], 'descend');
+for q = ord
+    o = spl(q);
+    extBody = [extBody(1:o.s-1), o.ext, extBody(o.e+1:end)];
+    normBody = [normBody(1:o.s-1), o.norm, normBody(o.e+1:end)];
+end
+if B.preparsed || ~strcmp(normBody, code)
+    write_text(normFile, normBody);
+    refFile = normFile;
+else
+    refFile = B.srcFile;
+end
+anchor = anchor_states(refFile, spec, assign, fwd, B.anchorToggle, B.validate);
+an = struct2cell(anchor.params);
+an = [an{:}];
+if isempty(an)
+    an = {};
+end
+[ua, ia] = unique(an, 'stable');
+dup = unique(an(setdiff(1:numel(an), ia)));
+clash = [intersect(ua, [S.declared, fieldnames(assign)', gen]), dup];
+if ~isempty(clash)
+    error('hetlearn:extend_model:nameCollision', ...
+        'Anchored-RE parameter names collide with model names or with each other: %s.', strjoin(clash, ', '));
+end
+chainMode = struct();
+for i = 1:numel(fwd)
+    x = fwd{i};
+    chainMode.(x) = '';
+    if ~isfield(reChain, x)
+        continue
+    end
+    ix = byx.(x);
+    lagRE = ix(arrayfun(@(j) strcmp(G(j).kind, 're') && strcmp(G(j).info, 'lagged'), ix));
+    vs = {G(lagRE).variant};
+    if any(strcmp(vs, 'model_consistent')) || (any(strcmp(vs, '')) && ~anchor.ok)
+        chainMode.(x) = 'always';
+    elseif any(strcmp(vs, ''))
+        chainMode.(x) = 'toggle';
+    else
+        chainMode.(x) = 'none';     % only anchored lagged types: no chain in the text
+        reChain = rmfield(reChain, x);
+    end
+end
+for j = 1:numel(G)
+    if strcmp(G(j).kind, 're') && strcmp(G(j).variant, 'anchored') && ~anchor.ok
+        error('hetlearn:extend_model:types', ['Type %s has variant ''anchored'', which needs a linear model ' ...
+            'with plain state names (%s).'], G(j).name, spec.model_file);
+    end
+end
+block = make_block_ntype(G, byx, fwd, B.maxLead, tag, spec, S, derived, anchor, B.infoToggle, reChain, chainMode, reInfo);
+if isempty(extBody) || extBody(end) ~= newline
+    extBody = [extBody, newline];
+end
+write_text(extFile, [extBody, block, B.pol.block]);
+
+meta = struct();
+meta.name = spec.name;
+meta.source_file = B.srcFile;
+meta.source_hash = B.srcHash;
+meta.plm = [];
+meta.plm_key = fileKey;
+meta.plmtag = tag;
+meta.ext_file = extFile;
+meta.ref_file = refFile;
+meta.forward_vars = fwd;
+meta.max_lead = B.maxLead;
+meta.exp_vars = expVars;
+meta.toggles = toggles;
+meta.belief_params = beliefParams;   % by '<target>__<type>'
+meta.share_params = shareParams;     % by variable, in meta.type_order order
+meta.sys = [];                       % the two-type PLM system: none (see type_sys)
+meta.derived = derived;
+meta.re_states = anchor.states;
+meta.anchor_ok = anchor.ok;
+meta.anchor_error = anchor.error;
+meta.anchor_params = anchor.params;
+meta.anchor_toggle = B.anchorToggle;
+meta.info_toggle = B.infoToggle;
+meta.policy = B.pol.meta;
+meta.policy_key = B.pol.key;
+meta.policy_toggle = '';
+if B.pol.has && B.pol.meta.ok
+    meta.policy_toggle = B.policyToggle;
+end
+meta.preparsed = B.preparsed;
+meta.validated = false;
+meta.collapse_maxdiff = [NaN, NaN, NaN];
+meta.collapse_info_maxdiff = NaN;
+meta.assign_key = B.assignKey;
+meta.generator_version = GENERATOR_VERSION;
+meta.created = datestr(now, 'yyyy-mm-dd HH:MM:SS'); %#ok<TNOW1,DATST>
+meta.ntype = true;
+meta.types = rmfield(G, {'sys', 'rules', 'key'});
+meta.type_order = typeOrder;          % by variable: the types that forecast it, RE first
+meta.type_sys = struct();             % by type: the type-suffixed PLM system over its variables
+meta.rules = struct();                % by type, then variable: hetlearn.plm.rule_terms output
+for j = 1:numel(G)
+    if ~isempty(G(j).sys)
+        meta.type_sys.(G(j).name) = G(j).sys;
+    end
+    if strcmp(G(j).kind, 'rule')
+        meta.rules.(G(j).name) = G(j).rules;
+    end
+end
+meta.rule_params = ruleParams;        % model parameter name -> value
+meta.re_info = reInfo;                % information set of the RE type
+meta.re_chain = reChain;              % by variable with a lagged RE chain: {x_REt1, x_REt2}
+meta.chain_mode = chainMode;
+meta.collapse_lagged_sets = {};
+if exist(metaFile, 'file') == 2
+    delete(metaFile);
+end
+if B.validate
+    [meta.collapse_maxdiff, meta.collapse_info_maxdiff, meta.collapse_lagged_sets] = collapse_test_nt(spec, assign, meta);
+    meta.validated = true;
+end
+save(metaFile, 'meta');
+end
+
+
+function s = char_or(v)
+if isempty(v)
+    s = '';
+else
+    s = char(v);
+end
+end
+
+
+% =========================================================================
+function txt = make_block_ntype(G, byx, fwd, maxLead, tag, spec, S, derived, anchor, infoToggle, reChain, chainMode, reInfo)
+% Expectation block of an N-type file. With the two types RE and BR it has
+% the lines of make_block / make_block_lagged in the same order, with the
+% shares n_RE_x, n_BR_x and the parameters alpha_x__BR, beta_x__BR.
+lagged = strcmp(reInfo, 'lagged');
+desc = arrayfun(@type_desc, G, 'UniformOutput', false);
+L = {};
+L{end+1} = '';
+L{end+1} = '% =====================================================================';
+L{end+1} = ['% hetlearn expectation block (hetlearn.extend_model), N agent types, tag ' tag];
+L{end+1} = ['% Types: ' strjoin(desc, '; ')];
+L{end+1} = ['% Source: ' strrep(spec.model_file, '\', '/') '. Do not edit; regenerate instead.'];
+L{end+1} = '% =====================================================================';
+dn = fieldnames(derived);
+L{end+1} = '!transition_variables';
+for i = 1:numel(dn)
+    L{end+1} = sprintf('    "Derived PLM regressor, %s = %s" %s', dn{i}, derived.(dn{i}), dn{i}); %#ok<AGROW>
+end
+for i = 1:numel(fwd)
+    x = fwd{i};
+    for k = 1:maxLead.(x)
+        L{end+1} = sprintf('    "Aggregate expectation of %s{+%d}" %s_exp%d', x, k, x, k); %#ok<AGROW>
+    end
+    L{end+1} = sprintf('    !if br_%s', x); %#ok<AGROW>
+    for j = byx.(x)
+        L{end+1} = sprintf('        "%s" %s_exp1_%s', var_label(G(j), x, lagged), x, G(j).name); %#ok<AGROW>
+    end
+    if isfield(reChain, x)
+        ch = reChain.(x);
+        wrap = strcmp(chainMode.(x), 'toggle') && anchor.ok;
+        if wrap
+            L{end+1} = sprintf('        !if ~%s', anchor.toggle); %#ok<AGROW>
+        end
+        L{end+1} = sprintf('        "Lagged RE chain: E_t %s{+1}" %s', x, ch{1}); %#ok<AGROW>
+        L{end+1} = sprintf('        "Lagged RE chain: E_t %s{+2}" %s', x, ch{2}); %#ok<AGROW>
+        if wrap
+            L{end+1} = '        !end'; %#ok<AGROW>
+        end
+    end
+    L{end+1} = '    !end'; %#ok<AGROW>
+end
+L{end+1} = '!parameters';
+for i = 1:numel(fwd)
+    x = fwd{i};
+    for j = byx.(x)
+        L{end+1} = sprintf('    "Share of type %s, %s" n_%s_%s', G(j).name, x, G(j).name, x); %#ok<AGROW>
+    end
+end
+for j = 1:numel(G)
+    if isempty(G(j).sys)
+        continue
+    end
+    for q = 1:numel(G(j).sys.eq)
+        e = G(j).sys.eq(q);
+        if strcmp(G(j).kind, 'rule')
+            L{end+1} = sprintf('    "Mean belief of type %s about %s" %s', G(j).name, e.target, e.param_names{1}); %#ok<AGROW>
+            continue
+        end
+        kind = 'PLM';
+        if e.isAux
+            kind = 'Auxiliary PLM';
+        end
+        p = 0;
+        if e.constant
+            p = 1;
+            L{end+1} = sprintf('    "%s constant, %s (type %s)" %s', kind, e.target, G(j).name, e.param_names{1}); %#ok<AGROW>
+        end
+        for r = 1:numel(e.reg_names)
+            L{end+1} = sprintf('    "%s coefficient, %s on %s{-%d} (type %s)" %s', kind, e.target, ...
+                e.reg_names{r}, e.reg_lags(r), G(j).name, e.param_names{p + r}); %#ok<AGROW>
+        end
+    end
+end
+for j = 1:numel(G)
+    if ~strcmp(G(j).kind, 'rule') || isempty(G(j).vars)
+        continue
+    end
+    R = G(j).rules.(G(j).vars{1});
+    pf = fieldnames(R.param_names);
+    for q = 1:numel(pf)
+        L{end+1} = sprintf('    "Constant %s of the rule of type %s" %s', pf{q}, G(j).name, R.param_names.(pf{q})); %#ok<AGROW>
+    end
+end
+if anchor.ok
+    for i = 1:numel(fwd)
+        x = fwd{i};
+        pn = anchor.params.(x);
+        if lagged
+            L{end+1} = sprintf('    "Anchored RE forecast of %s{+1} with information up to t-1, constant" %s', x, pn{1}); %#ok<AGROW>
+            for j = 1:numel(anchor.states)
+                L{end+1} = sprintf('    "Anchored RE forecast of %s{+1} with information up to t-1, coefficient on %s dated t-1" %s', ...
+                    x, anchor.states{j}, pn{1 + j}); %#ok<AGROW>
+            end
+        else
+            L{end+1} = sprintf('    "Anchored RE forecast of %s{+1}, constant" %s', x, pn{1}); %#ok<AGROW>
+            for j = 1:numel(anchor.states)
+                L{end+1} = sprintf('    "Anchored RE forecast of %s{+1}, coefficient on %s" %s', ...
+                    x, anchor.states{j}, pn{1 + j}); %#ok<AGROW>
+            end
+        end
+    end
+end
+L{end+1} = '!transition_equations';
+for i = 1:numel(dn)
+    L{end+1} = sprintf('    %s = %s;', dn{i}, derived.(dn{i})); %#ok<AGROW>
+end
+for i = 1:numel(fwd)
+    x = fwd{i};
+    ix = byx.(x);
+    L{end+1} = sprintf('    !if br_%s', x); %#ok<AGROW>
+    terms = arrayfun(@(j) sprintf('n_%s_%s*%s_exp1_%s', G(j).name, x, x, G(j).name), ix, 'UniformOutput', false);
+    L{end+1} = sprintf('        %s_exp1 = %s;', x, strjoin(terms, ' + ')); %#ok<AGROW>
+    ch = {};
+    if isfield(reChain, x)
+        ch = reChain.(x);
+    end
+    % the chain equations sit in the RE type's !else branch when that is the only place
+    % they are needed (the two-type layout); else in their own block below
+    inline = strcmp(chainMode.(x), 'toggle') && anchor.ok && lagged;
+    if lagged
+        L{end+1} = '        % RE agents with information up to t-1: x_exp1_RE_t = E_{t-1} x_{t+1} (DESIGN 19)'; %#ok<AGROW>
+    end
+    for j = ix
+        g = G(j);
+        nm = sprintf('%s_exp1_%s', x, g.name);
+        switch g.kind
+            case 're'
+                L = [L, re_type_lines(nm, x, g, anchor, ch, inline && j == 1)]; %#ok<AGROW>
+            case 'plm'
+                if isempty(g.info)
+                    L{end+1} = sprintf('        !if %s', infoToggle); %#ok<AGROW>
+                    L{end+1} = sprintf('            %s = %s;', nm, hetlearn.plm.forecast_expr(g.sys, x, 'current')); %#ok<AGROW>
+                    L{end+1} = '        !else'; %#ok<AGROW>
+                    L{end+1} = sprintf('            %s = %s;', nm, hetlearn.plm.forecast_expr(g.sys, x, 'lagged')); %#ok<AGROW>
+                    L{end+1} = '        !end'; %#ok<AGROW>
+                else
+                    L{end+1} = sprintf('        %s = %s;', nm, hetlearn.plm.forecast_expr(g.sys, x, g.info)); %#ok<AGROW>
+                end
+            case 'rule'
+                L{end+1} = sprintf('        %s = %s;', nm, g.rules.(x).text); %#ok<AGROW>
+        end
+    end
+    if ~isempty(ch) && ~inline
+        chainEq = {sprintf('%s = %s{+1};', ch{2}, ch{1}), sprintf('%s = %s{+1};', ch{1}, x)};
+        wrap = strcmp(chainMode.(x), 'toggle') && anchor.ok;
+        if wrap
+            L{end+1} = sprintf('        !if ~%s', anchor.toggle); %#ok<AGROW>
+            L = [L, strcat({'            '}, chainEq)]; %#ok<AGROW>
+            L{end+1} = '        !end'; %#ok<AGROW>
+        else
+            L = [L, strcat({'        '}, chainEq)]; %#ok<AGROW>
+        end
+    end
+    L{end+1} = '    !else'; %#ok<AGROW>
+    L{end+1} = sprintf('        %s_exp1 = %s{+1};', x, x); %#ok<AGROW>
+    L{end+1} = '    !end'; %#ok<AGROW>
+    for k = 2:maxLead.(x)
+        L{end+1} = sprintf('    %s_exp%d = %s_exp%d{+1};', x, k, x, k - 1); %#ok<AGROW>
+    end
+end
+logged = {};
+for i = 1:numel(fwd)
+    x = fwd{i};
+    inList = any(strcmp(S.logvars, x));
+    if S.log_all_but
+        if inList
+            warning('hetlearn:extend_model:logAllBut', ...
+                ['%s is excluded with !all_but in !log_variables; the generated ' ...
+                'expectation variables of %s will be treated as log variables.'], x, x);
+        end
+    elseif inList
+        logged = [logged, arrayfun(@(k) sprintf('%s_exp%d', x, k), 1:maxLead.(x), ...
+            'UniformOutput', false)]; %#ok<AGROW>
+    end
+end
+if ~isempty(logged)
+    L{end+1} = '!log_variables';
+    L{end+1} = ['    ' strjoin(logged, ', ')];
+end
+txt = [strjoin(L, newline), newline];
+end
+
+
+function L = re_type_lines(nm, x, g, anchor, ch, inlineChain)
+% x_exp1_<k> of an 're' type: anchored (re_anchored = true) or model-consistent, with period-t
+% or t-1 information (the lagged chain x_REt2{-1})
+L = {};
+if strcmp(g.info, 'current')
+    mc = sprintf('%s = %s{+1};', nm, x);
+    an = '';
+    if anchor.ok
+        an = sprintf('%s = %s;', nm, anchor_expr(anchor.params.(x), anchor.states));
+    end
+    extra = {};
+else
+    mc = sprintf('%s = %s{-1};', nm, ch{2});
+    an = '';
+    if anchor.ok
+        an = sprintf('%s = %s;', nm, anchor_expr_lagged(anchor.params.(x), anchor.states));
+    end
+    extra = {};
+    if inlineChain
+        extra = {sprintf('%s = %s{+1};', ch{2}, ch{1}), sprintf('%s = %s{+1};', ch{1}, x)};
+    end
+end
+switch g.variant
+    case ''
+        if anchor.ok
+            L{end+1} = sprintf('        !if %s', anchor.toggle);
+            L{end+1} = ['            ' an];
+            L{end+1} = '        !else';
+            L{end+1} = ['            ' mc];
+            for q = 1:numel(extra)
+                L{end+1} = ['            ' extra{q}]; %#ok<AGROW>
+            end
+            L{end+1} = '        !end';
+        else
+            L{end+1} = ['        ' mc];
+            for q = 1:numel(extra)
+                L{end+1} = ['        ' extra{q}]; %#ok<AGROW>
+            end
+        end
+    case 'anchored'
+        L{end+1} = ['        ' an];
+    case 'model_consistent'
+        L{end+1} = ['        ' mc];
+end
+end
+
+
+function s = var_label(g, x, lagged)
+switch g.kind
+    case 're'
+        if strcmp(g.name, 'RE')
+            s = sprintf('RE expectation of %s{+1}', x);
+            if lagged
+                s = [s, ', information up to t-1'];
+            end
+        else
+            v = g.variant;
+            if isempty(v)
+                v = 'variant of expectations.re_variant';
+            end
+            s = sprintf('Type %s (RE, %s, %s information) expectation of %s{+1}', g.name, v, g.info, x);
+        end
+    case 'plm'
+        s = sprintf('Type %s (learned PLM) expectation of %s{+1}', g.name, x);
+    case 'rule'
+        s = sprintf('Type %s (rule) expectation of %s{+1}', g.name, x);
+end
+end
+
+
+function s = type_desc(g)
+switch g.kind
+    case 're'
+        v = g.variant;
+        if isempty(v)
+            v = 're_anchored switch';
+        end
+        s = sprintf('%s (re, %s, %s)', g.name, v, g.info);
+    case 'plm'
+        i = g.info;
+        if isempty(i)
+            i = 'br_info_current switch';
+        end
+        s = sprintf('%s (plm, %s)', g.name, i);
+    case 'rule'
+        e = g.rule;
+        if isstruct(e)
+            e = e.expr;
+        end
+        s = sprintf('%s (rule %s, %s)', g.name, regexprep(char(e), '\s+', ' '), g.info);
+end
+end
+
+
+% =========================================================================
+function [maxdiff, infoDiff, sets] = collapse_test_nt(spec, assign, meta)
+% Collapse test of an N-type file (DESIGN_br_extensions 1.7). Every share on
+% the RE type (n_RE_x = 1, the other shares 0), beliefs 0, rule constants at
+% their values: the tests of collapse_test (RE information 'current') or
+% collapse_test_lagged ('lagged') with the same tolerance, 1e-10 on the IRFs
+% of every variable of the reference model, 40 periods.
+TOL = 1e-10;
+params = call_params(spec);
+mo = Model.fromFile(meta.ref_file, 'linear', logical(spec.linear), 'assign', assign);
+mo = put_params(mo, params);
+mo = prepare(mo, spec, 'reference model');
+so = srf(mo, 1:40);
+xl = get(mo, 'xList');
+el = get(mo, 'eList');
+anchOK = meta.anchor_ok && logical(spec.linear);
+maxdiff = [NaN, NaN, NaN];
+infoDiff = NaN;
+sets = {};
+fwd = meta.forward_vars;
+if strcmp(meta.re_info, 'current')
+    Aa = struct();
+    if anchOK
+        Aa = hetlearn.re_anchor_coefficients(spec, params, 'vars', fwd, 'states', meta.re_states, 'model', mo);
+    end
+    cfg = {fwd, false, false; {}, false, false; fwd, true, false; fwd, false, true};
+    for it = 1:4
+        if it == 3 && ~anchOK
+            continue
+        end
+        me = load_ext_nt(spec, assign, meta, cfg{it, 1}, cfg{it, 2}, cfg{it, 3}, params, Aa);
+        if ~isequal(get(me, 'eList'), el)
+            error('hetlearn:extend_model:collapseFailed', 'Shock lists differ between reference and extended model.');
+        end
+        [d, worst] = irf_diff(so, srf(me, 1:40), xl);
+        if it <= 3
+            maxdiff(it) = d;
+        else
+            infoDiff = d;
+        end
+        if ~(d < TOL)
+            error('hetlearn:extend_model:collapseFailed', ['Collapse test failed (N types, learning %d of %d ' ...
+                'variables, re_anchored = %d, br_info_current = %d): max abs IRF difference %.3g (variable %s) ' ...
+                '>= %g. Extended file: %s'], numel(cfg{it, 1}), numel(fwd), cfg{it, 2}, cfg{it, 3}, d, worst, ...
+                TOL, meta.ext_file);
+        end
+    end
+    return
+end
+me = load_ext_nt(spec, assign, meta, {}, false, false, params, struct());
+if ~isequal(get(me, 'eList'), el)
+    error('hetlearn:extend_model:collapseFailed', 'Shock lists differ between reference and extended model.');
+end
+[maxdiff(2), worst] = irf_diff(so, srf(me, 1:40), xl);
+if ~(maxdiff(2) < TOL)
+    error('hetlearn:extend_model:collapseFailed', ['Collapse test failed (N types, lagged RE, br = false): ' ...
+        'max abs IRF difference %.3g (variable %s) >= %g. Extended file: %s'], maxdiff(2), worst, TOL, meta.ext_file);
+end
+lead1 = fwd(cellfun(@(x) meta.max_lead.(x) == 1 && isfield(meta.re_chain, x), fwd));
+if isempty(lead1)
+    return
+end
+try
+    [dA, dI] = lagged_passes_nt(spec, assign, meta, lead1, params, xl, anchOK, TOL);
+    sets = {lead1};
+catch err
+    if ~strcmp(err.identifier, 'hetlearn:extend_model:solveFailed')
+        rethrow(err);
+    end
+    dA = NaN;
+    dI = NaN;
+    for i = 1:numel(lead1)
+        [a, b] = lagged_passes_nt(spec, assign, meta, lead1(i), params, xl, anchOK, TOL);
+        dA = max([dA, a], [], 'omitnan');
+        dI = max([dI, b], [], 'omitnan');
+        sets{end+1} = lead1(i); %#ok<AGROW>
+    end
+end
+maxdiff(3) = dA;
+infoDiff = dI;
+end
+
+
+function [dA, dI] = lagged_passes_nt(spec, assign, meta, set, params, xl, anchOK, TOL)
+% Passes (2)-(4) of collapse_test_lagged for an N-type file.
+dA = NaN;
+mL = load_ext_nt(spec, assign, meta, set, false, false, params, struct());
+sL = srf(mL, 1:40);
+lab = strjoin(set, ',');
+if anchOK
+    Aa = hetlearn.re_anchor_coefficients(spec, params, 're_info', 'lagged', 'model', mL, ...
+        'vars', set, 'states', meta.re_states, 'chain', meta.re_chain);
+    mA = load_ext_nt(spec, assign, meta, set, true, false, params, Aa);
+    [dA, worst] = irf_diff(sL, srf(mA, 1:40), xl);
+    if ~(dA < TOL)
+        error('hetlearn:extend_model:collapseFailed', ['Collapse test failed (N types, lagged RE, learning {%s}, ' ...
+            're_anchored = 1 vs 0): max abs IRF difference %.3g (variable %s) >= %g. Extended file: %s'], ...
+            lab, dA, worst, TOL, meta.ext_file);
+    end
+end
+mI = load_ext_nt(spec, assign, meta, set, false, true, params, struct());
+[dI, worst] = irf_diff(sL, srf(mI, 1:40), xl);
+if ~(dI < TOL)
+    error('hetlearn:extend_model:collapseFailed', ['Collapse test failed (N types, lagged RE, learning {%s}, ' ...
+        'br_info_current = 1 vs 0): max abs IRF difference %.3g (variable %s) >= %g. Extended file: %s'], ...
+        lab, dI, worst, TOL, meta.ext_file);
+end
+end
+
+
+function me = load_ext_nt(spec, assign, meta, set, anch, cur, params, Aa)
+% N-type file with br = true for the variables in set, every share on the RE type, beliefs 0,
+% rule constants at their values and the anchored coefficients Aa (when given), solved.
+a = assign;
+for i = 1:numel(meta.toggles)
+    a.(meta.toggles{i}) = any(strcmp(meta.forward_vars{i}, set));
+end
+a.(meta.anchor_toggle) = anch;
+a.(meta.info_toggle) = cur;
+if isfield(meta, 'policy_toggle') && ~isempty(meta.policy_toggle)
+    a.(meta.policy_toggle) = false;
+end
+me = Model.fromFile(meta.ext_file, 'linear', logical(spec.linear), 'assign', a);
+me = put_params(me, params);
+me = put_params(me, ntype_re_limit(meta));
+if ~isempty(fieldnames(Aa))
+    me = put_params(me, Aa);
+end
+me = prepare(me, spec, sprintf('N-type file (learning {%s}, re_anchored = %d, br_info_current = %d)', ...
+    strjoin(set, ','), anch, cur));
+end
+
+
+function Z = ntype_re_limit(meta)
+% Parameters of the RE limit of an N-type file: n_RE_x = 1 and every other share 0, belief and
+% anchored parameters 0, rule constants at their values.
+Z = struct();
+fwd = meta.forward_vars;
+for i = 1:numel(fwd)
+    x = fwd{i};
+    sp = meta.share_params.(x);
+    for j = 1:numel(sp)
+        Z.(sp{j}) = double(strcmp(meta.type_order.(x){j}, 'RE'));
+    end
+end
+f = fieldnames(meta.belief_params);
+for i = 1:numel(f)
+    pn = meta.belief_params.(f{i});
+    for j = 1:numel(pn)
+        Z.(pn{j}) = 0;
+    end
+end
+f = fieldnames(meta.anchor_params);
+for i = 1:numel(f)
+    pn = meta.anchor_params.(f{i});
+    for j = 1:numel(pn)
+        Z.(pn{j}) = 0;
+    end
+end
+f = fieldnames(meta.rule_params);
+for i = 1:numel(f)
+    Z.(f{i}) = meta.rule_params.(f{i});
+end
 end
