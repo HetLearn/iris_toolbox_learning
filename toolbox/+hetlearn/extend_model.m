@@ -27,6 +27,20 @@ function meta = extend_model(spec, plm, varargin)
 %   Options
 %     'force'     regenerate even if nothing changed (default false)
 %     'validate'  run the collapse test of DESIGN 3.4 (default true)
+%     'types'     N agent types (hetlearn.agent_types(...).gen): the N-type
+%                 writer, generator version 6 (DESIGN_br_extensions 1.1)
+%     'transforms'  expectations.transforms as normalised by
+%                 hetlearn.load_options (needs 'types'; phase P3,
+%                 DESIGN_br_extensions 1.3): generator version 7. In the
+%                 learning branch x_exp1 = sum_k n_k_x*T_k(x_exp1_<k>) (the
+%                 type forecasts x_exp1_<k> stay untransformed), outside it
+%                 x_exp1 = T(x{+1}); scope entries 'x@<label>' write a copy
+%                 x_exp1__<tag> that replaces x{+1} in that equation only.
+%                 Factors are parameters tf<i>_* (D__<type>, d1, theta,
+%                 omega, b, g, mu, rho, lam__<x>) that hetlearn.load_model
+%                 sets; wedges add xi_<shock> and the shock. meta.transforms
+%                 holds the structure, parameter roles and identity values
+%                 (the collapse test runs at them); see tf_setup.
 %
 %   Files written (in <folder>/generated/)
 %     <name>_ext_<plmtag>.model       the extended model
@@ -132,8 +146,14 @@ ip.addParameter('force', false);
 ip.addParameter('validate', true);
 ip.addParameter('re_info', 'current');
 ip.addParameter('types', []);      % N agent types (DESIGN_br_extensions 1.1): generator version 6, see ntype_generate
+ip.addParameter('transforms', []); % forecast transforms (DESIGN_br_extensions 1.3, phase P3): N-type writer, version 7
 ip.parse(varargin{:});
 ntypes = ip.Results.types;
+tforms = ip.Results.transforms;
+if ~isempty(tforms) && isempty(ntypes)
+    error('hetlearn:extend_model:transforms', ['Forecast transforms are written by the N-type writer: pass the agent ' ...
+        'types too (option ''types'', as hetlearn.load_model does through hetlearn.agent_types).']);
+end
 force = logical(ip.Results.force);
 doValidate = logical(ip.Results.validate);
 reInfo = char(ip.Results.re_info);
@@ -225,6 +245,7 @@ if ~isempty(ntypes)
         'preparsed', preparsed, 'S', S, 'occ', occ, 'fwd', {fwd}, 'maxLead', maxLead, 'pol', pol, ...
         'assignKey', assignKey, 'force', force, 'validate', doValidate, 'anchorToggle', ANCHOR_TOGGLE, ...
         'infoToggle', INFO_TOGGLE, 'policyToggle', POLICY_TOGGLE);
+    B.transforms = tforms;
     meta = ntype_generate(B, ntypes);
     return
 end
@@ -1969,6 +1990,13 @@ for i = 1:numel(fwd)
     x = fwd{i};
     byx.(x) = find(arrayfun(@(g) any(strcmp(g.vars, x)), G));
 end
+% forecast transforms (DESIGN_br_extensions 1.3, phase P3): resolved against the model here; the
+% factors are parameters set by hetlearn.load_model, so the file depends on their structure only
+TF = tf_setup(B, G, byx);
+if TF.has
+    GENERATOR_VERSION = 7;
+    B.occ = TF.occ;                % equation copies: x{+1} of their equations -> x_exp1__<tag>
+end
 
 % ---- names and collisions ---------------------------------------------------------
 gen = {};
@@ -2016,6 +2044,11 @@ for j = 1:numel(G)
     end
 end
 gen = [gen, derNames, {B.anchorToggle, B.infoToggle}, B.pol.gen_names];
+if TF.has
+    % the chains x_REt1, x_REt2 of the diagnostic references may be the lagged RE chain already
+    own = TF.gen_names(~ismember(TF.gen_names, TF.chain_names));
+    gen = [gen, own, setdiff(TF.chain_names, gen, 'stable')];
+end
 clash = intersect(gen, [S.declared, fieldnames(assign)']);
 if ~isempty(clash)
     error('hetlearn:extend_model:nameCollision', ...
@@ -2031,6 +2064,9 @@ end
 % ---- file names and cache -----------------------------------------------------------
 dk = cellfun(@(n) sprintf('%s=%s', n, regexprep(derived.(n), '\s', '')), sort(derNames), 'UniformOutput', false);
 fileKey = sprintf('v%d|%s|derived:%s', GENERATOR_VERSION, strjoin({G.key}, ';'), strjoin(dk, ','));
+if TF.has
+    fileKey = [fileKey '|transforms:' TF.key];
+end
 h = md5hex(unicode2native(fileKey, 'UTF-8'));
 tag = ['n' h(1:8)];
 genDir = fullfile(spec.folder, 'generated');
@@ -2123,7 +2159,11 @@ for j = 1:numel(G)
             'with plain state names (%s).'], G(j).name, spec.model_file);
     end
 end
-block = make_block_ntype(G, byx, fwd, B.maxLead, tag, spec, S, derived, anchor, B.infoToggle, reChain, chainMode, reInfo);
+if TF.has
+    [TF, chainMode] = tf_chains(TF, reChain, chainMode, anchor);
+end
+block = make_block_ntype(G, byx, fwd, B.maxLead, tag, spec, S, derived, anchor, B.infoToggle, reChain, chainMode, ...
+    reInfo, TF);
 if isempty(extBody) || extBody(end) ~= newline
     extBody = [extBody, newline];
 end
@@ -2182,6 +2222,9 @@ meta.rule_params = ruleParams;        % model parameter name -> value
 meta.re_info = reInfo;                % information set of the RE type
 meta.re_chain = reChain;              % by variable with a lagged RE chain: {x_REt1, x_REt2}
 meta.chain_mode = chainMode;
+if TF.has
+    meta.transforms = TF.meta;        % forecast transforms (phase P3): structure, parameter roles, identity values
+end
 meta.collapse_lagged_sets = {};
 if exist(metaFile, 'file') == 2
     delete(metaFile);
@@ -2204,10 +2247,19 @@ end
 
 
 % =========================================================================
-function txt = make_block_ntype(G, byx, fwd, maxLead, tag, spec, S, derived, anchor, infoToggle, reChain, chainMode, reInfo)
+function txt = make_block_ntype(G, byx, fwd, maxLead, tag, spec, S, derived, anchor, infoToggle, reChain, chainMode, reInfo, TF)
 % Expectation block of an N-type file. With the two types RE and BR it has
 % the lines of make_block / make_block_lagged in the same order, with the
 % shares n_RE_x, n_BR_x and the parameters alpha_x__BR, beta_x__BR.
+% Forecast transforms (TF.has, phase P3): x_exp1 = sum_k n_k_x*T_k(x_exp1_k)
+% in the learning branch and x_exp1 = T(x{+1}) outside it, equation copies
+% x_exp1__<tag> beside x_exp1, partial-adjustment states, diagnostic
+% reference chains, wedge factors xi_<shock> with their shocks, and the
+% factors as parameters (tf_* helpers below). Without transforms the text is
+% that of phase P2.
+if nargin < 14 || isempty(TF)
+    TF = struct('has', false);
+end
 lagged = strcmp(reInfo, 'lagged');
 desc = arrayfun(@type_desc, G, 'UniformOutput', false);
 L = {};
@@ -2215,6 +2267,9 @@ L{end+1} = '';
 L{end+1} = '% =====================================================================';
 L{end+1} = ['% hetlearn expectation block (hetlearn.extend_model), N agent types, tag ' tag];
 L{end+1} = ['% Types: ' strjoin(desc, '; ')];
+if TF.has
+    L{end+1} = ['% Forecast transforms (DESIGN_br_extensions 1.3): ' strjoin(TF.desc, '; ')];
+end
 L{end+1} = ['% Source: ' strrep(spec.model_file, '\', '/') '. Do not edit; regenerate instead.'];
 L{end+1} = '% =====================================================================';
 dn = fieldnames(derived);
@@ -2226,6 +2281,9 @@ for i = 1:numel(fwd)
     x = fwd{i};
     for k = 1:maxLead.(x)
         L{end+1} = sprintf('    "Aggregate expectation of %s{+%d}" %s_exp%d', x, k, x, k); %#ok<AGROW>
+    end
+    if TF.has
+        L = [L, tf_decl_copies(TF, x)]; %#ok<AGROW>
     end
     L{end+1} = sprintf('    !if br_%s', x); %#ok<AGROW>
     for j = byx.(x)
@@ -2243,7 +2301,13 @@ for i = 1:numel(fwd)
             L{end+1} = '        !end'; %#ok<AGROW>
         end
     end
+    if TF.has
+        L = [L, tf_decl_branches(TF, x, anchor)]; %#ok<AGROW>
+    end
     L{end+1} = '    !end'; %#ok<AGROW>
+end
+if TF.has
+    L = [L, tf_decl_global(TF)];
 end
 L{end+1} = '!parameters';
 for i = 1:numel(fwd)
@@ -2306,6 +2370,9 @@ if anchor.ok
         end
     end
 end
+if TF.has
+    L = [L, tf_decl_params(TF)];
+end
 L{end+1} = '!transition_equations';
 for i = 1:numel(dn)
     L{end+1} = sprintf('    %s = %s;', dn{i}, derived.(dn{i})); %#ok<AGROW>
@@ -2314,8 +2381,12 @@ for i = 1:numel(fwd)
     x = fwd{i};
     ix = byx.(x);
     L{end+1} = sprintf('    !if br_%s', x); %#ok<AGROW>
-    terms = arrayfun(@(j) sprintf('n_%s_%s*%s_exp1_%s', G(j).name, x, x, G(j).name), ix, 'UniformOutput', false);
-    L{end+1} = sprintf('        %s_exp1 = %s;', x, strjoin(terms, ' + ')); %#ok<AGROW>
+    if TF.has
+        L = [L, tf_learn_lines(TF, G, x, ix, anchor.toggle)]; %#ok<AGROW>
+    else
+        terms = arrayfun(@(j) sprintf('n_%s_%s*%s_exp1_%s', G(j).name, x, x, G(j).name), ix, 'UniformOutput', false);
+        L{end+1} = sprintf('        %s_exp1 = %s;', x, strjoin(terms, ' + ')); %#ok<AGROW>
+    end
     ch = {};
     if isfield(reChain, x)
         ch = reChain.(x);
@@ -2357,12 +2428,22 @@ for i = 1:numel(fwd)
             L = [L, strcat({'        '}, chainEq)]; %#ok<AGROW>
         end
     end
+    if TF.has
+        L = [L, tf_learn_chain_lines(TF, x, anchor)]; %#ok<AGROW>
+    end
     L{end+1} = '    !else'; %#ok<AGROW>
-    L{end+1} = sprintf('        %s_exp1 = %s{+1};', x, x); %#ok<AGROW>
+    if TF.has
+        L = [L, tf_mc_lines(TF, x)]; %#ok<AGROW>
+    else
+        L{end+1} = sprintf('        %s_exp1 = %s{+1};', x, x); %#ok<AGROW>
+    end
     L{end+1} = '    !end'; %#ok<AGROW>
     for k = 2:maxLead.(x)
         L{end+1} = sprintf('    %s_exp%d = %s_exp%d{+1};', x, k, x, k - 1); %#ok<AGROW>
     end
+end
+if TF.has
+    L = [L, tf_global_lines(TF)];
 end
 logged = {};
 for i = 1:numel(fwd)
@@ -2377,6 +2458,9 @@ for i = 1:numel(fwd)
     elseif inList
         logged = [logged, arrayfun(@(k) sprintf('%s_exp%d', x, k), 1:maxLead.(x), ...
             'UniformOutput', false)]; %#ok<AGROW>
+        if TF.has
+            logged = [logged, {TF.meta.copies(strcmp({TF.meta.copies.var}, x)).name}]; %#ok<AGROW>
+        end
     end
 end
 if ~isempty(logged)
@@ -2485,9 +2569,11 @@ end
 function [maxdiff, infoDiff, sets] = collapse_test_nt(spec, assign, meta)
 % Collapse test of an N-type file (DESIGN_br_extensions 1.7). Every share on
 % the RE type (n_RE_x = 1, the other shares 0), beliefs 0, rule constants at
-% their values: the tests of collapse_test (RE information 'current') or
-% collapse_test_lagged ('lagged') with the same tolerance, 1e-10 on the IRFs
-% of every variable of the reference model, 40 periods.
+% their values, forecast transforms at their identity values: the tests of
+% collapse_test (RE information 'current') or collapse_test_lagged ('lagged')
+% with the same tolerance, 1e-10 on the IRFs of every variable of the
+% reference model to its shocks (the wedge shocks of transforms are extra),
+% 40 periods.
 TOL = 1e-10;
 params = call_params(spec);
 mo = Model.fromFile(meta.ref_file, 'linear', logical(spec.linear), 'assign', assign);
@@ -2512,10 +2598,7 @@ if strcmp(meta.re_info, 'current')
             continue
         end
         me = load_ext_nt(spec, assign, meta, cfg{it, 1}, cfg{it, 2}, cfg{it, 3}, params, Aa);
-        if ~isequal(get(me, 'eList'), el)
-            error('hetlearn:extend_model:collapseFailed', 'Shock lists differ between reference and extended model.');
-        end
-        [d, worst] = irf_diff(so, srf(me, 1:40), xl);
+        [d, worst] = irf_diff(so, nt_srf(me, el, meta), xl);
         if it <= 3
             maxdiff(it) = d;
         else
@@ -2531,10 +2614,7 @@ if strcmp(meta.re_info, 'current')
     return
 end
 me = load_ext_nt(spec, assign, meta, {}, false, false, params, struct());
-if ~isequal(get(me, 'eList'), el)
-    error('hetlearn:extend_model:collapseFailed', 'Shock lists differ between reference and extended model.');
-end
-[maxdiff(2), worst] = irf_diff(so, srf(me, 1:40), xl);
+[maxdiff(2), worst] = irf_diff(so, nt_srf(me, el, meta), xl);
 if ~(maxdiff(2) < TOL)
     error('hetlearn:extend_model:collapseFailed', ['Collapse test failed (N types, lagged RE, br = false): ' ...
         'max abs IRF difference %.3g (variable %s) >= %g. Extended file: %s'], maxdiff(2), worst, TOL, meta.ext_file);
@@ -2614,10 +2694,41 @@ me = prepare(me, spec, sprintf('N-type file (learning {%s}, re_anchored = %d, br
 end
 
 
+function se = nt_srf(me, el, meta)
+% IRFs of an N-type model to the shocks el of the reference model (40 periods). The wedge shocks of
+% forecast transforms (meta.transforms.shocks) are the only extra shocks allowed.
+sh = {};
+if isfield(meta, 'transforms') && ~isempty(meta.transforms)
+    sh = meta.transforms.shocks;
+end
+if isempty(sh)
+    if ~isequal(get(me, 'eList'), el)
+        error('hetlearn:extend_model:collapseFailed', 'Shock lists differ between reference and extended model.');
+    end
+    se = srf(me, 1:40);
+    return
+end
+ee = reshape(cellstr(get(me, 'eList')), 1, []);
+er = reshape(cellstr(el), 1, []);
+if ~all(ismember(er, ee)) || ~isequal(sort(setdiff(ee, er)), sort(sh))
+    error('hetlearn:extend_model:collapseFailed', ['Shock lists differ between reference and extended model ' ...
+        'beyond the wedge shocks of the forecast transforms (%s).'], strjoin(sh, ', '));
+end
+se = srf(me, 1:40, 'select', er);
+end
+
+
 function Z = ntype_re_limit(meta)
 % Parameters of the RE limit of an N-type file: n_RE_x = 1 and every other share 0, belief and
-% anchored parameters 0, rule constants at their values.
+% anchored parameters 0, rule constants at their values; forecast transforms (phase P3) at their
+% identity values (the collapse test).
 Z = struct();
+if isfield(meta, 'transforms') && ~isempty(meta.transforms)
+    f = fieldnames(meta.transforms.identity);
+    for i = 1:numel(f)
+        Z.(f{i}) = meta.transforms.identity.(f{i});
+    end
+end
 fwd = meta.forward_vars;
 for i = 1:numel(fwd)
     x = fwd{i};
@@ -2643,5 +2754,695 @@ end
 f = fieldnames(meta.rule_params);
 for i = 1:numel(f)
     Z.(f{i}) = meta.rule_params.(f{i});
+end
+end
+
+
+% =========================================================================
+% Forecast transforms (docs/DESIGN_br_extensions.md 1.3, phase P3, 2026-10-21)
+% =========================================================================
+function TF = tf_setup(B, G, byx)
+% expectations.transforms resolved against the model (TF.has = false without transforms).
+% Contexts: 'L' = the learning branch of x (br_x true), one per agent type k that forecasts x;
+% 'N' = the model-consistent expectation of x outside the learning set (br_x false). Tag '' = the
+% aggregate x_exp1, otherwise an equation copy x_exp1__<tag>, which replaces x{+1} in the equation
+% labelled exactly <label> (scope entry 'x@<label>'; tag = initials of the label up to its first
+% comma, 'Phillips curve, price setting' -> 'pc'). A transform acts on (x, L, k, tag) when its
+% types are 'all' or name k and x is in its global scope ('learning', 'all', named variables;
+% minus exclude) or (x, tag) is one of its equation entries; on (x, N, tag) when its types are
+% 'all' or name RE and x is in its global scope other than 'learning', or (x, tag) is one of its
+% equation entries. The transforms acting on a context apply in the order of the list. Factors
+% are parameters tf<i>_* that hetlearn.load_model sets (identity values TF.meta.identity, used by
+% the collapse test), so the file depends on the structure only (TF.key). Left out of a type's
+% forecast and listed in TF.blocked (hetlearn.load_model refuses a run in which the variable
+% learns): a diagnostic transform on a learned or rule type or on an anchored RE type (its
+% reference is the generalised anchor of phase P4), partial adjustment of a learned or rule type's
+% forecast. A diagnostic on an RE type that follows re_variant is written for the model-consistent
+% branch only (TF.deferred). Errors (hetlearn:extend_model:transforms): a diagnostic transform
+% after another transform, a transform that acts on nothing, scope entries that are not
+% forward-looking or whose equation is not found.
+TF = struct('has', false, 'occ', B.occ);
+X = B.transforms;
+if isempty(X)
+    return
+end
+ID = 'hetlearn:extend_model:transforms';
+X = reshape(X, 1, []);
+nX = numel(X);
+fwd = B.fwd;
+S = B.S;
+code = B.code;
+occ = B.occ;
+file = B.spec.model_file;
+tnames = {G.name};
+
+% ---- equation label of every lead occurrence in the transition equations ---------------------
+[masked, ~, labs] = mask_code(code);
+if isempty(labs)
+    labs = zeros(0, 2);
+end
+in2 = false(1, size(labs, 1));
+for r = 1:size(labs, 1)
+    in2(r) = S.sec(labs(r, 1)) == 2;
+end
+lab2 = labs(in2, :);
+labText = cell(1, size(lab2, 1));
+for r = 1:size(lab2, 1)
+    labText{r} = code(lab2(r, 1) + 1:lab2(r, 2) - 1);
+end
+semis = find(masked == ';');
+occLabel = repmat({''}, 1, numel(occ));
+for q = 1:numel(occ)
+    if isempty(occ(q).name) || occ(q).sec ~= 2
+        continue
+    end
+    prev = semis(semis < occ(q).s);
+    if isempty(prev)
+        prev = 0;
+    else
+        prev = prev(end);
+    end
+    r = find(lab2(:, 1) > prev & lab2(:, 2) < occ(q).s, 1, 'last');
+    if ~isempty(r)
+        occLabel{q} = labText{r};
+    end
+end
+
+% ---- per transform: types, global scope, equation copies ----------------------------------------
+copies = struct('var', {}, 'label', {}, 'tag', {}, 'name', {});
+T = struct('kind', {}, 'prefix', {}, 'typesAll', {}, 'types', {}, 'globL', {}, 'globN', {}, 'copy', {}, ...
+    'shock', {}, 'xi', {}, 'desc', {});
+parts = cell(1, nX);
+for i = 1:nX
+    x = X(i);
+    t = struct('kind', char(x.kind), 'prefix', sprintf('tf%d', i), 'typesAll', true, 'types', {{}}, ...
+        'globL', {{}}, 'globN', {{}}, 'copy', [], 'shock', '', 'xi', '', 'desc', '');
+    if iscell(x.types)
+        t.typesAll = false;
+        t.types = reshape(cellstr(x.types), 1, []);
+        bad = setdiff(t.types, tnames);
+        if ~isempty(bad)
+            error(ID, 'expectations.transforms(%d).types: %s not agent types of the run (%s).', i, ...
+                strjoin(bad, ', '), strjoin(tnames, ', '));
+        end
+    end
+    excl = {};
+    if iscell(x.exclude)
+        excl = reshape(cellstr(x.exclude), 1, []);
+    end
+    bad = setdiff(excl, fwd);
+    if ~isempty(bad)
+        error(ID, 'expectations.transforms(%d).exclude: %s not forward-looking in %s.', i, strjoin(bad, ', '), file);
+    end
+    sc = x.scope;
+    if ischar(sc) && strcmp(sc, 'learning')
+        t.globL = fwd(~ismember(fwd, excl));
+        scTxt = 'learning';
+    elseif ischar(sc) && strcmp(sc, 'all')
+        t.globL = fwd(~ismember(fwd, excl));
+        t.globN = t.globL;
+        scTxt = 'all';
+    else
+        sc = reshape(cellstr(sc), 1, []);
+        isEq = contains(sc, '@');
+        plain = sc(~isEq);
+        bad = setdiff(plain, fwd);
+        if ~isempty(bad)
+            error(ID, 'expectations.transforms(%d).scope: %s not forward-looking in %s (forward-looking: %s).', ...
+                i, strjoin(bad, ', '), file, strjoin(fwd, ', '));
+        end
+        t.globL = fwd(ismember(fwd, plain) & ~ismember(fwd, excl));
+        t.globN = t.globL;
+        for e = sc(isEq)
+            a = strfind(e{1}, '@');
+            [copies, occ, c] = tf_copy(copies, occ, occLabel, labText, e{1}(1:a(1) - 1), e{1}(a(1) + 1:end), ...
+                fwd, i, file);
+            t.copy(end+1) = c;
+        end
+        scTxt = strjoin(sc, ',');
+    end
+    if strcmp(t.kind, 'wedge') && isstruct(x.factor) && isfield(x.factor, 'shock') && ~isempty(x.factor.shock)
+        t.shock = char(x.factor.shock);
+        t.xi = ['xi_' t.shock];
+    end
+    ty = 'all';
+    if ~t.typesAll
+        ty = strjoin(t.types, ',');
+    end
+    ex = '';
+    if ~isempty(excl)
+        ex = [' minus ' strjoin(excl, ',')];
+    end
+    t.desc = sprintf('tf%d %s (types %s, scope %s%s)', i, t.kind, ty, scTxt, ex);
+    parts{i} = sprintf('%d:%s[types=%s;scope=%s;exclude=%s;shock=%s]', i, t.kind, ty, scTxt, strjoin(excl, ','), t.shock);
+    T(i) = t;
+end
+
+% ---- contexts: validation, parameters, generated variables -------------------------------------
+P = struct('name', {}, 'i', {}, 'role', {}, 'type', {}, 'var', {}, 'identity', {}, 'label', {});
+pa = struct('name', {}, 'branch', {}, 'var', {}, 'type', {}, 'tag', {}, 'i', {});
+need = struct('cur', {{}}, 'lag3', {{}}, 'mc', {{}});
+deferred = struct('var', {}, 'type', {}, 'i', {});
+blocked = struct('var', {}, 'type', {}, 'i', {}, 'kind', {}, 'reason', {});
+used = false(1, nX);
+for ix = 1:numel(fwd)
+    x = fwd{ix};
+    tags = [{''}, {copies(strcmp({copies.var}, x)).tag}];
+    for c = 1:numel(tags)
+        for j = byx.(x)
+            ch = tf_chain(T, copies, x, 'L', G(j).name, tags{c});
+            [P, pa, need, deferred, used, blocked] = tf_context(T, ch, x, 'L', G(j), tags{c}, P, pa, need, ...
+                deferred, used, blocked);
+        end
+        ch = tf_chain(T, copies, x, 'N', '', tags{c});
+        [P, pa, need, deferred, used, blocked] = tf_context(T, ch, x, 'N', [], tags{c}, P, pa, need, deferred, ...
+            used, blocked);
+    end
+end
+if ~all(used)
+    i = find(~used, 1);
+    error(ID, 'expectations.transforms(%d) (%s) acts on no expectation of %s: check its types and scope.', i, ...
+        T(i).kind, file);
+end
+
+% ---- outputs ------------------------------------------------------------------------------------
+hasXi = ~cellfun(@isempty, {T.xi});
+shocks = {T(hasXi).shock};
+xis = {T(hasXi).xi};
+chainNames = {};
+xc = reshape(unique([need.mc, need.cur], 'stable'), 1, []);
+for q = 1:numel(xc)
+    chainNames = [chainNames, {[xc{q} '_REt1'], [xc{q} '_REt2']}]; %#ok<AGROW>
+end
+for q = 1:numel(need.lag3)
+    chainNames{end+1} = [need.lag3{q} '_REt3']; %#ok<AGROW>
+end
+chainNames = unique(chainNames, 'stable');
+identity = struct();
+for q = 1:numel(P)
+    identity.(P(q).name) = P(q).identity;
+end
+TF.has = true;
+TF.occ = occ;
+TF.list = T;
+TF.copies = copies;
+TF.params = P;
+TF.pa = pa;
+TF.need = need;
+TF.deferred = deferred;
+TF.blocked = blocked;
+TF.shocks = shocks;
+TF.xis = xis;
+TF.chain_names = chainNames;
+TF.learn_chain = {};
+TF.lag3_wrap = struct();
+TF.gen_names = [{copies.name}, {pa.name}, {P.name}, xis, shocks, chainNames];
+TF.key = strjoin(parts, '|');
+TF.desc = {T.desc};
+TF.meta = struct('n', nX, 'kinds', {{T.kind}}, 'list', T, 'copies', copies, 'params', P, 'identity', identity, ...
+    'shocks', {shocks}, 'xis', {xis}, 'pa', pa, 'need', need, 'deferred', deferred, 'blocked', blocked, ...
+    'chain_names', {chainNames}, 'learn_chain', {{}}, 'key', TF.key);
+end
+
+
+function ch = tf_unblocked(TF, ch, x, k)
+% the transforms of a learning-branch context without those phase P3 leaves out for the type
+if isempty(TF.blocked) || isempty(ch)
+    return
+end
+b = TF.blocked(strcmp({TF.blocked.var}, x) & strcmp({TF.blocked.type}, k));
+ch = ch(~ismember(ch, [b.i]));
+end
+
+
+function [copies, occ, c] = tf_copy(copies, occ, occLabel, labText, x, lab, fwd, i, file)
+% the equation copy of x for the transition equation labelled lab (created once)
+ID = 'hetlearn:extend_model:transforms';
+if ~any(strcmp(fwd, x))
+    error(ID, 'expectations.transforms(%d).scope ''%s@%s'': %s is not forward-looking in %s.', i, x, lab, x, file);
+end
+c = [];
+if ~isempty(copies)
+    c = find(strcmp({copies.var}, x) & strcmp({copies.label}, lab), 1);
+end
+if ~isempty(c)
+    return
+end
+nl = sum(strcmp(labText, lab));
+if nl == 0
+    error(ID, ['expectations.transforms(%d).scope ''%s@%s'': no transition equation is labelled ''%s'' in %s ' ...
+        '(the label must match exactly).'], i, x, lab, lab, file);
+elseif nl > 1
+    error(ID, 'expectations.transforms(%d).scope ''%s@%s'': %d transition equations carry this label in %s.', ...
+        i, x, lab, nl, file);
+end
+hit = find(strcmp({occ.name}, x) & strcmp(occLabel, lab));
+k = [occ(hit).k];
+if any(k >= 2)
+    error(ID, ['expectations.transforms(%d).scope ''%s@%s'': the equation has a lead of %s longer than 1 ' ...
+        '(equation copies transform x{+1} only).'], i, x, lab, x);
+end
+hit = hit(k == 1);
+if isempty(hit)
+    error(ID, ['expectations.transforms(%d).scope ''%s@%s'': the equation ''%s'' has no %s{+1} of its own (leads ' ...
+        'inside !substitutions are not copied).'], i, x, lab, lab, x);
+end
+usedTags = {};
+if ~isempty(copies)
+    usedTags = {copies(strcmp({copies.var}, x)).tag};
+end
+tag = label_tag(lab, usedTags);
+name = [x '_exp1__' tag];
+for q = hit
+    occ(q).ext = name;
+end
+copies(end+1) = struct('var', x, 'label', lab, 'tag', tag, 'name', name);
+c = numel(copies);
+end
+
+
+function t = label_tag(label, used)
+% initials of the words of the label up to its first comma, lower case ('Phillips curve, price setting' -> 'pc')
+head = strtok(label, ',');
+w = regexp(lower(head), '[a-z0-9]+', 'match');
+t = strjoin(cellfun(@(s) s(1), w, 'UniformOutput', false), '');
+if isempty(t)
+    t = 'eq';
+end
+if ~isletter(t(1))
+    t = ['e' t];
+end
+base = t;
+n = 1;
+while any(strcmp(used, t))
+    n = n + 1;
+    t = sprintf('%s%d', base, n);
+end
+end
+
+
+function ch = tf_chain(T, copies, x, br, k, tag)
+% indices of the transforms acting on the context (x, br, type k, tag), in list order
+ch = [];
+isL = strcmp(br, 'L');
+for i = 1:numel(T)
+    t = T(i);
+    if isL
+        okT = t.typesAll || any(strcmp(t.types, k));
+        okG = any(strcmp(t.globL, x));
+    else
+        okT = t.typesAll || any(strcmp(t.types, 'RE'));
+        okG = any(strcmp(t.globN, x));
+    end
+    okC = false;
+    if ~isempty(tag) && ~isempty(t.copy)
+        okC = any(strcmp({copies(t.copy).var}, x) & strcmp({copies(t.copy).tag}, tag));
+    end
+    if okT && (okG || okC)
+        ch(end+1) = i; %#ok<AGROW>
+    end
+end
+end
+
+
+function [P, pa, need, deferred, used, blocked] = tf_context(T, ch, x, br, g, tag, P, pa, need, deferred, used, blocked)
+% checks of one context; its parameters, partial-adjustment states and reference chains. A
+% transform that phase P3 cannot apply to a type (diagnostic of a learned or rule type, or of an
+% anchored RE type; partial adjustment of a learned or rule type) is left out of that type's
+% forecast and listed in blocked: hetlearn.load_model refuses the run when the variable learns
+ID = 'hetlearn:extend_model:transforms';
+isL = strcmp(br, 'L');
+where = sprintf('the model-consistent expectation of %s{+1}', x);
+if isL
+    where = sprintf('the forecast of %s{+1} of type %s', x, g.name);
+end
+if ~isempty(tag)
+    where = sprintf('%s (equation copy %s_exp1__%s)', where, x, tag);
+end
+keep = true(1, numel(ch));
+for q = 1:numel(ch)
+    i = ch(q);
+    used(i) = true;
+    if ~isL
+        continue
+    end
+    why = '';
+    switch T(i).kind
+        case 'diagnostic'
+            if ~strcmp(g.kind, 're')
+                why = ['the reference forecast of learned and rule types is not built (phase P3 builds the ' ...
+                    'model-consistent references)'];
+            elseif strcmp(g.variant, 'anchored')
+                why = ['its reference, the anchored forecast made one period earlier, is the generalised anchor ' ...
+                    'of phase P4'];
+            end
+        case 'partial_adjustment'
+            if ~strcmp(g.kind, 're')
+                why = ['the adjusted forecast of a learned or rule type is a model state that the history stage ' ...
+                    'does not carry (not built in phase P3); apply it to RE types or to the model-consistent expectations'];
+            end
+    end
+    if ~isempty(why)
+        keep(q) = false;
+        if isempty(blocked) || ~any(strcmp({blocked.var}, x) & strcmp({blocked.type}, g.name) & [blocked.i] == i)
+            blocked(end+1) = struct('var', x, 'type', g.name, 'i', i, 'kind', T(i).kind, 'reason', why); %#ok<AGROW>
+        end
+    end
+end
+ch = ch(keep);
+for q = 1:numel(ch)
+    i = ch(q);
+    t = T(i);
+    p = t.prefix;
+    switch t.kind
+        case 'multiplier'
+            if isL
+                P = tf_param(P, [p '_D__' g.name], i, 'D', g.name, '', 1, ...
+                    sprintf('Forecast transform %d (multiplier): factor D(h) on the forecasts of type %s', i, g.name));
+            else
+                P = tf_param(P, [p '_d1'], i, 'D', '', '', 1, ...
+                    sprintf('Forecast transform %d (multiplier): factor D(1) on the model-consistent expectations', i));
+            end
+        case 'diagnostic'
+            if q > 1
+                error(ID, ['expectations.transforms(%d) (diagnostic) acts on %s after transform %d: a diagnostic ' ...
+                    'transform must come first for each expectation (move it up the list).'], i, where, ch(1));
+            end
+            if isL
+                if strcmp(g.info, 'current')
+                    need.cur = reshape(union(need.cur, {x}, 'stable'), 1, []);
+                else
+                    need.lag3 = reshape(union(need.lag3, {x}, 'stable'), 1, []);
+                end
+                if isempty(g.variant) && ~any(strcmp({deferred.var}, x) & strcmp({deferred.type}, g.name) & [deferred.i] == i)
+                    deferred(end+1) = struct('var', x, 'type', g.name, 'i', i); %#ok<AGROW>
+                end
+            else
+                need.mc = reshape(union(need.mc, {x}, 'stable'), 1, []);
+            end
+            P = tf_param(P, [p '_theta'], i, 'theta', '', '', 0, sprintf('Forecast transform %d (diagnostic): theta', i));
+        case 'myopia_anchoring'
+            P = tf_param(P, [p '_omega'], i, 'omega', '', '', 1, ...
+                sprintf('Forecast transform %d (myopia and anchoring): weight omega_f on the forecast', i));
+            P = tf_param(P, [p '_b'], i, 'b', '', '', 0, ...
+                sprintf('Forecast transform %d (myopia and anchoring): weight b on the variable at t-1', i));
+        case 'partial_adjustment'
+            k = '';
+            if isL
+                k = g.name;
+            end
+            pa(end+1) = struct('name', tf_pa_name(x, i, br, g, tag), 'branch', br, 'var', x, 'type', k, ...
+                'tag', tag, 'i', i); %#ok<AGROW>
+            P = tf_param(P, [p '_g'], i, 'g', '', '', 1, ...
+                sprintf('Forecast transform %d (partial adjustment): weight g on the new forecast', i));
+        case 'wedge'
+            P = tf_param(P, [p '_mu'], i, 'mu', '', '', 0, sprintf('Forecast transform %d (wedge): mean', i));
+            if ~isempty(t.xi)
+                P = tf_param(P, [p '_rho'], i, 'rho', '', '', 0, ...
+                    sprintf('Forecast transform %d (wedge): AR(1) coefficient of %s', i, t.xi));
+                P = tf_param(P, [p '_lam__' x], i, 'lam', '', x, 0, ...
+                    sprintf('Forecast transform %d (wedge): loading of the %s expectation on %s', i, x, t.xi));
+            end
+    end
+end
+end
+
+
+function P = tf_param(P, name, i, role, type, var, identity, label)
+if ~isempty(P) && any(strcmp({P.name}, name))
+    return
+end
+P(end+1) = struct('name', name, 'i', i, 'role', role, 'type', type, 'var', var, 'identity', identity, 'label', label);
+end
+
+
+function v = tf_pa_name(x, i, br, g, tag)
+% partial-adjustment state: <x>_pa<i>_<type> (learning branch) or <x>_pa<i>_0 (model-consistent)
+k = '0';
+if strcmp(br, 'L')
+    k = g.name;
+end
+v = sprintf('%s_pa%d_%s', x, i, k);
+if ~isempty(tag)
+    v = [v '__' tag];
+end
+end
+
+
+function r = tf_de_ref(x, br, g)
+% the reference of a diagnostic transform: the same forecast made one period earlier, model-consistent
+if strcmp(br, 'L') && strcmp(g.info, 'lagged')
+    r = [x '_REt3{-2}'];          % E_{t-2} x_{t+1}: one more chain element than the t-1 dated forecast x_REt2{-1}
+else
+    r = [x '_REt2{-1}'];          % E_{t-1} x_{t+1} (the LSY chain)
+end
+end
+
+
+function s = tf_wrap(e)
+if isempty(regexp(e, '^[A-Za-z]\w*(\{[+-]?\d+\})?$', 'once'))
+    s = ['(' e ')'];
+else
+    s = e;
+end
+end
+
+
+function [e, eqs] = tf_expr(TF, ch, base, x, br, g, tag)
+% the transformed expectation: base through the transforms ch, and the partial-adjustment equations
+e = base;
+eqs = {};
+for q = 1:numel(ch)
+    i = ch(q);
+    t = TF.list(i);
+    p = t.prefix;
+    switch t.kind
+        case 'multiplier'
+            if strcmp(br, 'L')
+                e = sprintf('%s_D__%s*%s', p, g.name, tf_wrap(e));
+            else
+                e = sprintf('%s_d1*%s', p, tf_wrap(e));
+            end
+        case 'myopia_anchoring'
+            e = sprintf('%s_omega*%s + %s_b*%s{-1}', p, tf_wrap(e), p, x);
+        case 'diagnostic'
+            e = sprintf('(1 + %s_theta)*%s - %s_theta*%s', p, tf_wrap(e), p, tf_de_ref(x, br, g));
+        case 'partial_adjustment'
+            v = tf_pa_name(x, i, br, g, tag);
+            eqs{end+1} = sprintf('%s = %s_g*%s + (1 - %s_g)*%s{-1};', v, p, tf_wrap(e), p, v); %#ok<AGROW>
+            e = v;
+        case 'wedge'
+            w = [p '_mu'];
+            if ~isempty(t.xi)
+                w = sprintf('%s + %s_lam__%s*%s', w, p, x, t.xi);
+            end
+            e = sprintf('%s + %s', e, w);
+    end
+end
+end
+
+
+function [TF, chainMode] = tf_chains(TF, reChain, chainMode, anchor)
+% chains of the diagnostic references in the learning branch, given the lagged RE chains: a
+% model-consistent type with period-t information needs x_REt1, x_REt2 whatever re_anchored is (the
+% lagged RE chain then stays in the text in both branches, or the learning branch gets its own);
+% a lagged model-consistent type needs x_REt3, written beside the lagged RE chain
+for q = 1:numel(TF.need.cur)
+    x = TF.need.cur{q};
+    if isfield(reChain, x)
+        if strcmp(chainMode.(x), 'toggle')
+            chainMode.(x) = 'always';
+        end
+    else
+        TF.learn_chain{end+1} = x;
+    end
+end
+for q = 1:numel(TF.need.lag3)
+    x = TF.need.lag3{q};
+    if ~isfield(reChain, x)
+        error('hetlearn:extend_model:transforms', 'Internal: no lagged RE chain for the diagnostic reference of %s.', x);
+    end
+    TF.lag3_wrap.(x) = strcmp(chainMode.(x), 'toggle') && anchor.ok;
+end
+TF.meta.learn_chain = TF.learn_chain;
+end
+
+
+function L = tf_indent(ind, c)
+L = cellfun(@(s) [ind s], reshape(c, 1, []), 'UniformOutput', false);
+end
+
+
+function L = tf_decl_copies(TF, x)
+L = {};
+if isempty(TF.copies)
+    return
+end
+c = TF.copies(strcmp({TF.copies.var}, x));
+for q = 1:numel(c)
+    L{end+1} = sprintf('    "Expectation of %s{+1} in the equation: %s" %s', x, strrep(c(q).label, '"', ''''), ...
+        c(q).name); %#ok<AGROW>
+end
+end
+
+
+function L = tf_decl_branches(TF, x, anchor)
+% declarations of the learning branch (inside !if br_x) and of the model-consistent branch (!else)
+L = {};
+if any(strcmp(TF.learn_chain, x))
+    L{end+1} = sprintf('        "Model-consistent chain of the diagnostic reference: E_t %s{+1}" %s_REt1', x, x);
+    L{end+1} = sprintf('        "Model-consistent chain of the diagnostic reference: E_t %s{+2}" %s_REt2', x, x);
+end
+if any(strcmp(TF.need.lag3, x))
+    wrap = TF.lag3_wrap.(x);
+    if wrap
+        L{end+1} = sprintf('        !if ~%s', anchor.toggle);
+    end
+    L{end+1} = sprintf('        "Lagged RE chain: E_t %s{+3}, diagnostic reference" %s_REt3', x, x);
+    if wrap
+        L{end+1} = '        !end';
+    end
+end
+for q = find(strcmp({TF.pa.var}, x) & strcmp({TF.pa.branch}, 'L'))
+    L{end+1} = sprintf('        "Partial adjustment (transform %d) of the forecast of %s{+1} of type %s" %s', ...
+        TF.pa(q).i, x, TF.pa(q).type, TF.pa(q).name); %#ok<AGROW>
+end
+M = {};
+if any(strcmp(TF.need.mc, x))
+    M{end+1} = sprintf('        "Model-consistent chain of the diagnostic reference: E_t %s{+1}" %s_REt1', x, x);
+    M{end+1} = sprintf('        "Model-consistent chain of the diagnostic reference: E_t %s{+2}" %s_REt2', x, x);
+end
+for q = find(strcmp({TF.pa.var}, x) & strcmp({TF.pa.branch}, 'N'))
+    M{end+1} = sprintf('        "Partial adjustment (transform %d) of the model-consistent expectation of %s{+1}" %s', ...
+        TF.pa(q).i, x, TF.pa(q).name); %#ok<AGROW>
+end
+if ~isempty(M)
+    L{end+1} = '    !else';
+    L = [L, M];
+end
+end
+
+
+function L = tf_decl_global(TF)
+% wedge factors (transition variables) and their shocks
+L = {};
+for i = find(~cellfun(@isempty, {TF.list.xi}))
+    L{end+1} = sprintf('    "Belief wedge factor of forecast transform %d (shock %s)" %s', i, TF.list(i).shock, ...
+        TF.list(i).xi); %#ok<AGROW>
+end
+if ~isempty(TF.shocks)
+    L{end+1} = '!transition_shocks';
+    for i = find(~cellfun(@isempty, {TF.list.xi}))
+        L{end+1} = sprintf('    "Belief wedge shock of forecast transform %d" %s', i, TF.list(i).shock); %#ok<AGROW>
+    end
+end
+end
+
+
+function L = tf_decl_params(TF)
+L = arrayfun(@(p) sprintf('    "%s" %s', p.label, p.name), TF.params, 'UniformOutput', false);
+L = reshape(L, 1, []);
+end
+
+
+function L = tf_learn_lines(TF, G, x, ix, toggle)
+% x_exp1, its equation copies and the partial-adjustment equations of the learning branch. When a
+% diagnostic transform acts on an RE type that follows the re_anchored switch, the lines are written
+% twice: the anchored version leaves that type's forecast untransformed (its reference is phase P4,
+% and hetlearn.load_model refuses to load it), the model-consistent version has the transform.
+split = ~isempty(TF.deferred) && any(strcmp({TF.deferred.var}, x));
+if ~split
+    L = tf_learn_set(TF, G, x, ix, false, '        ');
+    return
+end
+L = {sprintf('        !if %s', toggle)};
+L = [L, tf_learn_set(TF, G, x, ix, true, '            ')];
+L{end+1} = '        !else';
+L = [L, tf_learn_set(TF, G, x, ix, false, '            ')];
+L{end+1} = '        !end';
+end
+
+
+function L = tf_learn_set(TF, G, x, ix, anchoredVersion, ind)
+L = {};
+cp = TF.copies;
+if ~isempty(cp)
+    cp = cp(strcmp({cp.var}, x));
+end
+tags = [{''}, {cp.tag}];
+for c = 1:numel(tags)
+    terms = cell(1, numel(ix));
+    eqs = {};
+    for jj = 1:numel(ix)
+        g = G(ix(jj));
+        ch = tf_unblocked(TF, tf_chain(TF.list, TF.copies, x, 'L', g.name, tags{c}), x, g.name);
+        if anchoredVersion && strcmp(g.kind, 're') && isempty(g.variant) && ~isempty(ch)
+            ch = ch(~strcmp({TF.list(ch).kind}, 'diagnostic'));
+        end
+        [e, q] = tf_expr(TF, ch, sprintf('%s_exp1_%s', x, g.name), x, 'L', g, tags{c});
+        terms{jj} = sprintf('n_%s_%s*%s', g.name, x, tf_wrap(e));
+        eqs = [eqs, q]; %#ok<AGROW>
+    end
+    lhs = [x '_exp1'];
+    if c > 1
+        lhs = cp(c - 1).name;
+    end
+    L{end+1} = sprintf('%s%s = %s;', ind, lhs, strjoin(terms, ' + ')); %#ok<AGROW>
+    L = [L, tf_indent(ind, eqs)]; %#ok<AGROW>
+end
+end
+
+
+function L = tf_learn_chain_lines(TF, x, anchor)
+% equations of the reference chains of the learning branch (after the lagged RE chain)
+L = {};
+if any(strcmp(TF.learn_chain, x))
+    L{end+1} = sprintf('        %s_REt2 = %s_REt1{+1};', x, x);
+    L{end+1} = sprintf('        %s_REt1 = %s{+1};', x, x);
+end
+if any(strcmp(TF.need.lag3, x))
+    if TF.lag3_wrap.(x)
+        L{end+1} = sprintf('        !if ~%s', anchor.toggle);
+        L{end+1} = sprintf('            %s_REt3 = %s_REt2{+1};', x, x);
+        L{end+1} = '        !end';
+    else
+        L{end+1} = sprintf('        %s_REt3 = %s_REt2{+1};', x, x);
+    end
+end
+end
+
+
+function L = tf_mc_lines(TF, x)
+% the model-consistent branch (br_x false): x_exp1 = T(x{+1}), its equation copies, partial-adjustment
+% equations and the reference chain of a diagnostic transform
+L = {};
+cp = TF.copies;
+if ~isempty(cp)
+    cp = cp(strcmp({cp.var}, x));
+end
+tags = [{''}, {cp.tag}];
+for c = 1:numel(tags)
+    ch = tf_chain(TF.list, TF.copies, x, 'N', '', tags{c});
+    [e, q] = tf_expr(TF, ch, [x '{+1}'], x, 'N', [], tags{c});
+    lhs = [x '_exp1'];
+    if c > 1
+        lhs = cp(c - 1).name;
+    end
+    L{end+1} = sprintf('        %s = %s;', lhs, e); %#ok<AGROW>
+    L = [L, tf_indent('        ', q)]; %#ok<AGROW>
+end
+if any(strcmp(TF.need.mc, x))
+    L{end+1} = sprintf('        %s_REt2 = %s_REt1{+1};', x, x);
+    L{end+1} = sprintf('        %s_REt1 = %s{+1};', x, x);
+end
+end
+
+
+function L = tf_global_lines(TF)
+% laws of motion of the wedge factors
+L = {};
+for i = find(~cellfun(@isempty, {TF.list.xi}))
+    t = TF.list(i);
+    L{end+1} = sprintf('    %s = %s_rho*%s{-1} + %s;', t.xi, t.prefix, t.xi, t.shock); %#ok<AGROW>
 end
 end
