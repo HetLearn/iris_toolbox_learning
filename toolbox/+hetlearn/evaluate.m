@@ -43,6 +43,13 @@ function E = evaluate(name, variants, origins, opts)
 %   then starts from that state and the backed-out databank clipped at the
 %   origin (ctx.history_cache). No real-time RE filters are computed for
 %   PLM specs used only by inversion variants.
+%   N agent types and forecast transforms (docs/DESIGN_br_extensions.md 1.1-1.5;
+%   phase P6): supported. Such a variant's RE filter is that of its own RE
+%   limit (its generated file, with the type forecasts, transform states and
+%   factors), so it shares a filter only with variants of the same generated
+%   file, parameter values, toggles and learning set. history.mode = 'inversion' is not
+%   available with N types (hetlearn.load_options refuses it); 'kalman'
+%   variants run through hetlearn.run like the others.
 %
 %   Errors: actual - forecast in report units (spec.report.scale.<obs>, 1 if
 %   none), every observable, h = 1..H; targets without data are skipped.
@@ -148,6 +155,15 @@ for v = 1:nV
         % learning set and RE variant, so it shares a filter only with variants that match
         plmKey{v} = sprintf('%s|re_info=lagged|%s|%s', plmKey{v}, strjoin(info.learnVars, ','), ...
             ov.expectations.re_variant);
+    end
+    if isfield(info, 'nt') && ~isempty(info.nt)
+        % N agent types and forecast transforms (phase P6): the RE filter model is the variant's own
+        % generated file at its RE limit (type forecasts, transform states and factors, rule constants,
+        % wedge stds), so it is shared only with variants of the same file, parameter values, toggles
+        % and learning set
+        plmKey{v} = sprintf('%s|nt|%s|%s|%s|%s|%s', plmKey{v}, info.meta.ext_file, ...
+            hetlearn.util.struct_key(get(m, 'parameters')), hetlearn.util.struct_key(get(m, 'std')), ...
+            hetlearn.util.struct_key(info.assign), strjoin(info.learnVars, ','));
     end
     if v > 1 && ~strcmp(M{v}.spec.folder, M{1}.spec.folder)
         error('hetlearn:evaluate:model', 'All variants must use the same model package (%s vs %s).', ...
