@@ -194,11 +194,11 @@ c = struct('expectations', struct('mode', 'switching', 'variables', {{'pinf'}}))
 x = c; x.expectations.types = {T('name', 'L0', 'kind', 'plm'), T('name', 'L1', 'kind', 'level', 'base', 'L0', 'k', 1), ...
     T('name', 'L2', 'kind', 'level', 'base', 'L0', 'k', 2)};
 x.shares.init = struct('L0', 1/3, 'L1', 1/3, 'L2', 1/3);
-V(end+1, :) = {'br01a', x, {'P4'}};               % P2 landed 2026-10-21
+V(end+1, :) = {'br01a (P4 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.mode = 'fixed_shares';
 x.expectations.types = {T('name', 'L0', 'kind', 'plm'), T('name', 'L2', 'kind', 'level', 'base', 'L0', 'k', 2)};
 x.shares.fixed = struct('L0', 0, 'L2', 1);
-V(end+1, :) = {'br01b', x, {'P4'}};
+V(end+1, :) = {'br01b (P4 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.transforms = [mult(0.76, {'c', 'lab', 'inve', 'pk', 'rk'}), ...
     mult(0.86, {'w', 'pinf@Phillips curve, price setting', 'pinf@Wage Phillips curve, wage setting'}), ...
     mult(0.08, {'pinf@Consumption Euler equation', 'pinf@Arbitrage equation for the value of capital'})];
@@ -240,7 +240,7 @@ x = c; x.expectations.variables = ST7; x.expectations.mode = 'learning';
 x.beliefs.update = 'sac'; x.gain = struct('rule', 'constant', 'value', 0.006);
 V(end+1, :) = {'br20 (P5 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'IO', 'kind', 're_mean')};
-V(end+1, :) = {'br23', x, {'P4', 'P5'}};
+V(end+1, :) = {'br23 (P4 landed 2026-10-21: loads)', x, {}};
 x = c; x.beliefs.plm.by_var.pinf = struct('regressors', {{}}, 'constant', true);
 V(end+1, :) = {'br24 (existing options)', x, {}};
 x = c; x.expectations.variables = ST7; x.expectations.mode = 'learning';
@@ -265,7 +265,7 @@ x = c; x.expectations.transforms = struct('kind', 'wedge', 'types', 'all', 'scop
     'factor', struct('rho', 0.833, 'std', 'model:acd51', 'loadings', 'model:projection', 'shock', 'e_xi'));
 V(end+1, :) = {'br31 (P3 landed 2026-10-21: loads)', x, {}};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'FN', 'kind', 'rule', 'rule', 'dn{-1} - re1(y{+1} - y)')};
-V(end+1, :) = {'br33', x, {'P4'}};
+V(end+1, :) = {'br33 (P4 landed 2026-10-21: loads)', x, {}};
 x = c; x.history.mode = 'kalman';
 V(end+1, :) = {'kalman (P1 landed 2026-10-20: loads)', x, {}};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm')};
@@ -288,8 +288,8 @@ for i = 1:size(V, 1)
 end
 R = add(R, sprintf(['opt BR2: %d configurations (the portfolio variants of DESIGN_br_extensions sec. 3, ' ...
     'history.mode kalman, RE/BR spelled out) pass validation and stop with notImplemented naming exactly ' ...
-    'their phases (br24, br26: existing options, they load; P1, P2 landed: kalman, br19, br27, the ' ...
-    'spelled-out pair load)'], size(V, 1)), isempty(bad), strjoin(bad, ' | '));
+    'their phases (br24, br26: existing options, they load; P1 to P5 landed: every configuration ' ...
+    'loads)'], size(V, 1)), isempty(bad), strjoin(bad, ' | '));
 
 E = {};      % {name, cfg, expected identifier}
 x = c; x.expectations.types = T('name', 'A', 'kind', 'heuristic');
