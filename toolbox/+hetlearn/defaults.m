@@ -26,18 +26,15 @@ function o = defaults()
 %     to hold strings), gain.by_var, shares.fixed_n2 (when a struct),
 %     conditions, shocks.add, report.
 %
-%   Bounded-rationality extensions (docs/DESIGN_br_extensions.md; option
-%   schema added 2026-10-20 in phase P0, before any engine code): the
-%   options marked "BR" below. Every one defaults to off, so results are
-%   unchanged. load_options validates them, and until the engine reads one
-%   it stops with hetlearn:options:notImplemented naming the phase that
-%   builds it (P1: history.mode 'kalman'; P2: expectations.types,
-%   shares.init, shares.fixed, switching.inertia/costs/fitness, intensity
-%   'model:bma'; P3: expectations.transforms; P4: type kinds 'level',
-%   're_mean', rule term re1(...); P5: beliefs.update 'sac'/'kf', gain.rule
-%   'decreasing', kind 're_mean'). Replaced as a whole, not merged:
-%   expectations.types, expectations.transforms, shares.init, shares.fixed,
-%   switching.costs.
+%   Bounded-rationality extensions (docs/DESIGN_br_extensions.md; options
+%   added 2026-10-20 to 2026-10-21, phases P0 to P6): the options marked
+%   "BR" below. Every one defaults to off, so results are unchanged.
+%   load_options validates them; the engine reads all of them. Not
+%   supported with N agent types or forecast transforms (an error naming
+%   the combination): policy.mode = 'ramsey' and history.mode = 'inversion'.
+%   docs/USER_GUIDE.md (expectation rules) has examples. Replaced as a
+%   whole, not merged: expectations.types, expectations.transforms,
+%   shares.init, shares.fixed, switching.costs.
 %
 %   See also hetlearn.load_options.
 
