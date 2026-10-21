@@ -630,31 +630,6 @@ function not_implemented(o)
 % yet. A phase deletes its own lines when it lands (section 6 of the design).
 T = o.expectations.types;
 L = {};
-if strcmp(o.history.mode, 'kalman')
-    L(end+1, :) = {'history.mode = ''kalman''', 'P1'};
-end
-if ~isempty(T)
-    L(end+1, :) = {'expectations.types (N agent types)', 'P2'};
-end
-if ~isempty(o.shares.init)
-    L(end+1, :) = {'shares.init', 'P2'};
-end
-if ~isempty(o.shares.fixed)
-    L(end+1, :) = {'shares.fixed', 'P2'};
-end
-if o.switching.inertia ~= 0
-    L(end+1, :) = {'switching.inertia', 'P2'};
-end
-c = [struct2cell_or_empty(o.switching.costs); {T.cost}'];
-if any(cellfun(@(v) ~isempty(v) && v ~= 0, c))
-    L(end+1, :) = {'switching costs (switching.costs, expectations.types.cost)', 'P2'};
-end
-if strcmp(o.switching.fitness, 'unnormalized')
-    L(end+1, :) = {'switching.fitness = ''unnormalized''', 'P2'};
-end
-if ischar(o.switching.intensity)
-    L(end+1, :) = {sprintf('switching.intensity = ''%s''', o.switching.intensity), 'P2'};
-end
 if ~isempty(o.expectations.transforms)
     L(end+1, :) = {'expectations.transforms', 'P3'};
 end
