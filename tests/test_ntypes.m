@@ -193,7 +193,8 @@ try
         end
     end
     ok = ok && isfinite(f(v));
-    bad = {'x', 'lagged'; 'self + x{-1}', 'lagged'; 'x{-1}*x{-2}', 'lagged'; 're1(y{+1} - y)', 'lagged'; ...
+    % re1(y{+1} - y) is a valid term since phase P4 (2026-10-21); re1 of a lag is malformed
+    bad = {'x', 'lagged'; 'self + x{-1}', 'lagged'; 'x{-1}*x{-2}', 'lagged'; 're1(y{-1})', 'lagged'; ...
         'x{+1}', 'current'; 'q{-1}', 'lagged'; 'mean{-1}', 'lagged'};
     nbad = 0;
     for i = 1:size(bad, 1)
