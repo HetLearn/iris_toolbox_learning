@@ -1,4 +1,6 @@
 %BUILD_OTHER_MODELS  Application 1 on the ijcb3 and as07 packages: tables, checks, memo numbers (track M3, 2026-10-18).
+%   RETIRED 2026-10-21 (user decision): report section 12 was removed and this step left the pipeline;
+%   the script and its outputs are kept, unused. Nothing reads the other_models_* files.
 %
 %   run('results/summary_v3/build_other_models.m')      from the project root, after the four runs
 %
