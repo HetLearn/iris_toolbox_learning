@@ -69,7 +69,7 @@ No other MATLAB toolbox and no Dynare are needed.
 
 ## 3. Installation
 
-1. **Clone** (the repository is private; ask for access):
+1. **Clone** the repository:
 
    ```powershell
    git clone https://github.com/tolgaozden/iris_toolbox_learning.git
@@ -338,9 +338,8 @@ mkdocs build --strict         # static site in site/
 
 `.github/workflows/docs.yml` builds the site with `--strict` and deploys it to GitHub Pages on
 every push to `main` that changes `docs_site/`, `mkdocs.yml` or the workflow. It needs
-**Settings > Pages > Source: GitHub Actions** in the repository. GitHub Pages for a private
-repository needs a paid GitHub plan, and on plans other than Enterprise Cloud the published
-site is public even when the repository is private.
+**Settings > Pages > Source: GitHub Actions** in the repository (set). The site is published at
+https://tolgaozden.net/iris_toolbox_learning/.
 
 The figures in `docs_site/assets/figures/` are copies of `paper/figures/fig_*.png`
 (`python paper/figures/make_figures.py`); copy them again when the figures change.
