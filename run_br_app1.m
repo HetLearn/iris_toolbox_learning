@@ -1,43 +1,44 @@
 function out = run_br_app1(cmd, varargin)
 %RUN_BR_APP1  Application 1 for the bounded-rationality portfolio: runs and the CSV tables of its report.
 %
-%   run_br_app1('check')          load the options of the 23 scenarios (no run): syntax and validation
-%   run_br_app1('run')            run the references a1_re, a1_learn, then the 21 variants of
+%   run_br_app1('check')          load the options of the 9 scenarios (no run): syntax and validation
+%   run_br_app1('run')            run the references a1_re, a1_learn, then the 7 variants of
 %                                 scenarios/sw07/br_portfolio/, in this session
 %   run_br_app1('run', ids)       only these scenario ids (cellstr), in the order given
 %   run_br_app1('csv')            write results/br_portfolio/app1_*.csv from the saved runs
-%   run_br_app1('calib18')        calibration search for variant 18 (De Grauwe): runs, not saved,
-%                                 of br18_degrauwe with the bias, intensity and memory set to a
-%                                 grid around De Grauwe's published values; writes
-%                                 results/br_portfolio/app1_calib18.csv
-%   ids = run_br_app1('ids')      the 23 ids in report order (references first)
+%   ids = run_br_app1('ids')      the 9 ids in report order (references first)
+%
+%   The variants (portfolio cut to seven on 2026-10-22 after docs/BR_audit.txt): 5b cognitive
+%   discounting on the learning set, 7 myopia and anchoring, 10 diagnostic expectations,
+%   19 target believers, 23 intercept learning on the RE forecast error, 24 mean-only
+%   learners, 26 constant gain 0.018.
 %
 %   Run from the project root (it calls setup_paths if IRIS is not started). Each run is
 %   hetlearn.run(feval(id)) and saves results/<id>/ like any scenario (the references
 %   overwrite results/a1_re/ and results/a1_learn/ with the same runs). Every run inherits
 %   the baseline's projection facility (config/master_options.m: 'alm' since 2026-10-21,
-%   'none' on 2026-10-20); its events (projection_alm, projection_alm_shares,
-%   projection_level) are recorded. A run that still has no model solution stops with
-%   hetlearn:engine:noSolution, :levelNoSolution or :almUnstable and saves nothing: that
-%   stop is the result, and the status file records the error, its period and the stage
-%   (a message that names no stage: history up to the origin, forecast after it). No
-%   other facility is tried. For a stop in the forecast stage after the first forecast
-%   quarter, the same scenario runs again with the horizon cut to the quarters before the stop and
-%   compare_with off, saved in results/br_portfolio/partial/<id>/. The engine solves the
-%   forecast quarter by quarter with the beliefs and shares in force, so that run has the
-%   same path and shares up to the last quarter that solves; the tables use it for the
-%   shares at the origin and the path up to the stop, flagged complete = 0.
-%   Parallel sessions: run the references first (the variants compare with them), then
-%   give each session its own variants; br05a and br06 share one generated model file, so
-%   keep them in one session.
+%   'none' on 2026-10-20); its events (projection_alm, projection_alm_shares) are recorded.
+%   A run that still has no model solution stops with hetlearn:engine:noSolution or
+%   :almUnstable and saves nothing: that stop is the result, and the status file records the
+%   error, its period and the stage (a message that names no stage: history up to the
+%   origin, forecast after it). No other facility is tried. For a stop in the forecast stage
+%   after the first forecast quarter, the same scenario runs again with the horizon cut to
+%   the quarters before the stop and compare_with off, saved in
+%   results/br_portfolio/partial/<id>/. The engine solves the forecast quarter by quarter
+%   with the beliefs and shares in force, so that run has the same path and shares up to
+%   the last quarter that solves; the tables use it for the shares at the origin and the
+%   path up to the stop, flagged complete = 0.
+%   Sessions: the 9 runs took about two minutes in total on 2026-10-21, so one session is
+%   enough. To split them, run the references first (the variants compare with them), then
+%   give each session its own variants.
 %
 %   Writes (results/br_portfolio/)
 %     status/<id>.mat, status/<id>.txt   one per run: status ok | stopped | error, error
 %                                         identifier and message, stop period and stage,
 %                                         runtime, partial run
-%     app1_variants.csv     id, no, family, name, mechanism, key parameters (numbers from the
-%                           merged options and res.meta.model_values), literature source,
-%                           population, mode
+%     app1_variants.csv     id, no, family, family_label, family_order, order, name, mechanism,
+%                           key parameters (numbers from the scenario and the merged options),
+%                           literature source, population, mode, scenario_file
 %     app1_summary.csv      per run: status, stop, average inflation 2022Q3-2026Q2, inflation
 %                           in 2022Q4, 2023Q4, 2024Q4, average and peak gap to a1_re (RE(t-1)),
 %                           policy rate, output and consumption growth averages, the shares at
@@ -54,9 +55,6 @@ function out = run_br_app1(cmd, varargin)
 %     app1_events.csv       every engine event of the runs read: variant, date, stage, type,
 %                           variable, detail (facility events: projection_*)
 %     app1_run_log.csv      the status files as one table
-%     app1_calib18.csv      ('calib18') one row per setting: bias g, intensity, memory, status,
-%                           facility events, inflation and consumption growth ranges, share
-%                           statistics and the pass/fail of the three criteria
 %
 %   See also hetlearn.run, run_applications, reports/build_br_app1_report.py.
 
@@ -99,8 +97,6 @@ switch cmd
         fprintf('run_br_app1: session done (%d runs)\n', numel(ids));
     case 'csv'
         write_tables(root, odir);
-    case 'calib18'
-        out = calib18(odir, varargin{:});
     otherwise
         error('run_br_app1:cmd', 'Unknown command ''%s''.', cmd);
 end
@@ -119,34 +115,22 @@ end
 
 function V = variant_table()
 % Report order: the references, then the families of the design (research notes of the
-% literature review) in the order of docs/DESIGN_br_extensions.md section 3.
-F = {'ref', 'References'; 'depth', 'Depth of reasoning'; 'disc', 'Discounting and horizons'; ...
-    'info', 'Information frictions'; 'learn', 'Learning variants and heuristics'; 'dist', 'Belief distortions'};
+% literature review) in the order of docs/DESIGN_br_extensions.md section 3. Since 2026-10-22
+% only the seven variants that docs/BR_audit.txt keeps; the names follow its labelling advice
+% (the name of 26 is set from its gain in describe).
+F = {'ref', 'References'; 'disc', 'Discounting and horizons'; 'info', 'Information frictions'; ...
+    'learn', 'Learning variants'; 'dist', 'Belief distortions'};
 C = {
 % id                       no     fam      name
 'a1_re',                   'RE',  'ref',   'RE(t-1) benchmark'
 'a1_learn',                'BL',  'ref',   'Baseline: RE agents and AR(1) learners'
-'br01a_levelk_egm',        '1a',  'depth', 'Level-k on a learned level 0 (EGM)'
-'br01b_levelk_bcl',        '1b',  'depth', 'Level 2 for everyone (BCL)'
-'br04_shallow',            '4',   'depth', 'Shallow reasoning'
-'br05a_cd',                '5a',  'disc',  'Cognitive discounting, all expectations'
 'br05b_cd_learn',          '5b',  'disc',  'Cognitive discounting, learning set'
-'br06_hyperbolic',         '6',   'disc',  'As-if hyperbolic discounting'
 'br07_myopia_anchoring',   '7',   'info',  'Myopia and anchoring'
 'br10_diagnostic',         '10',  'info',  'Diagnostic expectations'
-'br17_heuristics',         '17',  'learn', 'Four heuristics (Anufriev-Hommes)'
-'br20_sac',                '20',  'learn', 'SAC learning, seven expectations'
-'br23_intercept_only',     '23',  'learn', 'Intercept-only learners'
+'br23_intercept_only',     '23',  'learn', 'Intercept learning on the RE forecast error (KOZ gain), close to RE'
 'br24_mean_only',          '24',  'learn', 'Mean-only learners'
-'br25a_kf_ar2',            '25a', 'learn', 'Kalman-filter learning, AR(2)'
-'br25b_kf_average',        '25b', 'learn', 'Kalman-filter learning, five-model average'
-'br26_experience',         '26',  'learn', 'Experience-based gain'
-'br18_degrauwe',           '18',  'dist',  'Targeters/extrapolators, optimists/pessimists'
+'br26_experience',         '26',  'learn', 'Constant gain (MN-calibrated)'
 'br19_target_believers',   '19',  'dist',  'Target believers'
-'br27_bma',                '27',  'dist',  'Bayesian model averaging'
-'br29_wedge',              '29',  'dist',  'Survey belief wedge'
-'br31_confidence',         '31',  'dist',  'Confidence shocks'
-'br33_farmer',             '33',  'dist',  'Naive nominal-growth belief'
 };
 V = struct('id', C(:, 1), 'no', C(:, 2), 'family', C(:, 3), 'name', C(:, 4));
 for i = 1:numel(V)
@@ -174,8 +158,7 @@ try
 catch err
     st.error_id = err.identifier;
     st.message = err.message;
-    if any(strcmp(err.identifier, {'hetlearn:engine:noSolution', 'hetlearn:engine:levelNoSolution', ...
-            'hetlearn:engine:almUnstable'}))
+    if any(strcmp(err.identifier, {'hetlearn:engine:noSolution', 'hetlearn:engine:almUnstable'}))
         st.status = 'stopped';
     else
         st.status = 'error';
@@ -470,17 +453,13 @@ for i = 1:numel(V)
     else
         o = hetlearn.load_options(c);
     end
-    mv = struct();
-    if isfield(R, id) && isfield(R.(id).meta, 'model_values')
-        mv = R.(id).meta.model_values;
-    end
-    [mech, par, src, pop] = describe(id, c, o, mv);
+    [mech, par, src, pop, nm] = describe(id, c, o, V(i).name);
     if startsWith(id, 'br')
         sf = ['scenarios/sw07/br_portfolio/' id '.m'];
     else
         sf = ['scenarios/sw07/app1_peak/' id '.m'];
     end
-    M(i, :) = {id, V(i).no, V(i).family, V(i).family_label, V(i).family_order, V(i).order, V(i).name, mech, ...
+    M(i, :) = {id, V(i).no, V(i).family, V(i).family_label, V(i).family_order, V(i).order, nm, mech, ...
         par, src, pop, o.expectations.mode, sf};
 end
 write_cols(fullfile(odir, 'app1_variants.csv'), cv, cells_to_cols(M));
@@ -521,191 +500,9 @@ end
 
 
 % =========================================================================
-function T = calib18(odir, rows)
-% Calibration search for variant 18 (user request 2026-10-21). De Grauwe (2011, Economic Theory 47;
-% CESifo WP 2418, Appendix A) calibrates in decimal units with months as the time unit: fixed
-% divergence beta = 0.01, variable divergence delta = 2, intensity gamma = 10000, memory rho = 0.5
-% (weights (1 - rho) rho^k, the toolbox's 'normalized' fitness). In % and quarters: bias
-% g = beta/2 = 0.5 (delta = 0, the paper's constant-bias case; a level, no time conversion),
-% intensity gamma/100^2 = 1 per %^2, memory rho^3 = 0.125 per quarter. Nearby: g with the delta term
-% at the RE limit's variance of y - yf ((1 + 0.02 var)/2), 0.25 and 1; intensity 1/9 (inflation
-% errors at quarterly instead of monthly rates), 0.5 and 2 (the baseline); memory 0.5 (as
-% published, per period) and 0.8 (the baseline); and the design's calibration (g = sd(y - yf)/2,
-% intensity 2, memory 0.8). Criteria, fixed before the runs: C1 the run completes; C2 inflation and
-% consumption growth (annualised) stay inside their 1966Q1-2019Q4 data ranges in every forecast
-% quarter; C3 in each share group the share of the second type (EXT, PES) is outside [0.02, 0.98]
-% in at most 10% of the quarters of the record and has a standard deviation of at least 0.02.
-% The choice: among the settings that pass, the one closest to the converted published values
-% (fewest parameters changed, then the smallest sum of absolute log ratios).
-cdir = fullfile(odir, 'calib18');
-if exist(cdir, 'dir') ~= 7
-    mkdir(cdir);
-end
-spec = hetlearn.load_spec('sw07');
-db = hetlearn.load_database(spec);
-sc = spec.report.scale;
-base = br18_degrauwe();
-% the RE limit's sd(y - yf)/2, from the design's calibration ('model:sd_ygap_half')
-cd0 = base;
-cd0.expectations.transforms(1).factor.mean = 'model:sd_ygap_half';
-cd0.expectations.transforms(2).factor.mean = '-model:sd_ygap_half';
-[~, info0] = hetlearn.load_model(spec, hetlearn.load_options(cd0));
-sdh = mvnum(info0.nt.model_values, 'sd_ygap_half');
-G = calib18_grid(sdh);
-if nargin < 2 || isempty(rows)
-    rows = 1:numel(G);
-end
-hd = qq(1966, 1):qq(2019, 4);
-rng = struct('pinf', [min(db.pinfobs(hd) * sc.pinfobs), max(db.pinfobs(hd) * sc.pinfobs)], ...
-    'dc', [min(db.dc(hd) * sc.dc), max(db.dc(hd) * sc.dc)]);
-for r = rows
-    c = base;
-    c.id = sprintf('br18_calib_%02d', r);
-    c.compare_with = {};
-    if ischar(G(r).g)
-        c.expectations.transforms(1).factor.mean = G(r).g;
-        c.expectations.transforms(2).factor.mean = ['-' G(r).g];
-    else
-        c.expectations.transforms(1).factor.mean = G(r).g;
-        c.expectations.transforms(2).factor.mean = -G(r).g;
-    end
-    c.switching.intensity = G(r).chi;
-    c.switching.memory = G(r).omega;
-    M = G(r);
-    M.g_value = ternary(ischar(G(r).g), sdh, G(r).g);
-    M.status = 'ok';
-    M.error = '';
-    t0 = tic;
-    try
-        res = hetlearn.run(c, 'save', false, 'quiet', true);
-    catch err
-        res = [];
-        M.status = 'error';
-        M.error = one_line(err.message);
-    end
-    M.runtime_s = toc(t0);
-    M.data_pinf_min = rng.pinf(1);
-    M.data_pinf_max = rng.pinf(2);
-    M.data_dc_min = rng.dc(1);
-    M.data_dc_max = rng.dc(2);
-    f = {'fac_hist', 'fac_fore', 'pinf_avg', 'pinf_min', 'pinf_max', 'pinf_end', 'dc_min', 'dc_max', ...
-        'ext_2022Q2', 'ext_min', 'ext_max', 'ext_sd', 'ext_corner', 'pes_2022Q2', 'pes_min', 'pes_max', ...
-        'pes_sd', 'pes_corner'};
-    for k = 1:numel(f)
-        M.(f{k}) = NaN;
-    end
-    if ~isempty(res)
-        hz = res.dates.horizon;
-        p = res.paths.pinfobs(hz) * sc.pinfobs;
-        dcv = res.paths.dc(hz) * sc.dc;
-        isFac = startsWith(res.events.type, 'projection');
-        M.fac_hist = sum(isFac & strcmp(res.events.stage, 'history'));
-        M.fac_fore = sum(isFac & strcmp(res.events.stage, 'forecast'));
-        M.pinf_avg = mean(p);
-        M.pinf_min = min(p);
-        M.pinf_max = max(p);
-        M.pinf_end = p(end);
-        M.dc_min = min(dcv);
-        M.dc_max = max(dcv);
-        dts = res.dates.record;
-        io = find(abs(double(dts(:)) - double(res.dates.origin)) < 1e-6, 1);
-        for pr = {{'ext', 'pinf', 'EXT'}, {'pes', 'c', 'PES'}}
-            q = pr{1};
-            s = reshape(res.learning.(q{2}).(['n_' q{3}])(dts), [], 1);
-            M.([q{1} '_2022Q2']) = s(io);
-            M.([q{1} '_min']) = min(s);
-            M.([q{1} '_max']) = max(s);
-            M.([q{1} '_sd']) = std(s);
-            M.([q{1} '_corner']) = mean(s < 0.02 | s > 0.98);
-        end
-    end
-    M.c1 = strcmp(M.status, 'ok');
-    M.c2 = M.c1 && M.pinf_min >= rng.pinf(1) && M.pinf_max <= rng.pinf(2) && M.dc_min >= rng.dc(1) && M.dc_max <= rng.dc(2);
-    M.c3 = M.c1 && M.ext_corner <= 0.10 && M.pes_corner <= 0.10 && M.ext_sd >= 0.02 && M.pes_sd >= 0.02;
-    M.pass = M.c1 && M.c2 && M.c3;
-    save(fullfile(cdir, sprintf('row_%02d.mat', r)), 'M');
-    fprintf('calib18 row %2d %-34s g %.3g chi %.3g omega %.3g: %s, pinf %.2f..%.2f, dc %.1f..%.1f, EXT sd %.3f corner %.2f, PES sd %.3f corner %.2f, fac %g/%g -> %s (%.1f s)\n', ...
-        r, M.tag, M.g_value, M.chi, M.omega, M.status, M.pinf_min, M.pinf_max, M.dc_min, M.dc_max, M.ext_sd, ...
-        M.ext_corner, M.pes_sd, M.pes_corner, M.fac_hist, M.fac_fore, ternary(M.pass, 'PASS', 'fail'), M.runtime_s);
-end
-% merge every row saved so far
-T = [];
-fl = dir(fullfile(cdir, 'row_*.mat'));
-if numel(fl) < numel(G)
-    fprintf('calib18: %d of %d rows done; app1_calib18.csv is written when all are done.\n', numel(fl), numel(G));
-    return
-end
-A = cell(numel(G), 1);
-for r = 1:numel(G)
-    tmp = load(fullfile(cdir, sprintf('row_%02d.mat', r)), 'M');
-    A{r} = tmp.M;
-end
-A = [A{:}];
-d = arrayfun(@(a) a.dist, A);
-pass = arrayfun(@(a) a.pass, A);
-best = NaN;
-if any(pass)
-    dd = d;
-    dd(~pass) = Inf;
-    [~, best] = min(dd);
-end
-for r = 1:numel(A)
-    A(r).chosen = double(r == best);
-end
-cols = {'row', 'tag', 'label', 'g_value', 'chi', 'omega', 'published', 'dist', 'status', 'error', 'runtime_s', ...
-    'fac_hist', 'fac_fore', 'pinf_avg', 'pinf_min', 'pinf_max', 'pinf_end', 'dc_min', 'dc_max', 'data_pinf_min', ...
-    'data_pinf_max', 'data_dc_min', 'data_dc_max', 'ext_2022Q2', 'ext_min', 'ext_max', 'ext_sd', 'ext_corner', ...
-    'pes_2022Q2', 'pes_min', 'pes_max', 'pes_sd', 'pes_corner', 'c1', 'c2', 'c3', 'pass', 'chosen'};
-C = cell(numel(A), numel(cols));
-for r = 1:numel(A)
-    for k = 1:numel(cols)
-        v = A(r).(cols{k});
-        if islogical(v)
-            v = double(v);
-        end
-        C{r, k} = v;
-    end
-end
-write_cols(fullfile(odir, 'app1_calib18.csv'), cols, cells_to_cols(C));
-T = A;
-if isnan(best)
-    fprintf('calib18: no setting passes the three criteria.\n');
-else
-    fprintf('calib18: chosen row %d (%s): g %.4g, intensity %.4g, memory %.4g\n', best, A(best).tag, ...
-        A(best).g_value, A(best).chi, A(best).omega);
-end
-end
-
-
-function G = calib18_grid(sdh)
-% Row 1 the design's calibration, then g x intensity x memory around the converted published values
-% (g 0.5, intensity 1, memory 0.125 = row 2).
-gd = (1 + 0.02 * (2 * sdh)^2) / 2;              % (beta + delta var(y - yf))/2 in %, beta 1, delta 0.02 per %
-gs = {0.5, 0.25, gd, 1.0};
-gl = {'0.5 (beta/2)', '0.25', sprintf('%.3g (beta and delta)', gd), '1.0'};
-cs = [1, 1/9, 0.5, 2];
-os = [0.125, 0.5, 0.8];
-G = struct('row', 1, 'tag', 'design', 'label', 'design calibration (g = sd(y - yf)/2, intensity 2, memory 0.8)', ...
-    'g', 'model:sd_ygap_half', 'chi', 2, 'omega', 0.8, 'published', 0, 'dist', Inf);
-r = 1;
-for i = 1:numel(gs)
-    for j = 1:numel(cs)
-        for k = 1:numel(os)
-            r = r + 1;
-            g = gs{i};
-            dist = (i ~= 1) + (j ~= 1) + (k ~= 1) + (abs(log(g / 0.5)) + abs(log(cs(j))) + abs(log(os(k) / 0.125))) / 100;
-            G(r) = struct('row', r, 'tag', sprintf('g%.3g_chi%.3g_om%.3g', g, cs(j), os(k)), ...
-                'label', sprintf('g %s, intensity %.3g, memory %.3g', gl{i}, cs(j), os(k)), 'g', g, 'chi', cs(j), ...
-                'omega', os(k), 'published', double(i == 1 && j == 1 && k == 1), 'dist', dist);
-        end
-    end
-end
-end
-
-
-% =========================================================================
-function [mech, par, src, pop] = describe(id, c, o, mv)
-% Mechanism, key parameters (numbers read from the options and model values), source, population.
+function [mech, par, src, pop, name] = describe(id, c, o, name)
+% Mechanism, key parameters (numbers read from the scenario and the options), source, population;
+% the name of the variant table, or one built from the options.
 g = @(x) sprintf('%g', x);
 pop = '';
 switch id
@@ -720,85 +517,34 @@ switch id
             g(o.switching.intensity), g(o.switching.memory), g(o.shares.init_n2));
         src = 'Ozden (2025, IJCB); gain: Kostyshyna, Ozden and Zhang (2024)';
         pop = 'RE, BR';
-    case 'br01a_levelk_egm'
-        mech = 'Level-k reasoners on a learned level 0 replace the RE agents; shares switch';
-        par = sprintf('levels 1 and 2 (K = %d) on the AR(1) learner; equal initial shares; intensity %s, memory %s', ...
-            max(cellfun(@(t) getf(t, 'k', 0), c.expectations.types)), g(o.switching.intensity), g(o.switching.memory));
-        src = 'Evans, Gibbs and McGough (2025); K from Beaudry, Carter and Lahiri (2023)';
-        pop = 'L0, L1, L2';
-    case 'br01b_levelk_bcl'
-        mech = 'Everyone forms the level-2 forecast on the learned AR(1) seed';
-        par = sprintf('k = %d; shares fixed (L0 %s, L2 %s)', c.expectations.types{2}.k, g(c.shares.fixed.L0), g(c.shares.fixed.L2));
-        src = 'Beaudry, Carter and Lahiri (2023)';
-        pop = 'L0 (share 0), L2';
-    case 'br04_shallow'
+    case 'br05b_cd_learn'
         t = c.expectations.transforms;
-        mech = 'RE agents scale their forward expectations by a flat lambda, by agent role';
-        par = sprintf('lambda households %s, price and wage setters %s, inflation in the real rate %s', ...
-            g(t(1).value), g(t(2).value), g(t(3).value));
-        src = 'Angeletos and Sastry (2021); values from Gust, Herbst and Lopez-Salido (2020)';
-        pop = 'RE, BR';
-    case {'br05a_cd', 'br05b_cd_learn'}
-        t = c.expectations.transforms;
-        if strcmp(id, 'br05a_cd')
-            mech = 'Cognitive discounting of every forward expectation (flex block RE), all types';
-            src = 'Gabaix (2020); m from Meggiorini (2023)';
-        else
-            mech = 'Cognitive discounting of the inflation expectation of RE agents and learners';
-            src = 'Gabaix (2020); m from Meggiorini and Milani (2021)';
-        end
+        mech = 'Cognitive discounting of the inflation expectation of RE agents and learners';
         par = sprintf('m = %s, D(h) = m^h (h = 2 for t-1 inflation forecasts)', g(t(1).value));
-        pop = 'RE, BR';
-    case 'br06_hyperbolic'
-        t = c.expectations.transforms;
-        mech = 'As-if hyperbolic discounting of every forward expectation (flex block RE), all types';
-        par = sprintf('alpha = %s, D(h) = 1/(1 + alpha h) (proposed: half-life one year)', g(t(1).value));
-        src = 'Gabaix and Laibson (NBER WP 23254)';
+        src = 'Gabaix (2020); m from Meggiorini and Milani (2021)';
         pop = 'RE, BR';
     case 'br07_myopia_anchoring'
         t = c.expectations.transforms;
-        mech = 'In the price Phillips curve the inflation expectation becomes omega_f E pinf + b pinf(t-1), all types';
+        mech = ['In the price Phillips curve the inflation expectation becomes omega_f E pinf + b pinf(t-1), all types. ' ...
+            'SW07 keeps its own price indexation and habit, so this backward weight is added on top of them'];
         par = sprintf('omega_f = %s, b = %s (omega_b 0.43 / 0.99)', g(t(1).value(1)), g(t(1).value(2)));
         src = 'Angeletos and Huo (2021), Table 1 (Coibion-Gorodnichenko K = 1.193)';
         pop = 'RE, BR';
     case 'br10_diagnostic'
         t = c.expectations.transforms;
-        mech = 'Diagnostic agents replace the RE agents, forecasting (1 + theta) E_t - theta E_(t-1) (one-period memory)';
+        mech = ['Diagnostic agents replace the RE agents, forecasting (1 + theta) E_t - theta E_(t-1) (one-period memory). ' ...
+            'Only the t+1 expectations are diagnostic, without the current-variable terms of LSY'];
         par = sprintf('theta = %s', g(t(1).value));
         src = 'L''Huillier, Singh and Yoo (2024)';
         pop = 'RE (diagnostic), BR';
-    case 'br17_heuristics'
-        mech = 'Adaptive, weak-trend, strong-trend and anchoring-and-adjustment rules replace RE agents and learners';
-        par = sprintf('rules 0.65/0.35, 0.4, 1.3, 0.5 (LAA anchor: sample mean); intensity %s, memory %s, inertia %s, unnormalized fitness', ...
-            g(o.switching.intensity), g(o.switching.memory), g(o.switching.inertia));
-        src = 'Anufriev and Hommes (2012)';
-        pop = 'ADA, WTR, STR, LAA';
-    case 'br18_degrauwe'
-        gm = c.expectations.transforms(1).factor.mean;
-        if ischar(gm)
-            gtxt = sprintf('sd(y - yf)/2 = %s in the RE limit', fmtnum(mvnum(mv, 'sd_ygap_half'), '%.3g'));
-        else
-            gtxt = g(gm);
-        end
-        mech = 'Targeters and extrapolators forecast inflation; optimists and pessimists form the consumption expectation';
-        par = sprintf(['bias g = %s on expected consumption, intensity %s, memory %s (De Grauwe converted to %% and ' ...
-            'quarters: 0.5, 1, 0.125; the closest setting that passes the search)'], gtxt, g(o.switching.intensity), ...
-            g(o.switching.memory));
-        src = ['De Grauwe (2011, Economic Theory 47; CESifo WP 2418, Appendix A: beta = 0.01, delta = 2, ' ...
-            'gamma = 10000, rho = 0.5, decimal units, months)'];
-        pop = 'TAR, EXT (inflation); OPT, PES (consumption)';
     case 'br19_target_believers'
         mech = 'Target believers (forecast = steady state) added beside RE agents and learners';
         par = sprintf('initial shares 1/3 each; intensity %s, memory %s', g(o.switching.intensity), g(o.switching.memory));
         src = 'Hommes and Lustenhouwer (2019)';
         pop = 'RE, BR, TB';
-    case 'br20_sac'
-        mech = 'SAC learning (mean, autocorrelation, variance) of the seven sticky expectations; no RE agents';
-        par = sprintf('constant gain %s', g(o.gain.value));
-        src = 'Hommes, Mavromatis, Ozden and Zhu (2023), Table 1';
-        pop = 'BR (all agents)';
     case 'br23_intercept_only'
-        mech = 'Learners forecast the RE forecast plus a learned mean of its error';
+        mech = ['Learners forecast the RE forecast plus a learned mean of its error, switching against RE agents; ' ...
+            'Gati''s state-dependent anchoring function is left out'];
         par = sprintf('KOZ gain from %s (baseline)', g(o.gain.value));
         src = 'Gati (2023); Carvalho, Eusepi, Moench and Preston (2023)';
         pop = 'RE, IO';
@@ -807,104 +553,16 @@ switch id
         par = sprintf('KOZ gain from %s (baseline)', g(o.gain.value));
         src = 'adaptive expectations; gain: Kostyshyna, Ozden and Zhang (2024)';
         pop = 'RE, BR';
-    case 'br25a_kf_ar2'
-        mech = 'Kalman-filter learning of AR(2) rules for the seven sticky expectations; no RE agents';
-        par = sprintf('gamma = %s (constant-gain equivalent; V mapping proposed)', g(o.beliefs.kf.gamma));
-        src = 'Slobodyan and Wouters (2012a); gamma from their 2008 draft';
-        pop = 'BR (all agents)';
-    case 'br25b_kf_average'
-        mech = 'Equal-weight average of five small models per sticky expectation, Kalman-filter learning; no RE agents';
-        par = sprintf('gamma = %s; fixed weights %s each', g(o.beliefs.kf.gamma), g(c.shares.fixed.M1));
-        src = 'Slobodyan and Wouters (2012a); gamma from their 2008 draft';
-        pop = 'M1-M5';
     case 'br26_experience'
-        mech = 'AR(1) learners with an experience-based constant gain';
+        name = sprintf('Constant gain %s (MN-calibrated)', g(o.gain.value));
+        mech = 'AR(1) learners with the constant gain of experience-based learning, in aggregate (no cohorts, no age-dependent gains)';
         par = sprintf('constant gain %s per quarter', g(o.gain.value));
         src = 'Malmendier and Nagel (2016); Nagel and Xu (2022)';
         pop = 'RE, BR';
-    case 'br27_bma'
-        s2 = NaN;
-        chi = NaN;
-        if isfield(mv, 'bma')
-            if isfield(mv.bma, 'sigma2') && isstruct(mv.bma.sigma2)
-                s2 = mvnum(mv.bma.sigma2, 'pinf');      % sigma2.<learning variable>
-            else
-                s2 = mvnum(mv.bma, 'sigma2');
-            end
-            chi = mvnum(mv.bma, 'chi');
-        end
-        mech = 'Shares are posterior model probabilities (cumulative squared errors, no forgetting)';
-        par = sprintf('intensity 1/(2 sigma^2) = %s, sigma^2 = %s (RE(t-1) two-step error variance, proposed); memory %s', ...
-            fmtnum(chi, '%.3g'), fmtnum(s2, '%.3g'), g(o.switching.memory));
-        src = 'Evans, Honkapohja, Sargent and Williams (2013); Cho and Kasa (2017)';
-        pop = 'RE, BR';
-    case 'br29_wedge'
-        f = c.expectations.transforms(1).factor;
-        mech = 'AR(1) belief wedge added to the inflation expectation of every type';
-        par = sprintf('rho = %s, shock std %s (BBH volatility / 4, flagged), mean %s', g(f.rho), g(f.std), g(f.mean));
-        src = 'Bhandari, Borovicka and Ho (2025); Milani (2011, 2017)';
-        pop = 'RE, BR';
-    case 'br31_confidence'
-        f = c.expectations.transforms(1).factor;
-        sd = mvnum(mv, 'acd51');
-        ld = '';
-        if isfield(mv, 'projection') && isstruct(mv.projection)
-            fn = fieldnames(mv.projection);
-            fn = fn(cellfun(@(k) isnumeric(mv.projection.(k)), fn));   % the loadings (not the 'economy' note)
-            ld = strjoin(cellfun(@(k) sprintf('%s %.3g', k, mvnum(mv.projection, k)), fn', 'UniformOutput', false), ', ');
-            ld = ['; loadings ' ld];
-        end
-        mech = 'Common AR(1) confidence factor biasing expected consumption, investment and hours';
-        par = sprintf('rho = %s; shock std %s (51%% of output variance at 6-32 quarters, calibrated)%s', ...
-            g(f.rho), fmtnum(sd, '%.3g'), ld);
-        src = 'Angeletos, Collard and Dellas (2018)';
-        pop = 'RE, BR';
-    case 'br33_farmer'
-        mech = 'Naive believers expect nominal GDP growth to stay at its last value';
-        par = 'no free parameters';
-        src = 'Farmer and Nicolo (2018)';
-        pop = 'RE, FN';
     otherwise
         mech = '';
         par = '';
         src = '';
-end
-end
-
-
-function v = mvnum(s, f)
-% A number from a model-values struct: s.(f) if numeric, else its value/std/mean field.
-v = NaN;
-if ~isstruct(s) || ~isfield(s, f)
-    return
-end
-x = s.(f);
-if isnumeric(x) && ~isempty(x)
-    v = double(x(1));
-elseif isstruct(x)
-    for k = {'value', 'std', 'mean', 'sigma', 'g'}
-        if isfield(x, k{1}) && isnumeric(x.(k{1})) && ~isempty(x.(k{1}))
-            v = double(x.(k{1})(1));
-            return
-        end
-    end
-end
-end
-
-
-function s = fmtnum(x, fmt)
-if isnan(x)
-    s = 'n/a';
-else
-    s = sprintf(fmt, x);
-end
-end
-
-
-function v = getf(s, f, d)
-v = d;
-if isstruct(s) && isfield(s, f) && ~isempty(s.(f))
-    v = s.(f);
 end
 end
 
