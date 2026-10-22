@@ -5,7 +5,7 @@ function R = rule_terms(rule, x, k, info, tvars)
 %
 %   Inputs
 %     rule   the type's rule (expectations.types(i).rule): an expression,
-%            e.g. '0.65*x{-1} + 0.35*self{-1}', or struct('expr', <expression>,
+%            e.g. '0' or '0.5*x{-1}', or struct('expr', <expression>,
 %            'params', struct of numbers)
 %     x      the learning variable the type forecasts
 %     k      the type name
@@ -16,47 +16,26 @@ function R = rule_terms(rule, x, k, info, tvars)
 %   Terms of the expression (linear in them; numbers, + - * / and
 %   parentheses otherwise; lags written v{-k}):
 %     x          the variable itself (x{-1}, x{-2}, ...; x = period t under 'current')
-%     self       this type's own forecast; only with a lag >= 1 (self{-1} = the
-%                forecast of x_t made in t-1), so a rule with self{-1} is a
-%                backward equation in its own lag (ADA)
-%     mean       a mean-only belief of this type about x, learned like a PLM
-%                constant (parameter alpha_<x>__<k>, updated by RLS on a
-%                constant with the type's gain; no lag)
-%     dn         nominal growth y - y{-1} + pinf (needs transition variables y
-%                and pinf): dn{-1} = y{-1} - y{-2} + pinf{-1}
 %     <param>    a constant of struct(..., 'params', ...): model parameter
 %                <param>__<k>, no lag
 %     <name>     any other transition variable of the model, with a lag
-%     re1(e)     the anchored forecast E_{t-1} e of a linear expression e in
-%                transition variables at t or later (v, v{+h}; x = the
-%                variable), numbers and + - * / ( ) (phase P4, DESIGN_br_extensions
-%                1.4, mechanism 33): the RE limit's forecast, model-consistent,
-%                evaluated at the states dated t-1. Its coefficients are the
-%                parameters re1<k><q>_<x>__const, __<state> (hetlearn.load_model);
-%                in .text the term is the placeholder @RE1_<q>@ (replaced by the
-%                generator with the anchored expression).
-%   Other functions are errors.
+%   Functions are errors. The terms self, mean, dn and re1(...) were removed on
+%   2026-10-22 with the portfolio variants that used them (docs/BR_audit.txt,
+%   variants 17 and 33).
 %
 %   Output R (struct)
 %     .text          IRIS right-hand side of <x>_exp1_<k> = ...
 %     .mexpr         MATLAB expression in v(j), one j per term (engine
 %                    evaluation: f = str2func(['@(v) ' R.mexpr]))
-%     .terms         struct array, one per term: kind ('var' | 'self' | 'mean' |
-%                    'param' | 're1'), name (variable, parameter, re1 prefix or
-%                    ''), lag (>= 0)
-%     .re1           struct array, one per re1(...) term: prefix (parameter
-%                    prefix re1<k><q>_<x>), placeholder, expr (the inner text),
-%                    targets (struct array var, h: E_{t-1} var_{t+h}), weights,
-%                    const (e = const + sum weights .* targets)
+%     .terms         struct array, one per term: kind ('var' | 'param'), name
+%                    (variable or parameter), lag (>= 0)
 %     .param_names   struct: param -> model parameter name '<param>__<k>'
 %     .param_values  struct: param -> value
-%     .maxlag        largest data lag (dn{-k} counts k + 1)
-%     .self_maxlag   largest lag of self (0 = no self term)
-%     .uses_mean     true if mean occurs; .mean_param 'alpha_<x>__<k>' or ''
+%     .maxlag        largest data lag
 %     .expr          the expression as given
 %
-%   Errors hetlearn:types:rule (syntax, unknown names, timing, a leading
-%   self, nonlinear terms).
+%   Errors hetlearn:types:rule (syntax, unknown names, timing, nonlinear
+%   terms).
 
 ID = 'hetlearn:types:rule';
 params = struct();
@@ -78,9 +57,7 @@ end
 pn = fieldnames(params)';
 
 R = struct('text', '', 'mexpr', '', 'terms', struct('kind', {}, 'name', {}, 'lag', {}), ...
-    'param_names', struct(), 'param_values', struct(), 'maxlag', 0, 'self_maxlag', 0, ...
-    'uses_mean', false, 'mean_param', '', 'expr', expr, ...
-    're1', struct('prefix', {}, 'placeholder', {}, 'expr', {}, 'targets', {}, 'weights', {}, 'const', {}));
+    'param_names', struct(), 'param_values', struct(), 'maxlag', 0, 'expr', expr);
 for i = 1:numel(pn)
     R.param_names.(pn{i}) = sprintf('%s__%s', pn{i}, k);
     R.param_values.(pn{i}) = double(params.(pn{i}));
@@ -119,36 +96,8 @@ while p <= n
     nm = tk.name;
     lag = tk.lag;
     if tk.call
-        if ~strcmp(nm, 're1')
-            error(ID, '%s calls a function %s(...); the only function is re1(...).', where, nm);
-        end
-        % re1(e): anchored E_{t-1} of a linear expression (phase P4)
-        a = p + regexp(expr(p:end), '\(', 'once') - 1;      % its opening parenthesis
-        depth = 0;
-        b = 0;
-        for c = a:n
-            if expr(c) == '('
-                depth = depth + 1;
-            elseif expr(c) == ')'
-                depth = depth - 1;
-                if depth == 0
-                    b = c;
-                    break
-                end
-            end
-        end
-        if b == 0
-            error(ID, '%s: re1( has no closing parenthesis.', where);
-        end
-        q = numel(R.re1) + 1;
-        E = re1_body(strtrim(expr(a+1:b-1)), x, tvars, where, ID);
-        E.prefix = sprintf('re1%s%d_%s', k, q, x);
-        E.placeholder = sprintf('@RE1_%d@', q);
-        R.re1(q) = E;
-        [R, j] = add_term(R, 're1', E.prefix, 0);
-        [txt, mx] = put(txt, mx, E.placeholder, j);
-        p = b + 1;
-        continue
+        error(ID, '%s calls a function %s(...); rules take no functions (re1(...) was removed on 2026-10-22).', ...
+            where, nm);
     end
     if tk.lead
         error(ID, '%s: %s has a lead; rules use lags only.', where, nm);
@@ -157,31 +106,6 @@ while p <= n
         case 'x'
             [R, j] = add_term(R, 'var', x, check_lag(lag, minLag, nm, where, info));
             [txt, mx] = put(txt, mx, var_text(x, lag), j);
-        case 'self'
-            if ~tk.braced || lag < 1
-                error(ID, '%s: self needs a lag of 1 or more (self{-1} = the forecast made last period).', where);
-            end
-            [R, j] = add_term(R, 'self', '', lag);
-            R.self_maxlag = max(R.self_maxlag, lag);
-            [txt, mx] = put(txt, mx, sprintf('%s_exp1_%s{-%d}', x, k, lag), j);
-        case 'mean'
-            if tk.braced
-                error(ID, '%s: mean is a belief in force in t (no lag).', where);
-            end
-            R.uses_mean = true;
-            R.mean_param = sprintf('alpha_%s__%s', x, k);
-            [R, j] = add_term(R, 'mean', '', 0);
-            [txt, mx] = put(txt, mx, R.mean_param, j);
-        case 'dn'
-            if ~all(ismember({'y', 'pinf'}, tvars))
-                error(ID, '%s: dn (nominal growth y - y{-1} + pinf) needs transition variables y and pinf.', where);
-            end
-            check_lag(lag, minLag, nm, where, info);
-            [R, a] = add_term(R, 'var', 'y', lag);
-            [R, b] = add_term(R, 'var', 'y', lag + 1);
-            [R, c] = add_term(R, 'var', 'pinf', lag);
-            txt{end+1} = sprintf('(%s - %s + %s)', var_text('y', lag), var_text('y', lag + 1), var_text('pinf', lag)); %#ok<AGROW>
-            mx{end+1} = sprintf('(v(%d) - v(%d) + v(%d))', a, b, c); %#ok<AGROW>
         otherwise
             if any(strcmp(pn, nm))
                 if tk.braced
@@ -193,8 +117,8 @@ while p <= n
                 [R, j] = add_term(R, 'var', nm, check_lag(lag, minLag, nm, where, info));
                 [txt, mx] = put(txt, mx, var_text(nm, lag), j);
             else
-                error(ID, ['%s: unknown name %s (terms: x, self, mean, dn, the constants in params, or a ' ...
-                    'transition variable of the model).'], where, nm);
+                error(ID, ['%s: unknown name %s (terms: x, the constants in params, or a transition variable of ' ...
+                    'the model; self, mean, dn and re1 were removed on 2026-10-22).'], where, nm);
             end
     end
 end
@@ -208,88 +132,6 @@ if ~isempty(lags)
     R.maxlag = max(lags);
 end
 check_linear(R, where, ID);
-end
-
-
-% -------------------------------------------------------------------------
-function E = re1_body(body, x, tvars, where, ID)
-% targets, weights and constant of the linear expression inside re1(...): names v or v{+h} (h >= 0;
-% x = the variable being forecast), numbers, + - * / ( )
-if isempty(body)
-    error(ID, '%s: re1() is empty.', where);
-end
-tg = struct('var', {}, 'h', {});
-mx = {};
-p = 1;
-n = numel(body);
-while p <= n
-    rest = body(p:end);
-    tok = regexp(rest, '^\s+', 'match', 'once');
-    if ~isempty(tok)
-        mx{end+1} = tok; %#ok<AGROW>
-        p = p + numel(tok);
-        continue
-    end
-    tok = regexp(rest, '^(\d+\.?\d*([eE][+-]?\d+)?|\.\d+([eE][+-]?\d+)?)', 'match', 'once');
-    if ~isempty(tok)
-        mx{end+1} = tok; %#ok<AGROW>
-        p = p + numel(tok);
-        continue
-    end
-    tok = regexp(rest, '^[\+\-\*/\(\)]', 'match', 'once');
-    if ~isempty(tok)
-        mx{end+1} = tok; %#ok<AGROW>
-        p = p + 1;
-        continue
-    end
-    [tk, len] = name_token(rest);
-    if isempty(tk)
-        error(ID, 'Cannot read re1(%s) in %s at ''%s''.', body, where, rest);
-    end
-    p = p + len;
-    v = tk.name;
-    if strcmp(v, 'x')
-        v = x;
-    end
-    if tk.call || ~any(strcmp(tvars, v))
-        error(ID, ['%s: re1(%s) uses %s, which is not a transition variable of the model (re1 takes model ' ...
-            'variables v and v{+h}).'], where, body, tk.name);
-    end
-    h = -tk.lag;
-    if h < 0
-        error(ID, '%s: re1(%s): %s{-%d} is dated before t; re1 takes v (dated t) and leads v{+h}.', ...
-            where, body, v, tk.lag);
-    end
-    i = find(strcmp({tg.var}, v) & [tg.h] == h, 1);
-    if isempty(i)
-        tg(end+1) = struct('var', v, 'h', h); %#ok<AGROW>
-        i = numel(tg);
-    end
-    mx{end+1} = sprintf('w(%d)', i); %#ok<AGROW>
-end
-if isempty(tg)
-    error(ID, '%s: re1(%s) names no variable.', where, body);
-end
-nT = numel(tg);
-try
-    f = str2func(['@(w) ' strjoin(mx, '')]);
-    c0 = f(zeros(nT, 1));
-    wts = zeros(1, nT);
-    for i = 1:nT
-        e = zeros(nT, 1);
-        e(i) = 1;
-        wts(i) = f(e) - c0;
-    end
-    rs = RandStream('mt19937ar', 'Seed', 20261021);
-    a = rand(rs, nT, 1) + 0.5;
-    fa = f(a);
-catch err
-    error(ID, '%s: re1(%s) is not a valid expression: %s', where, body, err.message);
-end
-if ~(isscalar(c0) && isfinite(c0) && all(isfinite(wts)) && abs(fa - (c0 + wts * a)) <= 1e-9 * max(1, abs(fa)))
-    error(ID, '%s: re1(%s) is not linear in its variables.', where, body);
-end
-E = struct('prefix', '', 'placeholder', '', 'expr', body, 'targets', tg, 'weights', wts, 'const', c0);
 end
 
 
