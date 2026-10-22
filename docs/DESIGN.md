@@ -450,6 +450,8 @@ end
 ### 6.3 Option tree (defaults in brackets)
 ```
 id, title, description, model (model folder name, e.g. 'sw07')
+model_params               [''] = spec.params, or the name of a parameter function (.m file) in the
+                           package folder, e.g. 'sw07_params_original' (2026-10-20; checked by load_model)
 forecast.origin            date (last period of data used)
 forecast.horizon           [16]
 expectations.mode          ['rational'] | 'learning' | 'fixed_shares' | 'switching'
@@ -482,12 +484,15 @@ projection.facility        ['plm_alm'] | 'alm' | 'none'  (sec. 4.4; the only sta
                            .on_failure, .method, .scope; switching.error_scale, .error_scale_ref
 engine.step                ['fast'] | 'iris';  engine.conditions_weighting ['std'] | 'none'
 history.learn              [true]
-history.mode               ['re_smoother'] | 'inversion'  (sec. 15)
+history.mode               ['re_smoother'] | 'inversion'  (sec. 15) | 'kalman'  (time-varying Kalman
+                           filter of the ALM, one-step prediction errors; DESIGN_br_extensions 5)
 history.re_states          ['smoothed'] | 'filtered'  (sec. 5.2; 're_smoother' only)
 history.inversion          start [[] = beliefs.init.date], shocks [{} = every transition shock]
-history.realtime           [false]  (RE filter on data up to the origin, sec. 17)
+history.kalman.init        ['stochastic'] (asymptotic distribution, as IRIS) | 'smoothed' (P0 = 0 at
+                           the RE-smoothed state before the start); 'kalman' only
+history.realtime           [false]  (RE filter on data up to the origin, sec. 17; 're_smoother' only)
 shocks.source              ['none'] | 'smoothed';  shocks.range [[] = horizon];  shocks.exclude [{}];  shocks.add [{}]
-conditions                 struct array (5.5)
+conditions                 struct array (5.5); replaced as a whole
 density                    enabled [false], shocks [{}], sigma ['calibrated'] | 'smoothed',
                            sigma_range [[] = filter range], method ['normal'] | 'bootstrap',
                            demean [true], ndraws [200], seed [0],
@@ -499,6 +504,8 @@ policy                     mode ['rule'] | 'ramsey', type ['commitment'] | 'disc
                            loss_horizon [[] = forecast.horizon]  (sec. 13)
 compare_with               [{}] cellstr of scenario ids
 report.variables           [{}]  reserved; not read by the toolbox
+expectations.types, expectations.transforms, shares.init, shares.fixed
+                           [empty] BR options, replaced as a whole (DESIGN_br_extensions 1.1-1.3)
 ```
 The user-facing version of this tree, with meanings and recipes, is `docs/USER_GUIDE.md` sec. 5.
 
@@ -784,7 +791,10 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   to 2.1e-13 (paths 4.4e-12), flat over the decades, so rounding does not grow (no
   invertibility problem with 7 shocks for 7 observables). Runtime with `engine.step =
   'fast'` (the default): 6.5-7 s (RE), 5-9 s (switching on pinf); with `'iris'` each period
-  costs about 0.25 s (9 simulations): 77 s for the RE inversion (same 2.1e-13).
+  costs about 0.25 s (9 simulations): 77 s for the RE inversion (same 2.1e-13). These SW07
+  figures predate the covid treatment (2026-10-19: every observable NaN in 2020Q1-Q3). The
+  inversion has nothing to exogenise in those quarters, so it now equals the RE smoother only
+  up to 2019Q4; `test_inversion` S1 checks the shocks there (below 1e-8).
 - Evaluation (17): one inversion per variant to the last origin on the full-sample RE
   filter (it only supplies the state before the start), state kept at every origin
   (`ctx.inv_snapshots`); each forecast starts from it (`ctx.history_cache` of
