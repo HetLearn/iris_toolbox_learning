@@ -13,6 +13,7 @@
 | An error that `re_info = 'lagged'` needs a learning set | `hetlearn.load_options(struct())` under a master that sets `'lagged'` | Set `expectations.variables`, or pass a master: `hetlearn.load_options(cfg, struct())` |
 | `'filtered'` is an error with `'inversion'` or `'kalman'` | `history.re_states = 'filtered'` applies to the RE smoother only | Set `cfg.history.re_states = 'smoothed'` in that scenario |
 | `hetlearn:load_model:notForward` | A name in `expectations.variables` that has no lead in the model | Check `info.meta.forward_vars` from `hetlearn.load_model` |
+| `hetlearn:load_model:plmMismatch` | A non-AR(1) `beliefs.plm.default` and a learning variable's PLM that uses a forward-looking variable outside the learning set as a regressor: the generated file and the run give that regressor different PLMs | Set `beliefs.plm.by_var.<u>` for that regressor |
 | `hetlearn:load_model:params` | `model_params` names a file that is not in the package folder | Fix the name, or set `cfg.model_params = ''` |
 | `hetlearn:load_model:anchored` | Anchored RE agents need a linear model with plain state names | See [Your own model](../your-own-model.md#limits) |
 | `hetlearn:engine:noSolution` | Facility `'none'` and a quarter without a stable model solution | Use facility `'alm'` or `'plm_alm'`, or accept the stop as the result |
