@@ -14,4 +14,3 @@ It lives in the repository folder
 | [`docs/DESIGN.md`](https://github.com/tolgaozden/iris_toolbox_learning/blob/main/docs/DESIGN.md) | Design specification: package contract, generator, expectations, engine, outputs, extensions |
 | [`docs/DESIGN_br_extensions.md`](https://github.com/tolgaozden/iris_toolbox_learning/blob/main/docs/DESIGN_br_extensions.md) | Design of the agent types, shares over N types, forecast transforms, the generalised anchor and the Kalman history |
 | [`docs/FEATURES.md`](https://github.com/tolgaozden/iris_toolbox_learning/blob/main/docs/FEATURES.md) | Feature register: what is configurable and where it is set |
-| [`README_PIPELINE.md`](https://github.com/tolgaozden/iris_toolbox_learning/blob/main/README_PIPELINE.md) | The project's pipeline map and status |
