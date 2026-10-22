@@ -26,9 +26,9 @@ and no `generated/` folders: the toolbox writes them on the first run.
 ## Step 2: get IRIS 20230622
 
 Download the IRIS Toolbox release tagged `Release-20230622` from
-<https://github.com/IRIS-Solutions-Team/IRIS-Toolbox/releases> and unzip it anywhere, for
-example to `C:\Users\<you>\Desktop\IRIS-Toolbox-Release-20230622`. Do not add it to the MATLAB
-path yourself and do not run its startup; `setup_paths` does both.
+<https://github.com/IRIS-Solutions-Team/IRIS-Toolbox/releases> and unzip it, for example
+next to the project folder (step 3). Do not add it to the MATLAB path yourself and do not run
+its startup; `setup_paths` does both.
 
 !!! note "Why this exact release"
     The toolbox is tested against IRIS 20230622. One IRIS file needed a fix to run optimal
@@ -37,15 +37,22 @@ path yourself and do not run its startup; `setup_paths` does both.
     original. Your IRIS installation is not changed. Another IRIS release may work for
     simple runs, but the patch and the tests assume 20230622.
 
-## Step 3: point `setup_paths.m` at IRIS
+## Step 3: tell `setup_paths` where IRIS is
 
-Open `setup_paths.m` in the project root and set the IRIS folder on line 12:
+`setup_paths` looks for IRIS in this order:
+
+1. the folder in the environment variable `HETLEARN_IRIS_DIR`, if it is set;
+2. a folder `IRIS-Toolbox-Release-20230622` next to the project folder, for example
+   `C:\work\IRIS-Toolbox-Release-20230622` beside `C:\work\iris_toolbox_learning`.
+
+If IRIS is somewhere else, set the variable before `setup_paths`, in the session, in your
+`startup.m` or as a system environment variable:
 
 ```matlab
-irisDir = 'C:\Users\<you>\Desktop\IRIS-Toolbox-Release-20230622';
+setenv('HETLEARN_IRIS_DIR', 'C:\path\to\IRIS-Toolbox-Release-20230622')
 ```
 
-This is the only machine-specific line in the project.
+No file in the project needs editing.
 
 ## Step 4: start a session
 
@@ -80,7 +87,8 @@ res = hetlearn.run(a1_learn());     % Application 1, learning economy
 ```
 
 The run prints progress lines and ends with the folder it wrote, `results/a1_learn/`. If you
-see `setup_paths:noIris`, line 12 of `setup_paths.m` points to the wrong folder.
+see `setup_paths:noIris`, IRIS is neither in `HETLEARN_IRIS_DIR` nor next to the project
+folder (step 3).
 
 You can also run part of the test suite. Use a separate MATLAB session for the tests: they
 put their own `master_options.m` first on the path, so project runs in the same session would
@@ -124,7 +132,7 @@ mkdocs build          # static site in site/
 
 ```
 iris_toolbox_learning/
-  setup_paths.m              IRIS and project paths (edit line 12)
+  setup_paths.m              IRIS and project paths (IRIS: step 3)
   run_applications.m         runner for the SW07 applications, variants and evaluation
   config/master_options.m    project-wide option values (the baseline)
   toolbox/+hetlearn/         the toolbox
