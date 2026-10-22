@@ -12,6 +12,11 @@ function est_00_g0_dynare()
 %   Dynare is not run; only its priordens function is called.
 
 c = est_config();
+if isempty(c.dynare_matlab)
+    error('est_00_g0_dynare:noDynare', ['Dynare 4.6.1 not found. Either set the environment variable ' ...
+        'HETLEARN_DYNARE_DIR to its matlab folder, e.g. setenv(''HETLEARN_DYNARE_DIR'', ''D:\\dynare-4.6.1\\matlab''), ' ...
+        'or put dynare-4.6.1 next to the project folder (%s).'], fileparts(c.project));
+end
 addpath(c.dynare_matlab);
 addpath(fullfile(c.dynare_matlab, 'distributions'));
 S = load(c.swx1_out);
