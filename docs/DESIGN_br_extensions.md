@@ -15,6 +15,12 @@ published SW07 mode, learning set `{pinf}`, types {RE anchored with `re_info = '
 learner with `beliefs.info = 'lagged'`}, KOZ gain from 0.05, chi 2, memory 0.8, init n2 0.5,
 `history.re_states = 'filtered'`, `projection.facility = 'none'` (`'alm'` since 2026-10-21, user decision).
 
+**Note 2026-10-22 (user decision after the audit `docs/BR_audit.txt`): the portfolio is cut to seven
+variants, 5b, 7, 10, 19, 23, 24 and 26.** The other fourteen (1a, 1b, 4, 5a, 6, 17, 18, 20, 25a, 25b,
+27, 29, 31, 33) are dropped, and so is every option and code path that only they used. Section 8 lists
+what was removed and why. Sections 1-7 below are the design as built on 2026-10-20/21; headings and
+table rows of dropped mechanisms are marked "[dropped 2026-10-22]".
+
 Prototype evidence (scratchpad `br_design/`, run on a copy of the project; the scripts
 `br_proto1.m` to `br_proto4.m` and their logs are listed at the end) is quoted where it settles
 a design choice.
@@ -227,7 +233,7 @@ limits; validation. "Prototype" = scripts P1 to P4, original SW07 parameters. De
 and P4 is for the model-consistent version on SW07; impact responses in % per quarter
 (RE: pinf to em -0.040, y to em -0.187, pinf to epinf 0.244, y to eb 0.419).
 
-### 1 Level-k on a learned level 0 (Evans, Gibbs and McGough 2025; Beaudry, Carter and Lahiri 2023)
+### 1 Level-k on a learned level 0 (Evans, Gibbs and McGough 2025; Beaudry, Carter and Lahiri 2023) [dropped 2026-10-22]
 - Formula: `f^L0_t = alpha + beta(alpha + beta*pinf_{t-1})` (the baseline learner);
   `f^L(j+1)_t = E^(j)_{t-1} pinf_{t+1} = k_{j+1} + C_{j+1} s_{t-1}`, the two-step forecast in the
   homogeneous level-j economy (every inflation expectation `f^Lj`, all other expectations
@@ -251,7 +257,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
   (b) EGM closed form on a scalar economy `y_t = mu + b*E y_t + e_t`: `T^k(a) = mu(1 + b + ... +
   b^(k-1)) + b^k a` (toy package); (c) K = 0 equals mode `'learning'`.
 
-### 4 Shallow reasoning (Angeletos and Sastry 2021; parameters from Gust, Herbst and López-Salido 2020)
+### 4 Shallow reasoning (Angeletos and Sastry 2021; parameters from Gust, Herbst and López-Salido 2020) [dropped 2026-10-22]
 - Formula: `E^SR_t z_{t+h} = lambda * E_t z_{t+h}`, lambda the same at every h.
 - Scope: every forward expectation of the RE type (others' GE responses), equation-specific as in
   the only estimate of this "Angeletos-Lian form": households' expectations (c, lab in the Euler
@@ -273,7 +279,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
   equal values in the three copies equal the global multiplier (1e-12); generated model = the
   hand-written P3 file `p3_v06.model` at n_RE = 1.
 
-### 5 Cognitive discounting (Gabaix 2020; Meggiorini 2023; Meggiorini and Milani 2021)
+### 5 Cognitive discounting (Gabaix 2020; Meggiorini 2023; Meggiorini and Milani 2021) [5a dropped 2026-10-22, 5b kept]
 - Formula: `E^CD_t z_{t+h} = zbar + m^h (E_t z_{t+h} - zbar)`, zbar = 0 in SW07 (Gabaix's default
   reference point; it also pulls the learners' intercept to the steady state, as Meggiorini and
   Milani do).
@@ -297,7 +303,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
   m = 1 equals the baseline; generated = hand-written `p3_v02.model`; Gabaix's three-equation IS
   and Phillips curves with M = m on the toy package against their closed form.
 
-### 6 As-if hyperbolic discounting (Gabaix and Laibson, NBER WP 23254)
+### 6 As-if hyperbolic discounting (Gabaix and Laibson, NBER WP 23254) [dropped 2026-10-22]
 - Formula: `E^H_t z_{t+h} = E_t z_{t+h} / (1 + alpha h)`.
 - Scope, types, information: as 5a (it is CD with a hyperbolic horizon profile).
 - Mapping: E3 `'multiplier'`, `profile 'hyperbolic'`.
@@ -343,7 +349,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
   determinate. theta = 0 equals the baseline; generated = `p3_v09.model`; anchored DE = model-
   consistent DE at n_RE = 1 (the DESIGN 19 collapse check with one more chain element).
 
-### 17 Heuristic switching, four rules (Anufriev and Hommes 2012)
+### 17 Heuristic switching, four rules (Anufriev and Hommes 2012) [dropped 2026-10-22]
 - Formulas (t-1 information, AH KER eqs. 4-8): ADA `f_t = 0.65 pinf_{t-1} + 0.35 f_{t-1}`; WTR
   `pinf_{t-1} + 0.4 dpinf_{t-1}`; STR `pinf_{t-1} + 1.3 dpinf_{t-1}`; LAA `0.5(pbar_{t-1} +
   pinf_{t-1}) + dpinf_{t-1}`, pbar the running sample mean; `dpinf_{t-1} = pinf_{t-1} -
@@ -364,7 +370,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
   initial prices); four identical rules keep shares at 0.25; delta = 0, `'normalized'`, N = 2
   equals `discrete_choice`.
 
-### 18 Fundamentalists and extrapolators, optimists and pessimists (De Grauwe 2011)
+### 18 Fundamentalists and extrapolators, optimists and pessimists (De Grauwe 2011) [dropped 2026-10-22]
 - Formulas: inflation targeters `f = pi* = 0` (deviations), extrapolators `f = pinf_{t-1}`;
   consumption optimists `E_t c_{t+1} + g`, pessimists `E_t c_{t+1} - g`, `g = d/2`, `d = beta +
   delta var(y)` (CESifo WP 2418).
@@ -398,7 +404,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
 - Validation: TB share fixed at 0 equals the baseline; a TB-only population (share 1) equals the
   model with `pinf_exp1 = 0` written by hand.
 
-### 20 SAC learning (Hommes and Sorger 1998; Hommes, Mavromatis, Özden and Zhu 2023)
+### 20 SAC learning (Hommes and Sorger 1998; Hommes, Mavromatis, Özden and Zhu 2023) [dropped 2026-10-22]
 - Formula: `f_t = a_{t-1} + b_{t-1}^2 (x_{t-1} - a_{t-1})`, (a, b, R) by the SAC recursion (1.5).
 - Scope: the seven sticky-economy forward expectations, all formed by SAC learners, no RE type
   (HMOZ's SW07: every forward variable learned); flex block RE (D1, D2).
@@ -442,7 +448,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
   0.65 is used in 17, the experience gain 0.018 in 26.
 - Limits: no facility needed. Validation: RLS with regressor [1] = hand loop.
 
-### 25 Kalman-filter learning and small-model averaging (Slobodyan and Wouters 2012a)
+### 25 Kalman-filter learning and small-model averaging (Slobodyan and Wouters 2012a) [dropped 2026-10-22]
 - Formula: PLM coefficients learned by the KF of 1.5; 25a AR(2) PLM per variable; 25b the five
   small models per variable (AR(1); AR(1) + r_{t-1}, pinf_{t-1}; AR(2); AR(1) + pinf_{t-1};
   AR(1) + r_{t-1}, pinf_{t-1}, y_{t-1}) with equal fixed weights 0.2.
@@ -467,7 +473,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
   = 3.006 on Michigan data). Cohorts are out of scope (aggregate only, as requested).
 - Validation: none new (existing gain rule).
 
-### 27 Bayesian model averaging (Evans, Honkapohja, Sargent and Williams 2013; Cho and Kasa 2017)
+### 27 Bayesian model averaging (Evans, Honkapohja, Sargent and Williams 2013; Cho and Kasa 2017) [dropped 2026-10-22]
 - Formula: `n_{i,t} proportional to n_{i,0} exp(-SSE_{i,t}/(2 sigma^2))`: logit in cumulative
   squared errors (*derived*, the review).
 - Scope and population: the baseline's two models (EHSW average an RE forecast and a time-varying
@@ -479,7 +485,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
 - Limits: no forgetting, so shares converge to 0 or 1 (EHSW's selection result).
 - Validation: shares = posterior probabilities computed from the recorded errors (hand loop).
 
-### 29 Survey belief wedge, reduced form (Bhandari, Borovička and Ho 2025; Milani 2011, 2017)
+### 29 Survey belief wedge, reduced form (Bhandari, Borovička and Ho 2025; Milani 2011, 2017) [dropped 2026-10-22]
 - Formula: `pinf_exp1 = sum_k n_k f^k + w_t`, `w_t = rho w_{t-1} + sigma e_w,t`.
 - Scope: inflation expectations, all types (BBH's household wedge; Milani's sentiment on observed
   expectations).
@@ -495,7 +501,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
 - Validation: sigma = 0 equals the baseline; the impact response of `pinf_exp1` to `e_wpinf` is
   sigma.
 
-### 31 Confidence shocks, approximate (Angeletos, Collard and Dellas 2018)
+### 31 Confidence shocks, approximate (Angeletos, Collard and Dellas 2018) [dropped 2026-10-22]
 - Formula: `z_exp1 = E_t z_{t+1} + Lambda_z xi_t` for z in {c, inve, lab}, `xi_t = rho xi_{t-1} +
   sigma e_xi,t`: a common bias in expected activity (ACD's bias about others' output) on the
   model-consistent household expectations.
@@ -511,7 +517,7 @@ and P4 is for the model-consistent version on SW07; impact responses in % per qu
 - Validation: sigma = 0 equals the baseline; the band variance share of output equals 51% by
   construction (calibration check).
 
-### 33 Naive nominal-growth belief function (Farmer and Nicolò 2018)
+### 33 Naive nominal-growth belief function (Farmer and Nicolò 2018) [dropped 2026-10-22]
 - Formula: `E_t dn_{t+1} = dn_t` with `dn = dy + pinf` (deviations); the type's inflation forecast
   `f^FN_t = dn_{t-1} - E^RE_{t-1}(y_{t+1} - y_t)`: last nominal growth minus the anchored RE(t-1)
   forecast of real growth (*derived*: the belief function as a type, not as a replacement of the
@@ -536,27 +542,27 @@ one element of `cfg.expectations.types`, `X(kind, field, value, ...)` one elemen
 
 | Variant | Population (against {RE, BR}) | cfg changes |
 |---|---|---|
-| br01a_levelk_egm | replaces RE by levels 1 and 2 | `types = [T('L0','plm'), T('L1','level','base','L0','k',1), T('L2','level','base','L0','k',2)]`; `shares.init = struct('L0',1/3,'L1',1/3,'L2',1/3)` |
-| br01b_levelk_bcl | everyone level 2 on the learned seed | `types` as 01a without L1; `mode = 'fixed_shares'`; `shares.fixed = struct('L0',0,'L2',1)` |
-| br04_shallow | unchanged | `transforms = [X('multiplier','profile','flat','types',{'RE'},'value',0.76,'scope',{'c','lab','inve','pk','rk'}), X(..,'value',0.86,'scope',{'w','pinf@Phillips curve, price setting','pinf@Wage Phillips curve, wage setting'}), X(..,'value',0.08,'scope',{'pinf@Consumption Euler equation','pinf@Arbitrage equation for the value of capital'})]` |
-| br05a_cd | unchanged | `transforms = X('multiplier','profile','geometric','types','all','value',0.62,'scope','all','exclude',FLEX)` |
+| br01a_levelk_egm [dropped 2026-10-22] | replaces RE by levels 1 and 2 | `types = [T('L0','plm'), T('L1','level','base','L0','k',1), T('L2','level','base','L0','k',2)]`; `shares.init = struct('L0',1/3,'L1',1/3,'L2',1/3)` |
+| br01b_levelk_bcl [dropped 2026-10-22] | everyone level 2 on the learned seed | `types` as 01a without L1; `mode = 'fixed_shares'`; `shares.fixed = struct('L0',0,'L2',1)` |
+| br04_shallow [dropped 2026-10-22] | unchanged | `transforms = [X('multiplier','profile','flat','types',{'RE'},'value',0.76,'scope',{'c','lab','inve','pk','rk'}), X(..,'value',0.86,'scope',{'w','pinf@Phillips curve, price setting','pinf@Wage Phillips curve, wage setting'}), X(..,'value',0.08,'scope',{'pinf@Consumption Euler equation','pinf@Arbitrage equation for the value of capital'})]` |
+| br05a_cd [dropped 2026-10-22] | unchanged | `transforms = X('multiplier','profile','geometric','types','all','value',0.62,'scope','all','exclude',FLEX)` |
 | br05b_cd_learn | unchanged | as 05a with `'value',0.94,'scope','learning'` |
-| br06_hyperbolic | unchanged | as 05a with `'profile','hyperbolic','value',0.25` |
+| br06_hyperbolic [dropped 2026-10-22] | unchanged | as 05a with `'profile','hyperbolic','value',0.25` |
 | br07_myopia_anchoring | unchanged | `transforms = X('myopia_anchoring','types','all','value',[0.52 0.434],'scope',{'pinf@Phillips curve, price setting'})` |
 | br10_diagnostic | DE agents replace RE agents | `transforms = X('diagnostic','types',{'RE'},'value',0.44,'scope','all','exclude',FLEX)` |
-| br17_heuristics | four rules replace both types | `types = [T('ADA','rule','expr','0.65*x{-1} + 0.35*self{-1}'), T('WTR','rule','expr','x{-1} + 0.4*(x{-1} - x{-2})'), T('STR','rule','expr','x{-1} + 1.3*(x{-1} - x{-2})'), T('LAA','rule','expr','0.5*(mean + x{-1}) + (x{-1} - x{-2})','gain',struct('rule','decreasing'))]`; `switching.intensity = 0.4; .memory = 0.7; .inertia = 0.9; .fitness = 'unnormalized'`; shares 0.25 |
-| br18_degrauwe | TAR/EXT replace RE/BR for inflation; OPT/PES on c | `expectations.variables = {'pinf','c'}`; `types = [T('TAR','rule','expr','0','variables',{'pinf'}), T('EXT','rule','expr','x{-1}','variables',{'pinf'}), T('OPT','re','variant','model_consistent','info','current','variables',{'c'}), T('PES', same)]`; `transforms = [X('wedge','types',{'OPT'},'factor',struct('mean',g)), X('wedge','types',{'PES'},'factor',struct('mean',-g))]`, g = `'model:sd_ygap_half'` |
+| br17_heuristics [dropped 2026-10-22] | four rules replace both types | `types = [T('ADA','rule','expr','0.65*x{-1} + 0.35*self{-1}'), T('WTR','rule','expr','x{-1} + 0.4*(x{-1} - x{-2})'), T('STR','rule','expr','x{-1} + 1.3*(x{-1} - x{-2})'), T('LAA','rule','expr','0.5*(mean + x{-1}) + (x{-1} - x{-2})','gain',struct('rule','decreasing'))]`; `switching.intensity = 0.4; .memory = 0.7; .inertia = 0.9; .fitness = 'unnormalized'`; shares 0.25 |
+| br18_degrauwe [dropped 2026-10-22] | TAR/EXT replace RE/BR for inflation; OPT/PES on c | `expectations.variables = {'pinf','c'}`; `types = [T('TAR','rule','expr','0','variables',{'pinf'}), T('EXT','rule','expr','x{-1}','variables',{'pinf'}), T('OPT','re','variant','model_consistent','info','current','variables',{'c'}), T('PES', same)]`; `transforms = [X('wedge','types',{'OPT'},'factor',struct('mean',g)), X('wedge','types',{'PES'},'factor',struct('mean',-g))]`, g = `'model:sd_ygap_half'` |
 | br19_target_believers | adds TB | `types = [RE, BR, T('TB','rule','expr','0')]`; shares 1/3 each |
-| br20_sac | SAC learners on ST7, no RE | `expectations.variables = ST7; mode = 'learning'; beliefs.update = 'sac'; gain.rule = 'constant'; gain.value = 0.006` |
+| br20_sac [dropped 2026-10-22] | SAC learners on ST7, no RE | `expectations.variables = ST7; mode = 'learning'; beliefs.update = 'sac'; gain.rule = 'constant'; gain.value = 0.006` |
 | br23_intercept_only | IO replaces the learner | `types = [RE, T('IO','re_mean')]` |
 | br24_mean_only | unchanged | `beliefs.plm.by_var.pinf = struct('regressors', {{}}, 'constant', true)` |
-| br25a_kf_ar2 | KF learners on ST7, no RE | `expectations.variables = ST7; mode = 'learning'; beliefs.plm.default = 'ar2'; beliefs.update = 'kf'; beliefs.kf = struct('gamma',0.031)` |
-| br25b_kf_average | five KF models on ST7, equal weights | `expectations.variables = ST7; mode = 'fixed_shares'`; five `'plm'` types with the SW regressor sets, `update 'kf'`; `shares.fixed` 0.2 each |
+| br25a_kf_ar2 [dropped 2026-10-22] | KF learners on ST7, no RE | `expectations.variables = ST7; mode = 'learning'; beliefs.plm.default = 'ar2'; beliefs.update = 'kf'; beliefs.kf = struct('gamma',0.031)` |
+| br25b_kf_average [dropped 2026-10-22] | five KF models on ST7, equal weights | `expectations.variables = ST7; mode = 'fixed_shares'`; five `'plm'` types with the SW regressor sets, `update 'kf'`; `shares.fixed` 0.2 each |
 | br26_experience | unchanged | `gain.rule = 'constant'; gain.value = 0.018` |
-| br27_bma | unchanged | `switching.fitness = 'unnormalized'; switching.memory = 1; switching.intensity = 'model:bma'` (= 1/(2 sigma^2)) |
-| br29_wedge | unchanged | `transforms = X('wedge','types','all','scope',{'pinf'},'factor',struct('rho',0.714,'std',0.182,'mean',0,'shock','e_wpinf'))` |
-| br31_confidence | unchanged | `transforms = X('wedge','types','all','scope',{'c','inve','lab'},'factor',struct('rho',0.833,'std','model:acd51','loadings','model:projection','shock','e_xi'))` |
-| br33_farmer | FN replaces the learner | `types = [RE, T('FN','rule','expr','dn{-1} - re1(y{+1} - y)')]` (`re1` = anchored E_{t-1}, E4) |
+| br27_bma [dropped 2026-10-22] | unchanged | `switching.fitness = 'unnormalized'; switching.memory = 1; switching.intensity = 'model:bma'` (= 1/(2 sigma^2)) |
+| br29_wedge [dropped 2026-10-22] | unchanged | `transforms = X('wedge','types','all','scope',{'pinf'},'factor',struct('rho',0.714,'std',0.182,'mean',0,'shock','e_wpinf'))` |
+| br31_confidence [dropped 2026-10-22] | unchanged | `transforms = X('wedge','types','all','scope',{'c','inve','lab'},'factor',struct('rho',0.833,'std','model:acd51','loadings','model:projection','shock','e_xi'))` |
+| br33_farmer [dropped 2026-10-22] | FN replaces the learner | `types = [RE, T('FN','rule','expr','dn{-1} - re1(y{+1} - y)')]` (`re1` = anchored E_{t-1}, E4) |
 
 `'model:<rule>'` values are computed by `load_model` from the variant's RE limit and recorded in
 `res.meta.model_values`. The RE references: `br00_re` = `a1_re` (RE(t-1) for `{pinf}`), and for
@@ -1237,3 +1243,81 @@ history, gates K1 and K2, baseline RMSE), `br_proto3.m` (transform determinacy),
 (heuristic rules), logs `proto1.log` to `proto4.log`, model files `out/p3_v*.model`,
 `out/p4_v*.model`; they run on the copy `br_design/proj/` (toolbox, config, SW07 package and its
 non-real-time caches as of 2026-10-20).
+
+---------------------------------------------------------------------------------------------
+
+## 8. Portfolio cut to seven variants (2026-10-22)
+
+User decision after the audit (`docs/BR_audit.txt`, scores 1-5): keep the variants scored 4 or 5,
+drop every variant scored 3 or below (the four "fix" candidates 5a, 17, 20 and 31 included, the
+fixes were not attempted), and remove every option, code path, test and document entry that only
+the dropped variants used. Copies of the code, tests, scenario files, runners, report builders,
+`results/br_portfolio/` and the docs as they stood before the cut are in
+`archive/2026-10-22_br_cleanup/` (with the dropped variants' `results/<id>/` folders).
+
+**Kept (score):** 5b cognitive discounting on the learning set (4), 7 myopia and anchoring in the
+price Phillips curve (4), 10 diagnostic expectations (4), 19 target believers (4), 23 intercept
+learning on the RE forecast error (4), 24 mean-only learning (5), 26 constant gain 0.018 (4).
+
+**Dropped:**
+
+| Variant | Score | Reason (audit section 3) |
+|---|---|---|
+| 1a, 1b level-k on a learned level 0 | 2 | boom-bust paths (inflation 17.7 to -7.9%), five facility events in Application 1; the level-0 seed is explosive at the 2022Q2 origin |
+| 4 shallow reasoning | 2 | monetary transmission almost gone, dLL -1960; GHL-to-SW07 equation mapping is ours |
+| 5a CD on every expectation | 3 | dLL -4053; m estimated jointly with the structural parameters of another model; 5b represents CD |
+| 6 hyperbolic discounting | 2 | indistinguishable from 5a at SW07's two horizons; alpha unsourced |
+| 17 four heuristics | 3 | intensity in lab units, shares stuck at 0.16-0.33 (the switching does nothing); Kalman model gap 0.90 |
+| 18 De Grauwe | 1 | explosive cycles in the IRFs; calibration picked by an outcome screen; g unsourced |
+| 20 SAC learning | 3 | IRFs still rising at h = 19, monetary transmission near zero, dLL -1852; gain column and structural parameters not HMOZ's |
+| 25a, 25b Kalman-filter learning | 1 | inflation falling 3.6-6.6 pp a year at the end, 7-8 facility events, non-decaying IRFs; V mapping proposed |
+| 27 Bayesian model averaging | 1 | learners' share at 1.000, inflation to 22.7%, four facility events; sigma^2 proposed |
+| 29 survey wedge | 2 | no survey observable to identify the wedge; shares at a corner in the forecast |
+| 31 confidence shocks | 3 | sigma calibrated by us and loadings proposed (ACD's values not sourced) |
+| 33 Farmer-Nicolo belief | 2 | collapses onto RE in Application 1; worst inflation RMSE (1.39x); FN's model change not built |
+
+**Removed options and code** (each used only by dropped variants; checked against the kept list):
+
+| Removed | Was used by | Where |
+|---|---|---|
+| type kind `'level'` (fields `base`, `k`), its per-quarter anchor iteration, event `projection_level`, error `levelNoSolution` | 1a, 1b | `+engine/anchor_update.m` deleted; `agent_types`, `extend_model` (lev coefficients), `load_model` (`nt.levels`), `ntypes`, `update_learning`, `facility` (5th argument of `make_params`), `forecast`, `kalman_history`, `decompose` |
+| rule terms `self{-k}`, `mean`, `dn`, `re1(...)`; rule types' mean beliefs and own-lag seeding | 17, 33 | `+plm/rule_terms.m`, `extend_model`, `load_model` (`re1_values`), `ntypes` |
+| `beliefs.update = 'kf'`, `beliefs.kf` | 25a, 25b | `+rls/kf.m` deleted; `update_learning` |
+| `beliefs.update = 'sac'`, event `sac_bound` | 20 | `+rls/sac.m` deleted; `update_learning` |
+| `gain.rule = 'decreasing'`, `gain.decreasing` | 17 (LAA anchor) | `+gain/decreasing.m` deleted |
+| `switching.inertia`, `switching.costs`, type field `cost`, `switching.fitness = 'unnormalized'` (and memory 1) | 17, 27 | `+switching/discrete_choice_n.m` (now `(FE, Uprev, chi, omega)`), `init_fitness_n.m` (now `(n0, chi)`), `ntypes`, `update_learning` |
+| `switching.intensity = 'model:bma'` | 27 | `load_model` (`model_values`), `ntypes`, `assemble` |
+| transform kinds `'wedge'` (field `factor`, shocks, `xi_<shock>` states, `model:projection`, `model:acd51`, `model:sd_ygap_half`) and `'partial_adjustment'` | 18, 29, 31 (partial adjustment: no variant) | `extend_model` (`tf_*`), `load_model` (`tf_*`), `ntypes` score steps |
+| multiplier field `profile` (`'flat'`, `'hyperbolic'`; the multiplier is m^h) | 4, 6 | `load_options`, `load_model` |
+| per-type fields `variant`, `info`, `plm`, `update`, `gain`, `variables`; a second `'re'` type | 18, 25b, 17 | `load_options`, `agent_types` (every type now inherits), dead branches of `extend_model` |
+| runner mode `run_br_app1('calib18')` and `app1_calib18.csv`; the wedge shocks `e_wpinf`, `e_xi` in the IRF portfolio; model-gap flags of 17, 25a, 25b, 33 | 18, 29, 31, 17, 25, 33 | `run_br_app1.m`, `run_br_portfolio.m`, both report builders |
+| test suite `test_learning_rules.m`, test packages `tests/models/ah`, `tests/models/egm`, and the checks of the removed features in the other suites | | `tests/` |
+
+Kept machinery (used by the seven): N agent types with kinds `'re'` (RE only), `'plm'`, `'rule'`
+(numbers, `x{-k}`, other transition variables with lags, `params` constants) and `'re_mean'`;
+`shares.init`, `shares.fixed` and the N-type mode semantics; the normalized N-type logit; transforms
+`'multiplier'` (m^h), `'diagnostic'` (with the anchored reference `x_DEg_RE` and the memory states of
+the generalised anchor) and `'myopia_anchoring'`, scopes, `exclude`, `types` and equation copies;
+fitness on transformed forecasts; `hetlearn.anchor_coefficients`; the mean-only PLM; the Kalman
+history with N types; density, evaluate and decompose with N types.
+
+Compatibility: `load_options` raises `hetlearn:options:removed` for a removed option set to anything
+but its old default, and drops the removed fields when a merged tree saved before the cut holds them
+at their defaults (`res.cfg` of 2026-10-20/21 runs keeps loading). The generator's file key keeps its
+2026-10-21 form, so the kept variants' generated files keep their names.
+
+Checks of the cut: the five N-type files of the kept variants regenerated with `'force'` are
+byte-identical to the 2026-10-21 files; the seven kept runs (Application 1, not saved) equal their
+saved 2026-10-21 results with max difference 0 in paths, learning records and final state (the
+state no longer carries `fh` and `pa`), events equal. Reruns on 2026-10-22: `run_br_app1` 9 of 9 ok with
+average inflation 2022Q3-2026Q2 unchanged (RE(t-1) 2.59%, baseline 3.45%, 5b 4.09%, 7 3.42%, 10 4.75%,
+19 3.38%, 23 2.94%, 24 3.08%, 26 3.06%); `run_br_portfolio` 126 shocked forecasts and 9 Kalman
+histories ok, log likelihoods as on 2026-10-21, IRFs within 1e-10 of the 2026-10-21 CSVs (rounding in
+the 12th digit), the 8 check pairs at diff 0; no facility event in any run. Tests at the default thread count in five
+sessions (`test_generator`, `test_re_info`, `test_anchored`, then two halves): 364 checks in 24
+suites, all pass (403 in 25 before the cut: `test_learning_rules` (15) removed, `test_ntypes` 20 to
+13, `test_transforms` 31 to 19 with a new check F1 of fitness on transformed forecasts, `test_anchor`
+8 to 3, the other suites adapted at equal counts); `test_br_regression` exact (R1 byte-identical, R2
+max diff 0). The first pass failed two `test_transforms` checks, both mistakes in the test code (a
+`struct` cell expansion in F1, an E1 case that does act on the other forward variables); fixed and
+rerun alone, 19 of 19.
