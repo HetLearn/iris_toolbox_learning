@@ -13,9 +13,11 @@ heterogeneous-expectations version of the model, learns beliefs and shares over 
 and runs your scenario forward one quarter at a time with beliefs and shares updating as it
 goes. The project's main model is Smets and Wouters (2007) on US data 1965Q1-2026Q2.
 
-**Documentation website:** <https://tolgaozden.github.io/iris_toolbox_learning/> (built from
+**Documentation website:** <https://tolgaozden.net/iris_toolbox_learning/> (built from
 [`docs_site/`](docs_site/) by [`.github/workflows/docs.yml`](.github/workflows/docs.yml); see
 [Building the documentation](#13-building-the-documentation)).
+
+**Licence:** MIT, see [`LICENSE`](LICENSE).
 
 ## Contents
 
@@ -76,10 +78,12 @@ No other MATLAB toolbox and no Dynare are needed.
 2. **Get IRIS 20230622** from the [IRIS releases page](https://github.com/IRIS-Solutions-Team/IRIS-Toolbox/releases)
    (tag `Release-20230622`) and unzip it anywhere. Do not add it to the path yourself.
 
-3. **Point `setup_paths.m` at IRIS** (line 12, the only machine-specific line):
+3. **Tell `setup_paths` where IRIS is.** It uses the folder in the environment variable
+   `HETLEARN_IRIS_DIR`, else a folder `IRIS-Toolbox-Release-20230622` next to the project
+   folder. So either unzip IRIS beside `iris_toolbox_learning/`, or set the variable first:
 
    ```matlab
-   irisDir = 'C:\Users\<you>\Desktop\IRIS-Toolbox-Release-20230622';
+   setenv('HETLEARN_IRIS_DIR', 'C:\path\to\IRIS-Toolbox-Release-20230622')
    ```
 
 4. **Start a session** from the project root:
@@ -92,7 +96,7 @@ No other MATLAB toolbox and no Dynare are needed.
    first run of a model writes its generated files and RE filter cache to
    `models/sw07/generated/`, so it takes longer; later runs take 10-20 seconds.
 
-Details: [Installation](https://tolgaozden.github.io/iris_toolbox_learning/getting-started/installation/)
+Details: [Installation](https://tolgaozden.net/iris_toolbox_learning/getting-started/installation/)
 ([source](docs_site/getting-started/installation.md)).
 
 ## 4. Quick start
@@ -120,7 +124,7 @@ A scenario is a MATLAB function returning a partial option tree. Options merge a
 parent and changes only what differs. To run the project's groups and log them:
 `run_applications('app1')`.
 
-More: [Quick start](https://tolgaozden.github.io/iris_toolbox_learning/getting-started/quick-start/)
+More: [Quick start](https://tolgaozden.net/iris_toolbox_learning/getting-started/quick-start/)
 ([source](docs_site/getting-started/quick-start.md)).
 
 ## 5. Example: Application 1, the 2022Q2 inflation peak
@@ -163,19 +167,19 @@ the learners' share of inflation expectations.*
 
 The full walkthrough, with the scenario files, what happens inside a run, the output files, the
 learners' history 1966-2026 and sensitivity runs:
-[Application 1 tutorial](https://tolgaozden.github.io/iris_toolbox_learning/tutorial/application-1/)
+[Application 1 tutorial](https://tolgaozden.net/iris_toolbox_learning/tutorial/application-1/)
 ([source](docs_site/tutorial/application-1.md)).
 
 ## 6. The applications
 
 | Application | Question | Key result (baseline) | Page |
 |---|---|---|---|
-| 1. Peak forecast | Disinflation from 2022Q2 with zero shocks | inflation 3.45% learning vs 2.59% RE | [site](https://tolgaozden.github.io/iris_toolbox_learning/tutorial/application-1/), [source](docs_site/tutorial/application-1.md) |
-| 2. Shock replay | Feed in the RE-smoothed shocks of 2022Q3-2026Q2 | RE replay = data; learning replay 4.64% vs 3.21% data | [site](https://tolgaozden.github.io/iris_toolbox_learning/applications/app2-replay/), [source](docs_site/applications/app2-replay.md) |
-| 3. Policy deviations | Rate 100 bp below/above the rule for a year | inflation effect +0.72 pp (learning) vs +0.67 pp (RE); asymmetry 0.014 pp | [site](https://tolgaozden.github.io/iris_toolbox_learning/applications/app3-policy/), [source](docs_site/applications/app3-policy.md) |
-| 4. Ramsey policy | Optimal policy under commitment vs the rule | 80-quarter loss 127.7 vs 230.1 (RE), 184.5 vs 359.4 (learning) | [site](https://tolgaozden.github.io/iris_toolbox_learning/applications/app4-ramsey/), [source](docs_site/applications/app4-ramsey.md) |
-| 5. Density forecasts | 500 draws of mark-up or demand shocks | 90% inflation band 14.6 pp (learning) vs 4.8 pp (RE) with mark-up shocks | [site](https://tolgaozden.github.io/iris_toolbox_learning/applications/app5-density/), [source](docs_site/applications/app5-density.md) |
-| 6. History | The history backed out with the learning model; decompositions; Kalman likelihood | learners' share 0.811 (inversion) vs 0.591 at 2022Q2; one-step inflation RMSE 0.309 vs 0.371 (RE) | [site](https://tolgaozden.github.io/iris_toolbox_learning/applications/app6-history/), [source](docs_site/applications/app6-history.md) |
+| 1. Peak forecast | Disinflation from 2022Q2 with zero shocks | inflation 3.45% learning vs 2.59% RE | [site](https://tolgaozden.net/iris_toolbox_learning/tutorial/application-1/), [source](docs_site/tutorial/application-1.md) |
+| 2. Shock replay | Feed in the RE-smoothed shocks of 2022Q3-2026Q2 | RE replay = data; learning replay 4.64% vs 3.21% data | [site](https://tolgaozden.net/iris_toolbox_learning/applications/app2-replay/), [source](docs_site/applications/app2-replay.md) |
+| 3. Policy deviations | Rate 100 bp below/above the rule for a year | inflation effect +0.72 pp (learning) vs +0.67 pp (RE); asymmetry 0.014 pp | [site](https://tolgaozden.net/iris_toolbox_learning/applications/app3-policy/), [source](docs_site/applications/app3-policy.md) |
+| 4. Ramsey policy | Optimal policy under commitment vs the rule | 80-quarter loss 127.7 vs 230.1 (RE), 184.5 vs 359.4 (learning) | [site](https://tolgaozden.net/iris_toolbox_learning/applications/app4-ramsey/), [source](docs_site/applications/app4-ramsey.md) |
+| 5. Density forecasts | 500 draws of mark-up or demand shocks | 90% inflation band 14.6 pp (learning) vs 4.8 pp (RE) with mark-up shocks | [site](https://tolgaozden.net/iris_toolbox_learning/applications/app5-density/), [source](docs_site/applications/app5-density.md) |
+| 6. History | The history backed out with the learning model; decompositions; Kalman likelihood | learners' share 0.811 (inversion) vs 0.591 at 2022Q2; one-step inflation RMSE 0.309 vs 0.371 (RE) | [site](https://tolgaozden.net/iris_toolbox_learning/applications/app6-history/), [source](docs_site/applications/app6-history.md) |
 
 ```matlab
 run_applications('app3')      % one group; 'all' runs every group and the evaluation (~3 hours)
@@ -185,23 +189,23 @@ run_applications('app3')      % one group; 'all' runs every group and the evalua
 
 | Group | Main options | Page |
 |---|---|---|
-| Expectations | `expectations.mode`, `expectations.variables` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/expectations/), [source](docs_site/options/expectations.md) |
-| RE agents | `expectations.re_variant`, `expectations.re_info` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/re-agents/), [source](docs_site/options/re-agents.md) |
-| Timing and information | `beliefs.info`, `expectations.re_info`, `history.re_states`, `history.realtime` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/timing/), [source](docs_site/options/timing.md) |
-| Perceived laws of motion | `beliefs.plm.default`, `.by_var`, `.derived`, `.var` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/plm/), [source](docs_site/options/plm.md) |
-| Gains | `gain.rule`, `gain.value`, `gain.koz.*` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/gains/), [source](docs_site/options/gains.md) |
-| Initial beliefs | `beliefs.init.*`, `beliefs.update`, `history.learn` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/initial-beliefs/), [source](docs_site/options/initial-beliefs.md) |
-| Shares and switching | `shares.*`, `switching.*` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/switching/), [source](docs_site/options/switching.md) |
-| Projection facility | `projection.facility` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/projection-facility/), [source](docs_site/options/projection-facility.md) |
-| History modes | `history.mode`, `history.inversion.*`, `history.kalman.init` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/history-modes/), [source](docs_site/options/history-modes.md) |
-| Forecasts, shocks, conditions | `forecast.*`, `shocks.*`, `conditions`, `compare_with`, `engine.*` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/forecasts-conditions/), [source](docs_site/options/forecasts-conditions.md) |
-| Monetary policy | `policy.*` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/policy/), [source](docs_site/options/policy.md) |
-| Density forecasts | `density.*` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/densities/), [source](docs_site/options/densities.md) |
-| Shock decompositions | `hetlearn.decompose` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/decompositions/), [source](docs_site/options/decompositions.md) |
-| Forecast evaluation | `hetlearn.evaluate`, `hetlearn.evaluate_tables` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/evaluation/), [source](docs_site/options/evaluation.md) |
-| Further expectation rules | `expectations.types`, `expectations.transforms`, `shares.init`, `shares.fixed` | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/further-expectation-rules/), [source](docs_site/options/further-expectation-rules.md) |
+| Expectations | `expectations.mode`, `expectations.variables` | [site](https://tolgaozden.net/iris_toolbox_learning/options/expectations/), [source](docs_site/options/expectations.md) |
+| RE agents | `expectations.re_variant`, `expectations.re_info` | [site](https://tolgaozden.net/iris_toolbox_learning/options/re-agents/), [source](docs_site/options/re-agents.md) |
+| Timing and information | `beliefs.info`, `expectations.re_info`, `history.re_states`, `history.realtime` | [site](https://tolgaozden.net/iris_toolbox_learning/options/timing/), [source](docs_site/options/timing.md) |
+| Perceived laws of motion | `beliefs.plm.default`, `.by_var`, `.derived`, `.var` | [site](https://tolgaozden.net/iris_toolbox_learning/options/plm/), [source](docs_site/options/plm.md) |
+| Gains | `gain.rule`, `gain.value`, `gain.koz.*` | [site](https://tolgaozden.net/iris_toolbox_learning/options/gains/), [source](docs_site/options/gains.md) |
+| Initial beliefs | `beliefs.init.*`, `beliefs.update`, `history.learn` | [site](https://tolgaozden.net/iris_toolbox_learning/options/initial-beliefs/), [source](docs_site/options/initial-beliefs.md) |
+| Shares and switching | `shares.*`, `switching.*` | [site](https://tolgaozden.net/iris_toolbox_learning/options/switching/), [source](docs_site/options/switching.md) |
+| Projection facility | `projection.facility` | [site](https://tolgaozden.net/iris_toolbox_learning/options/projection-facility/), [source](docs_site/options/projection-facility.md) |
+| History modes | `history.mode`, `history.inversion.*`, `history.kalman.init` | [site](https://tolgaozden.net/iris_toolbox_learning/options/history-modes/), [source](docs_site/options/history-modes.md) |
+| Forecasts, shocks, conditions | `forecast.*`, `shocks.*`, `conditions`, `compare_with`, `engine.*` | [site](https://tolgaozden.net/iris_toolbox_learning/options/forecasts-conditions/), [source](docs_site/options/forecasts-conditions.md) |
+| Monetary policy | `policy.*` | [site](https://tolgaozden.net/iris_toolbox_learning/options/policy/), [source](docs_site/options/policy.md) |
+| Density forecasts | `density.*` | [site](https://tolgaozden.net/iris_toolbox_learning/options/densities/), [source](docs_site/options/densities.md) |
+| Shock decompositions | `hetlearn.decompose` | [site](https://tolgaozden.net/iris_toolbox_learning/options/decompositions/), [source](docs_site/options/decompositions.md) |
+| Forecast evaluation | `hetlearn.evaluate`, `hetlearn.evaluate_tables` | [site](https://tolgaozden.net/iris_toolbox_learning/options/evaluation/), [source](docs_site/options/evaluation.md) |
+| Further expectation rules | `expectations.types`, `expectations.transforms`, `shares.init`, `shares.fixed` | [site](https://tolgaozden.net/iris_toolbox_learning/options/further-expectation-rules/), [source](docs_site/options/further-expectation-rules.md) |
 
-Every option with its default: [Options reference](https://tolgaozden.github.io/iris_toolbox_learning/reference/options/)
+Every option with its default: [Options reference](https://tolgaozden.net/iris_toolbox_learning/reference/options/)
 ([source](docs_site/reference/options.md)). `scenarios/sw07/base/sw07_re.m` lists every option
 as a commented line.
 
@@ -231,7 +235,7 @@ cfg.shares.init = struct('RE', 1/3, 'BR', 1/3, 'TB', 1/3);
 res = hetlearn.run(cfg);
 ```
 
-Every rule with its code and results: [Further expectation rules](https://tolgaozden.github.io/iris_toolbox_learning/options/further-expectation-rules/)
+Every rule with its code and results: [Further expectation rules](https://tolgaozden.net/iris_toolbox_learning/options/further-expectation-rules/)
 ([source](docs_site/options/further-expectation-rules.md)).
 
 ## 9. Your own model
@@ -249,26 +253,26 @@ opts = hetlearn.load_options(cfg, struct());
 info.meta.forward_vars                         % the variables that can learn
 ```
 
-Step by step: [Your own model](https://tolgaozden.github.io/iris_toolbox_learning/your-own-model/)
+Step by step: [Your own model](https://tolgaozden.net/iris_toolbox_learning/your-own-model/)
 ([source](docs_site/your-own-model.md)).
 
 ## 10. Documentation map
 
 | Page | Website | Source |
 |---|---|---|
-| Home | [site](https://tolgaozden.github.io/iris_toolbox_learning/) | [docs_site/index.md](docs_site/index.md) |
-| Installation | [site](https://tolgaozden.github.io/iris_toolbox_learning/getting-started/installation/) | [source](docs_site/getting-started/installation.md) |
-| Quick start | [site](https://tolgaozden.github.io/iris_toolbox_learning/getting-started/quick-start/) | [source](docs_site/getting-started/quick-start.md) |
-| Application 1 tutorial | [site](https://tolgaozden.github.io/iris_toolbox_learning/tutorial/application-1/) | [source](docs_site/tutorial/application-1.md) |
-| Applications overview | [site](https://tolgaozden.github.io/iris_toolbox_learning/applications/) | [source](docs_site/applications/index.md) |
-| Applications 2-6 | [2](https://tolgaozden.github.io/iris_toolbox_learning/applications/app2-replay/), [3](https://tolgaozden.github.io/iris_toolbox_learning/applications/app3-policy/), [4](https://tolgaozden.github.io/iris_toolbox_learning/applications/app4-ramsey/), [5](https://tolgaozden.github.io/iris_toolbox_learning/applications/app5-density/), [6](https://tolgaozden.github.io/iris_toolbox_learning/applications/app6-history/) | [docs_site/applications/](docs_site/applications/) |
-| Options overview | [site](https://tolgaozden.github.io/iris_toolbox_learning/options/) | [source](docs_site/options/index.md) |
+| Home | [site](https://tolgaozden.net/iris_toolbox_learning/) | [docs_site/index.md](docs_site/index.md) |
+| Installation | [site](https://tolgaozden.net/iris_toolbox_learning/getting-started/installation/) | [source](docs_site/getting-started/installation.md) |
+| Quick start | [site](https://tolgaozden.net/iris_toolbox_learning/getting-started/quick-start/) | [source](docs_site/getting-started/quick-start.md) |
+| Application 1 tutorial | [site](https://tolgaozden.net/iris_toolbox_learning/tutorial/application-1/) | [source](docs_site/tutorial/application-1.md) |
+| Applications overview | [site](https://tolgaozden.net/iris_toolbox_learning/applications/) | [source](docs_site/applications/index.md) |
+| Applications 2-6 | [2](https://tolgaozden.net/iris_toolbox_learning/applications/app2-replay/), [3](https://tolgaozden.net/iris_toolbox_learning/applications/app3-policy/), [4](https://tolgaozden.net/iris_toolbox_learning/applications/app4-ramsey/), [5](https://tolgaozden.net/iris_toolbox_learning/applications/app5-density/), [6](https://tolgaozden.net/iris_toolbox_learning/applications/app6-history/) | [docs_site/applications/](docs_site/applications/) |
+| Options overview | [site](https://tolgaozden.net/iris_toolbox_learning/options/) | [source](docs_site/options/index.md) |
 | Option pages | [section 7](#7-options-at-a-glance) | [docs_site/options/](docs_site/options/) |
-| Your own model | [site](https://tolgaozden.github.io/iris_toolbox_learning/your-own-model/) | [source](docs_site/your-own-model.md) |
-| Options reference | [site](https://tolgaozden.github.io/iris_toolbox_learning/reference/options/) | [source](docs_site/reference/options.md) |
-| Functions and outputs | [site](https://tolgaozden.github.io/iris_toolbox_learning/reference/functions-outputs/) | [source](docs_site/reference/functions-outputs.md) |
-| Technical appendix | [site](https://tolgaozden.github.io/iris_toolbox_learning/reference/technical-appendix/) | [docs/technical_appendix/](docs/technical_appendix/) |
-| FAQ and troubleshooting | [site](https://tolgaozden.github.io/iris_toolbox_learning/help/faq/) | [source](docs_site/help/faq.md) |
+| Your own model | [site](https://tolgaozden.net/iris_toolbox_learning/your-own-model/) | [source](docs_site/your-own-model.md) |
+| Options reference | [site](https://tolgaozden.net/iris_toolbox_learning/reference/options/) | [source](docs_site/reference/options.md) |
+| Functions and outputs | [site](https://tolgaozden.net/iris_toolbox_learning/reference/functions-outputs/) | [source](docs_site/reference/functions-outputs.md) |
+| Technical appendix | [site](https://tolgaozden.net/iris_toolbox_learning/reference/technical-appendix/) | [docs/technical_appendix/](docs/technical_appendix/) |
+| FAQ and troubleshooting | [site](https://tolgaozden.net/iris_toolbox_learning/help/faq/) | [source](docs_site/help/faq.md) |
 
 Other documents in the repository:
 
@@ -284,7 +288,7 @@ Other documents in the repository:
 ## 11. Repository layout
 
 ```
-setup_paths.m              IRIS and project paths (edit line 12)
+setup_paths.m              IRIS and project paths (IRIS: HETLEARN_IRIS_DIR or a sibling folder)
 run_applications.m         runner for the SW07 applications, model variants and evaluation
 run_br_app1.m              the seven further rules in Application 1
 run_br_portfolio.m         their impulse responses and Kalman RMSE
