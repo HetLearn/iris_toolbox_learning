@@ -1,17 +1,19 @@
 function out = run_br_portfolio(cmd, varargin)
 %RUN_BR_PORTFOLIO  BR portfolio: generalised IRFs from 2019Q4 and in-sample (Kalman) RMSE, with their CSV tables.
 %
-%   run_br_portfolio('irf')          GIRF runs of the 23 scenarios (references a1_re, a1_learn, then
-%                                    the 21 variants of scenarios/sw07/br_portfolio/), in this session
+%   run_br_portfolio('irf')          GIRF runs of the 9 scenarios (references a1_re, a1_learn, then
+%                                    the 7 variants of scenarios/sw07/br_portfolio/), in this session
 %   run_br_portfolio('irf', ids)     only these ids (cellstr), in the order given
-%   run_br_portfolio('rmse')         Kalman-history runs of the 23 scenarios ('rmse', ids: only these)
+%   run_br_portfolio('rmse')         Kalman-history runs of the 9 scenarios ('rmse', ids: only these)
 %   run_br_portfolio('check')        gate: the forecast-stage reruns of 'irf' against full hetlearn.run
-%                                    calls with shocks.add, for ten (scenario, shock) pairs
+%                                    calls with shocks.add, for eight (scenario, shock) pairs
 %   run_br_portfolio('csv')          write the tables below from the saved runs ('csv_irf', 'csv_rmse':
 %                                    one family of tables)
-%   ids = run_br_portfolio('ids')    the 23 ids in report order (= run_br_app1('ids'))
+%   ids = run_br_portfolio('ids')    the 9 ids in report order (= run_br_app1('ids'))
 %
 %   docs/DESIGN_br_extensions.md sections 4 (impulse responses) and 5 (in-sample RMSE), phase P7.
+%   Since 2026-10-22 the portfolio has the seven variants that docs/BR_audit.txt keeps (5b, 7, 10,
+%   19, 23, 24, 26); see help run_br_app1.
 %   Every run uses the original SW07 parameters (the published mode, config/master_options.m) and
 %   inherits every baseline option, projection.facility 'alm' included; facility events are
 %   recorded. Nothing is written to results/<id>/: runs are not saved (hetlearn.run 'save' false, or
@@ -24,13 +26,12 @@ function out = run_br_portfolio(cmd, varargin)
 %   2019Q4 are the variant's own, and core's zero-shock forecast. Then the forecast stage
 %   (hetlearn.engine.forecast with core's forecast bundle, as hetlearn.density.run calls it) runs from
 %   that state with no shock and with +1 sd and -1 sd of one shock added in 2020Q1: the 7 SW07 shocks
-%   (std_<shock> of the published mode) and, in the models that have them, the wedge shocks e_wpinf
-%   (variant 29) and e_xi (31) at the std their transform sets. No other shocks; beliefs, gains and
-%   shares keep updating. GIRF = shocked path minus unshocked path. A forecast that stops
-%   (hetlearn:engine:noSolution, :levelNoSolution, :almUnstable) is rerun up to the quarter before the
-%   stop; its GIRF is NaN after that. Gates kept in each file: gate_base (the unshocked rerun against
-%   core's forecast, max abs difference) and, for a1_re, gate_srf (the RE(t-1) GIRFs against IRIS srf
-%   of its solved model, max abs difference). 'check' compares reruns with full hetlearn.run calls.
+%   (std_<shock> of the published mode). No other shocks; beliefs, gains and shares keep updating.
+%   GIRF = shocked path minus unshocked path. A forecast that stops (hetlearn:engine:noSolution,
+%   :almUnstable) is rerun up to the quarter before the stop; its GIRF is NaN after that. Gates kept
+%   in each file: gate_base (the unshocked rerun against core's forecast, max abs difference) and,
+%   for a1_re, gate_srf (the RE(t-1) GIRFs against IRIS srf of its solved model, max abs
+%   difference). 'check' compares reruns with full hetlearn.run calls.
 %
 %   RMSE (section 5). Each scenario with history.mode 'kalman', history.re_states 'smoothed' (required
 %   with 'kalman'; the Kalman history is one-sided by construction), history.kalman.init 'stochastic'
@@ -53,8 +54,7 @@ function out = run_br_portfolio(cmd, varargin)
 %                         Variables: pinfobs, dy, robs, dc, pinf_exp1 (aggregate inflation expectation)
 %                         and, for switching runs, the shares of the types in the population:
 %                         n_<type>_<x> (end of quarter, discrete choice) and n_model_<type>_<x> (in force
-%                         in the model). The references have no wedge shock: their rows for e_wpinf and
-%                         e_xi are 0 with status shock_not_in_model.
+%                         in the model).
 %     irf_runs.csv        one row per scenario x shock x sign, plus the unshocked run (shock 'none'):
 %                         status, stop, facility events of the forecast stage (count, types, first,
 %                         last), asymmetry max_h |GIRF(+) + GIRF(-)| in report units over the five
@@ -65,17 +65,18 @@ function out = run_br_portfolio(cmd, varargin)
 %     rmse_long.csv       variant x sample x observable: n, RMSE (model units, and x scale), RMSE and
 %                         ratio against the baseline and RE(t-1), DM against the baseline and against
 %                         RE(t-1) (statistic, p-value, mean loss difference), the log likelihood of the
-%                         sample (variant, baseline, RE(t-1)), flags (extra shock, largest model gap,
-%                         facility events), status
+%                         sample (variant, baseline, RE(t-1)), the largest model gap (max |forecast in
+%                         the model - forecast the agents record| over the types in the Kalman history,
+%                         a check), facility events, status
 %     rmse_runs.csv       one row per scenario: status, log likelihood 1966Q1-2026Q2, solves, facility
-%                         events, extra shock and its std, model gap by type, shares at 2019Q4 and
-%                         2026Q2, the check of the RMSE table (evaluate_tables against
-%                         kalman_history('rmse'), max abs difference)
+%                         events, model gap by type, shares at 2019Q4 and 2026Q2, the check of the RMSE
+%                         table (evaluate_tables against kalman_history('rmse'), max abs difference)
 %     irf_check.csv       ('check') per pair: max abs difference between the rerun and the full run
 %                         (GIRF and unshocked path of the five paths, end-of-quarter shares)
 %
-%   Parallel sessions: 'irf' and 'rmse' write one file per scenario, so up to four sessions can take
-%   disjoint id lists; 'csv' runs after all of them.
+%   Sessions: on 2026-10-21 the 9 scenarios took about three minutes ('irf') and one and a half
+%   ('rmse') in total, so one session is enough. 'irf' and 'rmse' write one file per scenario, so
+%   sessions can also take disjoint id lists; 'csv' runs after all of them.
 %
 %   See also run_br_app1, hetlearn.run, hetlearn.engine.core, hetlearn.engine.forecast,
 %   hetlearn.engine.kalman_history, hetlearn.evaluate_tables, reports/build_br_portfolio_report.py.
@@ -139,27 +140,13 @@ function V = variant_table()
 C = {
 'a1_re',                   'RE',  'ref'
 'a1_learn',                'BL',  'ref'
-'br01a_levelk_egm',        '1a',  'depth'
-'br01b_levelk_bcl',        '1b',  'depth'
-'br04_shallow',            '4',   'depth'
-'br05a_cd',                '5a',  'disc'
 'br05b_cd_learn',          '5b',  'disc'
-'br06_hyperbolic',         '6',   'disc'
 'br07_myopia_anchoring',   '7',   'info'
 'br10_diagnostic',         '10',  'info'
-'br17_heuristics',         '17',  'learn'
-'br20_sac',                '20',  'learn'
 'br23_intercept_only',     '23',  'learn'
 'br24_mean_only',          '24',  'learn'
-'br25a_kf_ar2',            '25a', 'learn'
-'br25b_kf_average',        '25b', 'learn'
 'br26_experience',         '26',  'learn'
-'br18_degrauwe',           '18',  'dist'
 'br19_target_believers',   '19',  'dist'
-'br27_bma',                '27',  'dist'
-'br29_wedge',              '29',  'dist'
-'br31_confidence',         '31',  'dist'
-'br33_farmer',             '33',  'dist'
 };
 V = struct('id', C(:, 1), 'no', C(:, 2), 'family', C(:, 3));
 end
@@ -167,11 +154,6 @@ end
 
 function c = sw_shocks()
 c = {'ea', 'eb', 'eg', 'eqs', 'em', 'epinf', 'ew'};
-end
-
-
-function c = wedge_shocks()
-c = {'e_wpinf', 'e_xi'};
 end
 
 
@@ -236,7 +218,7 @@ R.model_values = struct();
 if isfield(res0.meta, 'model_values')
     R.model_values = res0.meta.model_values;
 end
-shocks = [sw_shocks(), wedge_shocks()];
+shocks = sw_shocks();
 shocks = shocks(ismember(shocks, F.ctx.eList));
 R.shocks = shocks;
 R.sd = struct();
@@ -468,9 +450,11 @@ end
 % gate: forecast-stage reruns = full hetlearn.run calls
 % =========================================================================
 function T = check_irf(odir)
-P = {'a1_learn', 'epinf'; 'a1_re', 'em'; 'br01a_levelk_egm', 'eb'; 'br17_heuristics', 'em'; ...
-    'br18_degrauwe', 'eb'; 'br23_intercept_only', 'epinf'; 'br25b_kf_average', 'ew'; ...
-    'br29_wedge', 'e_wpinf'; 'br31_confidence', 'e_xi'; 'br33_farmer', 'ea'};
+% the references, one pair per transform kind (multiplier, equation copy, diagnostic), the three-type
+% run, the re_mean type and the mean-only PLM; together they cover six of the seven shocks
+P = {'a1_learn', 'epinf'; 'a1_re', 'em'; 'br05b_cd_learn', 'em'; 'br07_myopia_anchoring', 'epinf'; ...
+    'br10_diagnostic', 'eb'; 'br19_target_believers', 'ew'; 'br23_intercept_only', 'ea'; ...
+    'br24_mean_only', 'eqs'};
 VARS = irf_vars();
 rows = cell(0, 9);
 for i = 1:size(P, 1)
@@ -586,12 +570,6 @@ R.rmse_tab = table2array(T.table);
 R.rmse_n = table2array(T.n);
 R.loglik_sub = table2array(T.loglik);
 R.events = events_cell(r.events);
-R.eList = reshape(r.meta.eList, 1, []);
-R.extra_shocks = intersect(wedge_shocks(), R.eList, 'stable');
-R.extra_std = NaN(1, numel(R.extra_shocks));
-for k = 1:numel(R.extra_shocks)
-    R.extra_std(k) = extra_std(r, R.extra_shocks{k});
-end
 R.learnVars = reshape(r.meta.learnVars, 1, []);
 R.shares = cell(0, 4);                        % {variable, type, date, end-of-quarter share}
 for x = R.learnVars
@@ -616,45 +594,9 @@ R.runtime_s = toc(tAll);
 save(fullfile(odir, 'rmse_runs', [id '.mat']), 'R');
 ip = strcmp(R.rmse_rows, 'pinfobs');
 nfac = sum(startsWith(R.events(:, 2), 'projection'));
-[~, gmax] = flags_of(R);
+gmax = gap_of(R);
 fprintf('  %s: ok in %.1f s; loglik %.3f from %s; RMSE pinfobs full %.4f; solves %d; facility events %d; model gap %.3g\n', ...
     id, R.runtime_s, R.loglik, R.loglik_start, R.rmse_tab(ip, 1), R.n_solve, nfac, gmax);
-end
-
-
-function v = extra_std(r, shock)
-% std of a wedge shock: the transform's number, or the 'model:<rule>' value the run recorded.
-v = NaN;
-tf = r.cfg.expectations.transforms;
-for i = 1:numel(tf)
-    f = tf(i).factor;
-    if isstruct(f) && isfield(f, 'shock') && strcmp(char(f.shock), shock)
-        if isnumeric(f.std)
-            v = double(f.std);
-        elseif ischar(f.std) && isfield(r.meta, 'model_values')
-            v = mvnum(r.meta.model_values, regexprep(f.std, '^-?model:', ''));
-        end
-    end
-end
-end
-
-
-function v = mvnum(s, f)
-v = NaN;
-if ~isstruct(s) || ~isfield(s, f)
-    return
-end
-x = s.(f);
-if isnumeric(x) && ~isempty(x)
-    v = double(x(1));
-elseif isstruct(x)
-    for k = {'value', 'std', 'mean', 'sigma', 'g'}
-        if isfield(x, k{1}) && isnumeric(x.(k{1})) && ~isempty(x.(k{1}))
-            v = double(x.(k{1})(1));
-            return
-        end
-    end
-end
 end
 
 
@@ -680,12 +622,6 @@ for i = 1:numel(V)
     if exist(f, 'file') == 2
         tmp = load(f, 'R');
         R.(V(i).id) = tmp.R;
-    end
-end
-allShocks = {};
-for i = 1:numel(V)
-    if isfield(R, V(i).id) && isfield(R.(V(i).id), 'shocks')
-        allShocks = union(allShocks, R.(V(i).id).shocks, 'stable');
     end
 end
 for i = 1:numel(V)
@@ -742,26 +678,6 @@ for i = 1:numel(V)
             'error_id', X.error_id, 'message', X.message, 'stop_date', X.stop_date, 'n_solved', X.n_solved, ...
             'n_solve', X.n_solve, 'facility_events', nf, 'facility_types', ft, 'facility_first', f1, ...
             'facility_last', f2, 'other_events', size(X.events, 1) - nf, 'asym_max', am, 'asym_rel', ar); %#ok<AGROW>
-    end
-    % the references have no wedge shock: zero rows, flagged, so that the report reads every line from here
-    if strcmp(V(i).family, 'ref')
-        for s = setdiff(allShocks, r.shocks, 'stable')
-            for sg = [1, -1]
-                for v = VARS
-                    L{end+1} = long_block(id, V(i), s{1}, sg, NaN, v{1}, hh, hz, zeros(nH, 1), zeros(nH, 1), ...
-                        B.paths.(v{1}), 'pp, % annualised', 'shock_not_in_model'); %#ok<AGROW>
-                end
-                for q = 1:size(shareVars, 1)
-                    x = shareVars{q, 1};
-                    k = find(strcmp(B.shares.(x).names, shareVars{q, 2}), 1);
-                    for w = {'n_end', 'n_model'}
-                        L{end+1} = long_block(id, V(i), s{1}, sg, NaN, share_name(w{1}, shareVars{q, 2}, x), hh, hz, ...
-                            zeros(nH, 1), zeros(nH, 1), B.shares.(x).(w{1})(:, k), 'share (0-1); report: pp of the population', ...
-                            'shock_not_in_model'); %#ok<AGROW>
-                    end
-                end
-            end
-        end
     end
     % 2019Q4 state, the shares in force in 2020Q1 (unshocked run) and the shock sizes
     for q = 1:size(r.state, 1)
@@ -923,9 +839,9 @@ spec = hetlearn.load_spec('sw07');
 % ---- rmse_long ----------------------------------------------------------------------------------
 hdr = {'variant', 'no', 'family', 'sample', 'first', 'last', 'variable', 'n', 'rmse_model', 'rmse_report', 'scale', ...
     'rmse_baseline', 'rel_baseline', 'rmse_re', 'rel_re', 'dm_stat', 'dm_p', 'dm_mean_loss_diff', 'dm_re_stat', 'dm_re_p', ...
-    'dm_re_mean_loss_diff', 'loglik', 'loglik_baseline', 'loglik_re', 'loglik_minus_baseline', 'extra_shock', ...
-    'model_gap_max', 'facility_events', 'status'};
-txt = {'variant', 'no', 'family', 'sample', 'first', 'last', 'variable', 'extra_shock', 'status'};
+    'dm_re_mean_loss_diff', 'loglik', 'loglik_baseline', 'loglik_re', 'loglik_minus_baseline', 'model_gap_max', ...
+    'facility_events', 'status'};
+txt = {'variant', 'no', 'family', 'sample', 'first', 'last', 'variable', 'status'};
 rows = cell(0, numel(hdr));
 chk = struct();
 for i = 1:numel(V)
@@ -937,7 +853,7 @@ for i = 1:numel(V)
     end
     if isOk
         r = R.(id);
-        [xs, gmax] = flags_of(r);
+        gmax = gap_of(r);
         nfac = sum(startsWith(r.events(:, 2), 'projection'));
         chk.(id) = 0;
     end
@@ -956,8 +872,7 @@ for i = 1:numel(V)
                 row = setr(row, hdr, 'n', a.n, 'rmse_model', a.rmse, 'rmse_report', a.rmse * scale_of(spec, obs{k}), ...
                     'rmse_baseline', a.rmse_benchmark, 'rel_baseline', a.relative_rmse, 'rmse_re', b.rmse_benchmark, ...
                     'rel_re', b.relative_rmse, 'loglik', ll, 'loglik_baseline', llb, 'loglik_re', llr, ...
-                    'loglik_minus_baseline', ll - llb, 'extra_shock', strjoin(xs, ' '), 'model_gap_max', gmax, ...
-                    'facility_events', nfac);
+                    'loglik_minus_baseline', ll - llb, 'model_gap_max', gmax, 'facility_events', nfac);
                 if isKey(DB, kk)
                     z = TB.dm(DB(kk), :);
                     row = setr(row, hdr, 'dm_stat', z.dm_stat, 'dm_p', z.p_value, 'dm_mean_loss_diff', z.mean_loss_diff);
@@ -977,10 +892,9 @@ write_cols(fullfile(odir, 'rmse_long.csv'), hdr, cells_to_cols(rows));
 % ---- rmse_runs ----------------------------------------------------------------------------------
 hG = {'variant', 'no', 'family', 'status', 'error_id', 'message', 'stop_date', 'runtime_s', 'mode', 'facility', ...
     'loglik_full', 'loglik_from_init', 'n_solve', 'facility_events', 'facility_types', 'facility_first', 'facility_last', ...
-    'other_events', 'extra_shock', 'extra_shock_std', 'model_gap_max', 'model_gap_by_type', 'shares_2019Q4', ...
-    'shares_2026Q2', 'rmse_check_maxdiff'};
+    'other_events', 'model_gap_max', 'model_gap_by_type', 'shares_2019Q4', 'shares_2026Q2', 'rmse_check_maxdiff'};
 tG = {'variant', 'no', 'family', 'status', 'error_id', 'message', 'stop_date', 'mode', 'facility', 'facility_types', ...
-    'facility_first', 'facility_last', 'extra_shock', 'model_gap_by_type', 'shares_2019Q4', 'shares_2026Q2'};
+    'facility_first', 'facility_last', 'model_gap_by_type', 'shares_2019Q4', 'shares_2026Q2'};
 G = cell(numel(V), numel(hG));
 for i = 1:numel(V)
     id = V(i).id;
@@ -995,17 +909,12 @@ for i = 1:numel(V)
             'runtime_s', r.runtime_s);
         continue
     end
-    [xs, gmax, gtxt] = flags_of(r);
+    [gmax, gtxt] = gap_of(r);
     [nf, ft, f1, f2] = fac_summary(r.events);
-    xstd = NaN;
-    if ~isempty(r.extra_std)
-        xstd = r.extra_std(1);
-    end
     G(i, :) = setr(g, hG, 'status', r.status, 'runtime_s', r.runtime_s, 'mode', r.mode, 'facility', r.facility, ...
         'loglik_full', r.loglik_sub(strcmp(r.rmse_cols, 'full')), 'loglik_from_init', r.loglik, 'n_solve', r.n_solve, ...
         'facility_events', nf, 'facility_types', ft, 'facility_first', f1, 'facility_last', f2, ...
-        'other_events', size(r.events, 1) - nf, 'extra_shock', strjoin(xs, ' '), 'extra_shock_std', xstd, ...
-        'model_gap_max', gmax, 'model_gap_by_type', gtxt, 'shares_2019Q4', shares_txt(r.shares, '2019Q4'), ...
+        'other_events', size(r.events, 1) - nf, 'model_gap_max', gmax, 'model_gap_by_type', gtxt, 'shares_2019Q4', shares_txt(r.shares, '2019Q4'), ...
         'shares_2026Q2', shares_txt(r.shares, r.origin), 'rmse_check_maxdiff', chk.(id));
 end
 write_cols(fullfile(odir, 'rmse_runs.csv'), hG, cells_to_cols(G));
@@ -1030,9 +939,8 @@ s = strjoin(cellfun(@(x, t, v) sprintf('%s:%s %.3f', x, t, v), sh(:, 1)', sh(:, 
 end
 
 
-function [xs, gmax, gtxt] = flags_of(r)
-% extra shocks, the largest model gap over the types (the BR gap of a two-type run) and the gaps by type
-xs = r.extra_shocks;
+function [gmax, gtxt] = gap_of(r)
+% the largest model gap over the types (the BR gap of a two-type run) and the gaps by type
 if ~isempty(fieldnames(r.gap_types))
     f = fieldnames(r.gap_types);
     g = cellfun(@(k) r.gap_types.(k), f);
@@ -1073,7 +981,7 @@ end
 
 
 function st = stop_or_error(eid)
-if any(strcmp(eid, {'hetlearn:engine:noSolution', 'hetlearn:engine:levelNoSolution', 'hetlearn:engine:almUnstable'}))
+if any(strcmp(eid, {'hetlearn:engine:noSolution', 'hetlearn:engine:almUnstable'}))
     st = 'stopped';
 else
     st = 'error';
