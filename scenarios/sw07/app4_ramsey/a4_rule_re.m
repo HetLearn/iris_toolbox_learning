@@ -15,7 +15,7 @@ function cfg = a4_rule_re()
 %   'current' (E_t pinf_{t+1}). It is set here and in a4_rule_learn.m, the
 %   parents of every app-4 scenario, so the rule and the Ramsey runs share one
 %   information set. Everything else is the baseline (published SW07
-%   parameters, filtered RE states, KOZ gain, chi 2, memory 0.8, no facility).
+%   parameters, filtered RE states, KOZ gain, chi 2, memory 0.8, facility 'alm').
 
 cfg = a1_re();
 cfg.id = 'a4_rule_re';
