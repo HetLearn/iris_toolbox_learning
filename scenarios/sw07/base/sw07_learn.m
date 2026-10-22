@@ -12,9 +12,9 @@ function cfg = sw07_learn()
 %   data and the realised values in the fitness errors come from the one-sided
 %   RE filter (history.re_states = 'filtered') over 1966Q1-2022Q2; beliefs and
 %   shares are carried into the forecast, which starts from the smoothed
-%   state. No projection facility: a quarter without a model solution stops the
-%   run. Parameters: the published SW07 (2007) mode. Every other option is
-%   inherited from sw07_re.m, where all of them are listed.
+%   state. Facility 'alm' (since 2026-10-21): an unstable ALM reverts the
+%   beliefs, then keeps last quarter's shares. Parameters: the published SW07
+%   (2007) mode. Every other option is inherited from sw07_re.m (all listed).
 
 cfg = sw07_re();
 cfg.id = 'sw07_learn';
