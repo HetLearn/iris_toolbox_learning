@@ -7,7 +7,7 @@ function cfg = v3_all_plm_alm()
 %   previous baseline, to 2026-10-19): a PLM block whose largest root would
 %   exceed 1 keeps its previous beliefs, then the model (ALM) is checked; an
 %   unstable model reverts every belief (and, if needed, keeps last quarter's
-%   shares). Replaces v3_all_none (2026-10-20), now that 'none' is the
+%   shares). Replaced v3_all_none on 2026-10-20, when 'none' was the
 %   baseline. Writes compare_v3_all.csv (if v3_all has results).
 
 cfg = v3_all();
