@@ -19,7 +19,7 @@ git clone https://github.com/tolgaozden/iris_toolbox_learning.git
 cd iris_toolbox_learning
 ```
 
-The repository is private for now; ask the owner for access. A fresh clone has the toolbox,
+The repository is public under the MIT licence. A fresh clone has the toolbox,
 the model packages with their data, every scenario file and the tests. It has no `results/`
 and no `generated/` folders: the toolbox writes them on the first run.
 
