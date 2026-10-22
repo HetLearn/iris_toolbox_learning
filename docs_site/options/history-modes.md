@@ -9,7 +9,7 @@ the past states. `history.mode` decides where they come from.
 | `history.learn` | `true`, `false` | Learn over the history; `false` = the initial beliefs and shares apply at the origin |
 | `history.mode` | `'re_smoother'`, `'inversion'`, `'kalman'` | The RE model's filter or smoother; the history backed out with the learning model; a time-varying Kalman filter of the learning model |
 | `history.re_states` | `'smoothed'`, `'filtered'` | `'re_smoother'` only: two-sided smoother or one-sided filter ([Timing](timing.md#filtered-or-smoothed-history)). Project baseline: `'filtered'` |
-| `history.realtime` | `false`, `true` | RE filter on data up to the origin only ([Timing](timing.md#real-time-filtering)) |
+| `history.realtime` | `false`, `true` | `'re_smoother'` only: RE filter on data up to the origin only ([Timing](timing.md#real-time-filtering)); ignored under `'inversion'` and `'kalman'` |
 | `history.inversion.start` | `[]` | First inversion quarter; `[]` = `beliefs.init.date` |
 | `history.inversion.shocks` | `{}` | Shocks backed out; `{}` = every transition shock |
 | `history.kalman.init` | `'stochastic'`, `'smoothed'` | `'kalman'` only: start from the asymptotic distribution of the first quarter's model, or at `beliefs.init.date` from the RE-smoothed state |
