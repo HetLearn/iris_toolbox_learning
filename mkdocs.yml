@@ -3,6 +3,7 @@
 # Published by .github/workflows/docs.yml on every push to main that touches the site.
 
 site_name: hetlearn
+site_url: https://tolgaozden.net/iris_toolbox_learning/
 site_description: >-
   MATLAB toolbox on IRIS for forecasts and scenarios with heterogeneous expectations:
   rational agents and adaptive learners whose shares switch on forecast performance.
