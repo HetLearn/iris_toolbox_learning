@@ -2,6 +2,12 @@ function R = test_options()
 %TEST_OPTIONS  Option tree, merge order and validation (hetlearn.defaults, load_options).
 %
 %   R = test_options()   returns a struct array of checks (name, pass, msg).
+%
+%   28 checks: defaults, removed and unknown options, enumerations and ranges, merge
+%   order, free-form subtrees; BR1-BR4 the bounded-rationality options as cut to the
+%   seven kept portfolio variants on 2026-10-22 (docs/BR_audit.txt): defaults, the
+%   kept variants and their scenario files load, malformed and removed settings are
+%   rejected, Ramsey and the inversion refuse the N-type path.
 
 R = struct('name', {}, 'pass', {}, 'msg', {});
 
@@ -120,7 +126,7 @@ R = expect_error(R, 'opt: bad expectations.mode rejected', ...
 R = expect_error(R, 'opt: bad shares.structure rejected', ...
     @() hetlearn.load_options(struct('shares', struct('structure', 'global')), struct()), 'shares.structure');
 R = expect_error(R, 'opt: bad gain.rule rejected', ...
-    @() hetlearn.load_options(struct('gain', struct('rule', 'no_such_rule')), struct()), 'gain.rule');   % 'decreasing' exists since P5
+    @() hetlearn.load_options(struct('gain', struct('rule', 'no_such_rule')), struct()), 'gain.rule');
 R = expect_error(R, 'opt: switching.memory = 1 rejected', ...
     @() hetlearn.load_options(struct('switching', struct('memory', 1)), struct()), 'switching.memory');
 R = expect_error(R, 'opt: hetero_filter reported as not implemented', ...
@@ -150,218 +156,192 @@ catch err
     R = add(R, 'opt: free-form subtrees merge unvalidated; strings converted', false, err.message);
 end
 
-% bounded-rationality extensions (docs/DESIGN_br_extensions.md; option schema of phase P0, 2026-10-20)
+% bounded-rationality extensions (docs/DESIGN_br_extensions.md; option schema of phase P0, 2026-10-20,
+% cut to the seven kept portfolio variants on 2026-10-22, docs/BR_audit.txt)
 R = br_schema(R);
 end
 
 
 % -------------------------------------------------------------------------
 function R = br_schema(R)
-% BR1 defaults off and idempotent; BR2 the portfolio variants of DESIGN_br_extensions sec. 3 pass
-% validation and load (every phase has landed); BR3 bad values are rejected by the validation; BR4
+% BR1 defaults off and idempotent; BR2 the seven kept portfolio variants (written out here and read
+% from their scenario files) and the RE/BR pair spelled out pass validation and load; BR3 bad values,
+% and the options, kinds, fields and values removed on 2026-10-22, are rejected by the validation; BR4
 % Ramsey and the inversion with the N-type path stop with hetlearn:options:unsupported (phase P6).
 nm = 'opt BR1: BR options present and off by default; load_options(struct()) passes and is idempotent';
 try
     d = hetlearn.defaults();
     ok = isempty(d.expectations.types) && isstruct(d.expectations.types) ...
-        && isequal(fieldnames(d.expectations.types)', {'name', 'kind', 'variant', 'info', 'plm', 'update', ...
-        'gain', 'rule', 'base', 'k', 'variables', 'cost'}) && isempty(d.expectations.transforms) ...
-        && isequal(fieldnames(d.expectations.transforms)', {'kind', 'types', 'scope', 'exclude', 'profile', ...
-        'value', 'factor'}) && isempty(d.shares.init) && isempty(d.shares.fixed) && d.switching.inertia == 0 ...
-        && isempty(d.switching.costs) && strcmp(d.switching.fitness, 'normalized') ...
-        && isempty(d.beliefs.kf.gamma) && strcmp(d.beliefs.kf.s2, 're_moments') && d.gain.decreasing.n0 == 1 ...
+        && isequal(fieldnames(d.expectations.types)', {'name', 'kind', 'rule'}) && isempty(d.expectations.transforms) ...
+        && isequal(fieldnames(d.expectations.transforms)', {'kind', 'types', 'scope', 'exclude', 'value'}) ...
+        && isempty(d.shares.init) && isempty(d.shares.fixed) ...
+        && isequal(sort(fieldnames(d.switching))', sort({'rule', 'intensity', 'memory'})) ...
+        && ~isfield(d.beliefs, 'kf') && ~isfield(d.gain, 'decreasing') ...
         && strcmp(d.history.kalman.init, 'stochastic') && strcmp(d.beliefs.update, 'rls') ...
         && strcmp(d.gain.rule, 'constant') && strcmp(d.history.mode, 're_smoother');
     o = hetlearn.load_options(struct(), struct());
     o2 = hetlearn.load_options(o, struct());
     ok = ok && isequaln(o2, o) && isequaln(o.expectations.types, d.expectations.types) ...
-        && isequaln(o.expectations.transforms, d.expectations.transforms) && isequaln(o.beliefs.kf, d.beliefs.kf) ...
+        && isequaln(o.expectations.transforms, d.expectations.transforms) ...
         && isequaln(o.shares.init, d.shares.init) && isequaln(o.shares.fixed, d.shares.fixed) ...
-        && isequaln(o.switching, d.switching) && isequaln(o.gain.decreasing, d.gain.decreasing) ...
-        && isequaln(o.history.kalman, d.history.kalman);
+        && isequaln(o.switching, d.switching) && isequaln(o.history.kalman, d.history.kalman);
     R = add(R, nm, ok, '');
 catch err
     R = add(R, nm, false, err.message);
 end
 
-ST7 = {'inve', 'pk', 'rk', 'c', 'lab', 'pinf', 'w'};
 FLEX = {'invef', 'pkf', 'rkf', 'cf', 'labf'};
 T = @(varargin) struct(varargin{:});
-reg = @(r) struct('by_var', struct('pinf', struct('regressors', {r}, 'constant', true)));
-mult = @(v, sc) struct('kind', 'multiplier', 'profile', 'flat', 'types', {{'RE'}}, 'value', v, 'scope', {sc});
-V = {};      % {name, cfg, expected phases ({} = loads)}
 c = struct('expectations', struct('mode', 'switching', 'variables', {{'pinf'}}));
-x = c; x.expectations.types = {T('name', 'L0', 'kind', 'plm'), T('name', 'L1', 'kind', 'level', 'base', 'L0', 'k', 1), ...
-    T('name', 'L2', 'kind', 'level', 'base', 'L0', 'k', 2)};
-x.shares.init = struct('L0', 1/3, 'L1', 1/3, 'L2', 1/3);
-V(end+1, :) = {'br01a (P4 landed 2026-10-21: loads)', x, {}};
-x = c; x.expectations.mode = 'fixed_shares';
-x.expectations.types = {T('name', 'L0', 'kind', 'plm'), T('name', 'L2', 'kind', 'level', 'base', 'L0', 'k', 2)};
-x.shares.fixed = struct('L0', 0, 'L2', 1);
-V(end+1, :) = {'br01b (P4 landed 2026-10-21: loads)', x, {}};
-x = c; x.expectations.transforms = [mult(0.76, {'c', 'lab', 'inve', 'pk', 'rk'}), ...
-    mult(0.86, {'w', 'pinf@Phillips curve, price setting', 'pinf@Wage Phillips curve, wage setting'}), ...
-    mult(0.08, {'pinf@Consumption Euler equation', 'pinf@Arbitrage equation for the value of capital'})];
-V(end+1, :) = {'br04 (P3 landed 2026-10-21: loads)', x, {}};
-cd5 = struct('kind', 'multiplier', 'profile', 'geometric', 'types', 'all', 'value', 0.62, 'scope', 'all', ...
+V = {};      % {name, cfg}: the settings of the kept variants (docs/DESIGN_br_extensions sec. 3)
+x = c; x.expectations.transforms = struct('kind', 'multiplier', 'types', 'all', 'value', 0.94, 'scope', 'learning', ...
     'exclude', {FLEX});
-x = c; x.expectations.transforms = cd5;
-V(end+1, :) = {'br05a (P3 landed 2026-10-21: loads)', x, {}};
-x = c; x.expectations.transforms = setfield(setfield(cd5, 'value', 0.94), 'scope', 'learning'); %#ok<SFLD>
-V(end+1, :) = {'br05b (P3 landed 2026-10-21: loads)', x, {}};
-x = c; x.expectations.transforms = setfield(setfield(cd5, 'profile', 'hyperbolic'), 'value', 0.25); %#ok<SFLD>
-V(end+1, :) = {'br06 (P3 landed 2026-10-21: loads)', x, {}};
+V(end+1, :) = {'br05b', x};
 x = c; x.expectations.transforms = struct('kind', 'myopia_anchoring', 'types', 'all', 'value', [0.52 0.434], ...
     'scope', {{'pinf@Phillips curve, price setting'}});
-V(end+1, :) = {'br07 (P3 landed 2026-10-21: loads)', x, {}};
+V(end+1, :) = {'br07', x};
 x = c; x.expectations.transforms = struct('kind', 'diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', 'all', ...
     'exclude', {FLEX});
-V(end+1, :) = {'br10 (P3 landed 2026-10-21: loads; the anchored reference is checked by load_model, P4)', x, {}};
-x = c; x.expectations.types = {T('name', 'ADA', 'kind', 'rule', 'rule', '0.65*x{-1} + 0.35*self{-1}'), ...
-    T('name', 'WTR', 'kind', 'rule', 'rule', 'x{-1} + 0.4*(x{-1} - x{-2})'), ...
-    T('name', 'STR', 'kind', 'rule', 'rule', 'x{-1} + 1.3*(x{-1} - x{-2})'), ...
-    T('name', 'LAA', 'kind', 'rule', 'rule', '0.5*(mean + x{-1}) + (x{-1} - x{-2})', 'gain', struct('rule', 'decreasing'))};
-x.switching = struct('intensity', 0.4, 'memory', 0.7, 'inertia', 0.9, 'fitness', 'unnormalized');
-x.shares.init = struct('ADA', 0.25, 'WTR', 0.25, 'STR', 0.25, 'LAA', 0.25);
-V(end+1, :) = {'br17 (P5 landed 2026-10-21: loads)', x, {}};   % LAA: gain.rule 'decreasing'
-x = c; x.expectations.variables = {'pinf', 'c'};
-x.expectations.types = {T('name', 'TAR', 'kind', 'rule', 'rule', '0', 'variables', {{'pinf'}}), ...
-    T('name', 'EXT', 'kind', 'rule', 'rule', 'x{-1}', 'variables', {{'pinf'}}), ...
-    T('name', 'OPT', 'kind', 're', 'variant', 'model_consistent', 'info', 'current', 'variables', {{'c'}}), ...
-    T('name', 'PES', 'kind', 're', 'variant', 'model_consistent', 'info', 'current', 'variables', {{'c'}})};
-x.expectations.transforms = [struct('kind', 'wedge', 'types', {{'OPT'}}, 'factor', struct('mean', 'model:sd_ygap_half')), ...
-    struct('kind', 'wedge', 'types', {{'PES'}}, 'factor', struct('mean', '-model:sd_ygap_half'))];
-V(end+1, :) = {'br18 (P3 landed 2026-10-21: loads)', x, {}};
+V(end+1, :) = {'br10', x};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm'), ...
     T('name', 'TB', 'kind', 'rule', 'rule', '0')};
 x.shares.init = struct('RE', 1/3, 'BR', 1/3, 'TB', 1/3);
-V(end+1, :) = {'br19 (P2 landed 2026-10-21: loads)', x, {}};
-x = c; x.expectations.variables = ST7; x.expectations.mode = 'learning';
-x.beliefs.update = 'sac'; x.gain = struct('rule', 'constant', 'value', 0.006);
-V(end+1, :) = {'br20 (P5 landed 2026-10-21: loads)', x, {}};
+V(end+1, :) = {'br19', x};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'IO', 'kind', 're_mean')};
-V(end+1, :) = {'br23 (P4 landed 2026-10-21: loads)', x, {}};
+V(end+1, :) = {'br23', x};
 x = c; x.beliefs.plm.by_var.pinf = struct('regressors', {{}}, 'constant', true);
-V(end+1, :) = {'br24 (existing options)', x, {}};
-x = c; x.expectations.variables = ST7; x.expectations.mode = 'learning';
-x.beliefs.plm.default = 'ar2'; x.beliefs.update = 'kf'; x.beliefs.kf = struct('gamma', 0.031);
-V(end+1, :) = {'br25a (P5 landed 2026-10-21: loads)', x, {}};
-x = c; x.expectations.variables = ST7; x.expectations.mode = 'fixed_shares';
-x.expectations.types = {T('name', 'M1', 'kind', 'plm', 'update', 'kf'), ...
-    T('name', 'M2', 'kind', 'plm', 'plm', reg({'pinf{-1}', 'r{-1}'}), 'update', 'kf'), ...
-    T('name', 'M3', 'kind', 'plm', 'plm', 'ar2', 'update', 'kf'), ...
-    T('name', 'M4', 'kind', 'plm', 'plm', reg({'pinf{-1}'}), 'update', 'kf'), ...
-    T('name', 'M5', 'kind', 'plm', 'plm', reg({'pinf{-1}', 'r{-1}', 'y{-1}'}), 'update', 'kf')};
-x.shares.fixed = struct('M1', 0.2, 'M2', 0.2, 'M3', 0.2, 'M4', 0.2, 'M5', 0.2);
-V(end+1, :) = {'br25b (P5 landed 2026-10-21: loads)', x, {}};
+V(end+1, :) = {'br24', x};
 x = c; x.gain = struct('rule', 'constant', 'value', 0.018);
-V(end+1, :) = {'br26 (existing options)', x, {}};
-x = c; x.switching = struct('fitness', 'unnormalized', 'memory', 1, 'intensity', 'model:bma');
-V(end+1, :) = {'br27 (P2 landed 2026-10-21: loads)', x, {}};
-x = c; x.expectations.transforms = struct('kind', 'wedge', 'types', 'all', 'scope', {{'pinf'}}, ...
-    'factor', struct('rho', 0.714, 'std', 0.182, 'mean', 0, 'shock', 'e_wpinf'));
-V(end+1, :) = {'br29 (P3 landed 2026-10-21: loads)', x, {}};
-x = c; x.expectations.transforms = struct('kind', 'wedge', 'types', 'all', 'scope', {{'c', 'inve', 'lab'}}, ...
-    'factor', struct('rho', 0.833, 'std', 'model:acd51', 'loadings', 'model:projection', 'shock', 'e_xi'));
-V(end+1, :) = {'br31 (P3 landed 2026-10-21: loads)', x, {}};
-x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'FN', 'kind', 'rule', 'rule', 'dn{-1} - re1(y{+1} - y)')};
-V(end+1, :) = {'br33 (P4 landed 2026-10-21: loads)', x, {}};
-x = c; x.history.mode = 'kalman';
-V(end+1, :) = {'kalman (P1 landed 2026-10-20: loads)', x, {}};
+V(end+1, :) = {'br26', x};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm')};
-x.switching.costs = struct('BR', 0.1);
 x.history.kalman.init = 'smoothed';
-V(end+1, :) = {'RE/BR spelled out, BR cost (P2 landed 2026-10-21: loads)', x, {}};
+V(end+1, :) = {'RE/BR spelled out', x};
 bad = {};
 for i = 1:size(V, 1)
     try
         hetlearn.load_options(V{i, 2}, struct());
-        if ~isempty(V{i, 3})
-            bad{end+1} = [V{i, 1} ': no error']; %#ok<AGROW>
-        end
     catch err
-        ph = unique(regexp(err.message, 'P\d', 'match'));
-        if ~(strcmp(err.identifier, 'hetlearn:options:notImplemented') && isequal(ph, sort(V{i, 3})))
-            bad{end+1} = sprintf('%s: %s [%s] %s', V{i, 1}, err.identifier, strjoin(ph, ','), err.message); %#ok<AGROW>
-        end
+        bad{end+1} = sprintf('%s: %s %s', V{i, 1}, err.identifier, err.message); %#ok<AGROW>
     end
 end
-R = add(R, sprintf(['opt BR2: %d configurations (the portfolio variants of DESIGN_br_extensions sec. 3, ' ...
-    'history.mode kalman, RE/BR spelled out) pass validation and load (phases P1 to P5 have landed; ' ...
-    'br24 and br26 use existing options)'], size(V, 1)), isempty(bad), strjoin(bad, ' | '));
+% the scenario files: scenarios/sw07/br_portfolio holds exactly the seven kept variants, and each loads
+keep = {'br05b_cd_learn', 'br07_myopia_anchoring', 'br10_diagnostic', 'br19_target_believers', ...
+    'br23_intercept_only', 'br24_mean_only', 'br26_experience'};
+pf = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'scenarios', 'sw07', 'br_portfolio');
+f = dir(fullfile(pf, 'br*.m'));
+have = sort(regexprep({f.name}, '\.m$', ''));
+if ~isequal(have, sort(keep))
+    bad{end+1} = sprintf('scenarios/sw07/br_portfolio holds {%s}, not the seven kept variants', strjoin(have, ', '));
+end
+for i = 1:numel(keep)
+    if exist(fullfile(pf, [keep{i} '.m']), 'file') ~= 2
+        continue                                   % reported above
+    end
+    try
+        hetlearn.load_options(feval(keep{i}));
+    catch err
+        bad{end+1} = sprintf('%s.m: %s %s', keep{i}, err.identifier, err.message); %#ok<AGROW>
+    end
+end
+R = add(R, sprintf(['opt BR2: %d configurations (the kept portfolio variants %s written out, RE/BR spelled out) ' ...
+    'and the %d scenario files of scenarios/sw07/br_portfolio pass validation and load'], size(V, 1), ...
+    strjoin(V(1:end-1, 1)', ', '), numel(keep)), isempty(bad), strjoin(bad, ' | '));
 
-E = {};      % {name, cfg, expected identifier}
+E = {};      % {name, cfg, accepted identifiers}
+idT = {'hetlearn:options:types'};
+idX = {'hetlearn:options:transforms'};
+idV = {'hetlearn:options:value'};
+rm = 'hetlearn:options:removed';                 % a helpful error for a removed name is also accepted
+idU = {'hetlearn:options:unknown', rm};          % options removed on 2026-10-22: unknown fields
 x = c; x.expectations.types = T('name', 'A', 'kind', 'heuristic');
-E(end+1, :) = {'unknown kind', x, 'hetlearn:options:types'};
+E(end+1, :) = {'unknown kind', x, idT};
 x = c; x.expectations.types = T('name', 'A', 'kind', 'plm', 'gainn', 0.1);
-E(end+1, :) = {'unknown type field', x, 'hetlearn:options:types'};
-x = c; x.expectations.types = {T('name', 'A', 'kind', 'plm'), T('name', 'A', 'kind', 're')};
-E(end+1, :) = {'repeated name', x, 'hetlearn:options:types'};
-x = c; x.expectations.types = T('name', 'R_E', 'kind', 're');
-E(end+1, :) = {'name with underscore', x, 'hetlearn:options:types'};
+E(end+1, :) = {'unknown type field', x, idT};
+x = c; x.expectations.types = {T('name', 'A', 'kind', 'plm'), T('name', 'A', 'kind', 'plm')};
+E(end+1, :) = {'repeated name', x, idT};
+x = c; x.expectations.types = T('name', 'B_R', 'kind', 'plm');
+E(end+1, :) = {'name with underscore', x, idT};
 x = c; x.expectations.types = T('name', 'RE', 'kind', 'plm');
-E(end+1, :) = {'RE of kind plm', x, 'hetlearn:options:types'};
+E(end+1, :) = {'RE of kind plm', x, idT};
+x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'OPT', 'kind', 're')};
+E(end+1, :) = {'a second type of kind re', x, idT};
 x = c; x.expectations.types = T('name', 'A', 'kind', 'plm', 'rule', '0');
-E(end+1, :) = {'rule on a plm type', x, 'hetlearn:options:types'};
+E(end+1, :) = {'rule on a plm type', x, idT};
 x = c; x.expectations.types = T('name', 'A', 'kind', 'rule');
-E(end+1, :) = {'rule type without rule', x, 'hetlearn:options:types'};
-x = c; x.expectations.types = {T('name', 'L1', 'kind', 'level', 'base', 'L0', 'k', 1)};
-E(end+1, :) = {'level base not a type', x, 'hetlearn:options:types'};
-x = c; x.expectations.types = T('name', 'A', 'kind', 'plm', 'variables', {{'y'}});
-E(end+1, :) = {'type variable outside the learning set', x, 'hetlearn:options:types'};
-x = c; x.expectations.types = T('name', 'A', 'kind', 'plm', 'gain', struct('value', 2));
-E(end+1, :) = {'type gain out of range', x, 'hetlearn:options:types'};
+E(end+1, :) = {'rule type without rule', x, idT};
+x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'L1', 'kind', 'level')};
+E(end+1, :) = {'kind level (removed)', x, [idT, {rm}]};
+% the per-type fields removed on 2026-10-22 (every type inherits the global settings)
+gone = {'variant', 'model_consistent'; 'info', 'current'; 'plm', 'ar2'; 'update', 'fixed'; ...
+    'gain', struct('value', 0.01); 'variables', {'pinf'}; 'cost', 0.1; 'base', 'RE'; 'k', 1};
+for i = 1:size(gone, 1)
+    t = T('name', 'BR', 'kind', 'plm');
+    t.(gone{i, 1}) = gone{i, 2};
+    x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), t};
+    E(end+1, :) = {sprintf('type field %s (removed)', gone{i, 1}), x, [idT, {rm}]}; %#ok<AGROW>
+end
 x = c; x.expectations.transforms = struct('kind', 'multiplier', 'types', {{'XX'}}, 'value', 0.5);
-E(end+1, :) = {'transform on an unknown type', x, 'hetlearn:options:transforms'};
-x = c; x.expectations.transforms = struct('kind', 'wedge', 'factor', struct('std', 0.1));
-E(end+1, :) = {'wedge with std > 0 and no shock', x, 'hetlearn:options:transforms'};
-x = c; x.expectations.transforms = struct('kind', 'diagnostic', 'value', 0.44, 'profile', 'flat');
-E(end+1, :) = {'profile on a diagnostic', x, 'hetlearn:options:transforms'};
+E(end+1, :) = {'transform on an unknown type', x, idX};
+x = c; x.expectations.transforms = struct('kind', 'wedge', 'value', []);
+E(end+1, :) = {'transform kind wedge (removed)', x, [idX, {rm}]};
+x = c; x.expectations.transforms = struct('kind', 'partial_adjustment', 'value', 0.5);
+E(end+1, :) = {'transform kind partial_adjustment (removed)', x, [idX, {rm}]};
+x = c; x.expectations.transforms = struct('kind', 'multiplier', 'value', 0.9, 'profile', 'flat');
+E(end+1, :) = {'transform field profile = flat (removed; [] and geometric are dropped)', x, [idX, {rm}]};
+x = c; x.expectations.transforms = struct('kind', 'multiplier', 'value', 0.9, 'factor', struct('mean', 0));
+E(end+1, :) = {'transform field factor (removed)', x, [idX, {rm}]};
 x = c; x.shares.init = struct('RE', 0.6, 'BR', 0.6);
-E(end+1, :) = {'shares.init not summing to 1', x, 'hetlearn:options:value'};
+E(end+1, :) = {'shares.init not summing to 1', x, idV};
 x = c; x.shares.init = struct('BR', 1);
-E(end+1, :) = {'shares.init without RE (default pair)', x, 'hetlearn:options:value'};
-x = c; x.switching.costs = struct('XX', 0.1);
-E(end+1, :) = {'cost of an unknown type', x, 'hetlearn:options:value'};
-x = c; x.switching.inertia = 1;
-E(end+1, :) = {'inertia 1', x, 'hetlearn:options:value'};
-x = c; x.switching.fitness = 'raw';
-E(end+1, :) = {'unknown fitness', x, 'hetlearn:options:value'};
-x = c; x.switching.intensity = 'bma';
-E(end+1, :) = {'intensity string without model:', x, 'hetlearn:options:value'};
-x = c; x.beliefs.kf.gamma = 1;
-E(end+1, :) = {'kf gamma 1', x, 'hetlearn:options:value'};
-x = c; x.gain.decreasing.n0 = 0.5;
-E(end+1, :) = {'decreasing n0 < 1', x, 'hetlearn:options:value'};
+E(end+1, :) = {'shares.init without RE (default pair)', x, idV};
+x = c; x.switching.costs = struct('BR', 0.1);
+E(end+1, :) = {'switching.costs (removed)', x, idU};
+x = c; x.switching.inertia = 0.5;
+E(end+1, :) = {'switching.inertia (removed)', x, idU};
+x = c; x.switching.fitness = 'unnormalized';
+E(end+1, :) = {'switching.fitness (removed)', x, idU};
+x = c; x.switching.intensity = 'model:bma';
+E(end+1, :) = {'switching.intensity model:bma (removed)', x, [idV, {rm}]};
+x = c; x.beliefs.update = 'sac';
+E(end+1, :) = {'beliefs.update sac (removed)', x, [idV, {rm}]};
+x = c; x.beliefs.update = 'kf';
+E(end+1, :) = {'beliefs.update kf (removed)', x, [idV, {rm}]};
+x = c; x.beliefs.kf = struct('gamma', 0.031);
+E(end+1, :) = {'beliefs.kf (removed)', x, idU};
+x = c; x.gain.rule = 'decreasing';
+E(end+1, :) = {'gain.rule decreasing (removed)', x, [idV, {rm}]};
+x = c; x.gain.decreasing = struct('n0', 5);
+E(end+1, :) = {'gain.decreasing off its old default (removed)', x, idU};
 x = c; x.history.mode = 'kalman'; x.history.re_states = 'filtered';
-E(end+1, :) = {'kalman with filtered RE states', x, 'hetlearn:options:value'};
+E(end+1, :) = {'kalman with filtered RE states', x, idV};
 x = c; x.history.kalman.init = 'zero';
-E(end+1, :) = {'unknown kalman init', x, 'hetlearn:options:value'};
+E(end+1, :) = {'unknown kalman init', x, idV};
 x = c; x.expectations.mode = 'fixed_shares'; x.shares.fixed_n2 = 0.5; x.shares.fixed = struct('RE', 0.5, 'BR', 0.5);
-E(end+1, :) = {'fixed_n2 and fixed both set', x, 'hetlearn:options:value'};
+E(end+1, :) = {'fixed_n2 and fixed both set', x, idV};
 bad = {};
 for i = 1:size(E, 1)
     try
         hetlearn.load_options(E{i, 2}, struct());
         bad{end+1} = [E{i, 1} ': no error']; %#ok<AGROW>
     catch err
-        if ~strcmp(err.identifier, E{i, 3})
+        if ~ismember(err.identifier, E{i, 3})
             bad{end+1} = sprintf('%s: %s %s', E{i, 1}, err.identifier, err.message); %#ok<AGROW>
         end
     end
 end
-R = add(R, sprintf('opt BR3: %d malformed BR settings rejected by the validation (types, transforms, value)', ...
-    size(E, 1)), isempty(bad), strjoin(bad, ' | '));
+R = add(R, sprintf(['opt BR3: %d malformed BR settings and settings removed on 2026-10-22 rejected by the ' ...
+    'validation (types, transforms, value, unknown option)'], size(E, 1)), isempty(bad), strjoin(bad, ' | '));
 
 % BR4 (phase P6): stages without the N-type path stop with hetlearn:options:unsupported, naming the options
 U = {};      % {name, cfg, expected word in the message ('' = loads)}
 tb = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm'), T('name', 'TB', 'kind', 'rule', 'rule', '0')};
+cd10 = struct('kind', 'diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', 'all', 'exclude', {FLEX});
 x = c; x.policy.mode = 'ramsey'; x.expectations.types = tb;
 U(end+1, :) = {'Ramsey with N types', x, 'expectations.types'};
-x = c; x.policy.mode = 'ramsey'; x.expectations.transforms = cd5;
+x = c; x.policy.mode = 'ramsey'; x.expectations.transforms = cd10;
 U(end+1, :) = {'Ramsey with a transform', x, 'expectations.transforms'};
-x = c; x.policy.mode = 'ramsey'; x.switching.inertia = 0.5;
-U(end+1, :) = {'Ramsey with switching.inertia', x, 'switching.inertia'};
+x = c; x.policy.mode = 'ramsey'; x.shares.init = struct('RE', 0.5, 'BR', 0.5);
+U(end+1, :) = {'Ramsey with shares.init', x, 'shares.init'};
 x = c; x.history.mode = 'inversion'; x.expectations.types = tb;
 U(end+1, :) = {'inversion with N types', x, 'expectations.types'};
 x = c; x.history.mode = 'inversion'; x.shares.init = struct('RE', 0.5, 'BR', 0.5);
@@ -385,8 +365,8 @@ for i = 1:size(U, 1)
         end
     end
 end
-R = add(R, sprintf(['opt BR4: Ramsey and the inversion with N types, transforms or the E2 switching options stop ' ...
-    'with hetlearn:options:unsupported naming them; %d cases (the two-type runs and the Kalman and density stages ' ...
+R = add(R, sprintf(['opt BR4: Ramsey and the inversion with N types, transforms or shares.init stop with ' ...
+    'hetlearn:options:unsupported naming them; %d cases (the two-type runs and the Kalman and density stages ' ...
     'with N types load)'], size(U, 1)), isempty(bad), strjoin(bad, ' | '));
 end
 
