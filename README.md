@@ -304,7 +304,6 @@ models/ijcb3/, models/as07/  two smaller packages, kept as templates
 scenarios/sw07/            scenario files: base/, app1_peak/ ... app6_history/, var1-var4, eval/, br_portfolio/
 results/summary_v3/        summary script and memo (the CSVs are rebuilt, not versioned)
 reports/                   HTML report builders (Python)
-paper/figures/             paper figures and their builder
 tests/                     test suites, toy NK package, test models, reference results
 docs/                      user guide, design notes, feature register, technical appendix
 docs_site/                 the documentation website (MkDocs)
@@ -345,8 +344,8 @@ every push to `main` that changes `docs_site/`, `mkdocs.yml` or the workflow. It
 **Settings > Pages > Source: GitHub Actions** in the repository (set). The site is published at
 https://tolgaozden.net/iris_toolbox_learning/.
 
-The figures in `docs_site/assets/figures/` are copies of `paper/figures/fig_*.png`
-(`python paper/figures/make_figures.py`); copy them again when the figures change.
+The figures in `docs_site/assets/figures/` are drawn from the summary tables of the baseline run
+(`results/summary_v3/`).
 
 ## 14. Citation
 
