@@ -59,38 +59,40 @@ function opts = load_options(cfg, master)
 %     hetlearn.extend_model / hetlearn.plm.build_system.
 %
 %   Bounded-rationality extensions (docs/DESIGN_br_extensions.md, schema of
-%   phase P0, 2026-10-20; every option defaults to off)
+%   phase P0, 2026-10-20, cut to the seven kept portfolio variants on
+%   2026-10-22, docs/BR_audit.txt; every option defaults to off)
 %     expectations.types: a struct array or a cell array of structs,
-%     normalised to a 1xN struct array with every field (missing ones []);
-%     unknown fields, names that are not letters and digits or not unique,
-%     an unknown kind, fields that do not apply to the kind, missing
-%     required fields (rule; base and k), bad values, variables outside a
-%     cellstr learning set and a type 'RE' of another kind are errors
-%     (hetlearn:options:types). A type's gain is merged over gain and
-%     checked like it. expectations.transforms: normalised the same way
-%     (types [] = 'all', scope [] = 'learning', profile [] = 'geometric'
-%     for a multiplier, factor completed for a wedge); kind, types (names of
+%     normalised to a 1xN struct array with the fields name, kind, rule
+%     (missing ones []); unknown fields, names that are not letters and
+%     digits or not unique, an unknown kind ('re' | 'plm' | 'rule' |
+%     're_mean'), a rule on a type that is not a rule type or a rule type
+%     without one, bad rule expressions, a type 'RE' of another kind and an
+%     're' type not named RE are errors (hetlearn:options:types).
+%     expectations.transforms: normalised the same way (fields kind, types,
+%     scope, exclude, value; types [] = 'all', scope [] = 'learning'); kind
+%     ('multiplier' | 'diagnostic' | 'myopia_anchoring'), types (names of
 %     the population, 'RE' always allowed), scope entries ('x' or
-%     'x@<label>'), values by kind, wedge factors and unique wedge shocks
-%     are checked (hetlearn:options:transforms). shares.init, shares.fixed,
-%     switching.costs: structs by type name (population: the types, or RE
-%     and BR when none are given; an unlisted RE type takes share 0), shares
-%     in [0, 1] summing to 1 per share group where the groups are known,
-%     costs >= 0 and not also set in the type. switching.inertia in [0, 1),
-%     switching.fitness 'normalized' | 'unnormalized' (memory may be 1 only
-%     with 'unnormalized'), switching.intensity also 'model:<rule>';
-%     beliefs.update also 'sac' | 'kf', beliefs.kf.gamma [] or in (0, 1),
-%     beliefs.kf.s2 're_moments' or > 0; gain.rule also 'decreasing',
-%     gain.decreasing.n0 >= 1; history.mode also 'kalman' (history.re_states
-%     must then stay 'smoothed', as with 'inversion'), history.kalman.init
-%     'stochastic' | 'smoothed'; 'fixed_shares' takes shares.fixed_n2 or
-%     shares.fixed (not both). Combinations that are not supported
+%     'x@<label>') and values by kind are checked
+%     (hetlearn:options:transforms). shares.init, shares.fixed: structs by
+%     type name (population: the types, or RE and BR when none are given; an
+%     unlisted RE type takes share 0), shares in [0, 1] summing to 1;
+%     history.mode also 'kalman' (history.re_states must then stay
+%     'smoothed', as with 'inversion'), history.kalman.init 'stochastic' |
+%     'smoothed'; 'fixed_shares' takes shares.fixed_n2 or shares.fixed (not
+%     both). Combinations that are not supported
 %     (hetlearn:options:unsupported, naming the options that put the run on
-%     the N-type path: expectations.types, expectations.transforms or a
-%     switching option of DESIGN_br_extensions 1.2): policy.mode = 'ramsey'
-%     and history.mode = 'inversion'. Density forecasts, hetlearn.evaluate
-%     and the Kalman history take N types; hetlearn.decompose refuses its own
-%     cases (level types with method 'tv', Kalman results).
+%     the N-type path: expectations.types, expectations.transforms,
+%     shares.init or shares.fixed): policy.mode = 'ramsey' and history.mode
+%     = 'inversion'. Density forecasts, hetlearn.evaluate and the Kalman
+%     history take N types; hetlearn.decompose refuses Kalman results.
+%     Options removed on 2026-10-22 (switching.inertia, .costs, .fitness,
+%     intensity 'model:<rule>', beliefs.update 'sac' | 'kf', beliefs.kf,
+%     gain.rule 'decreasing', gain.decreasing, the type kind 'level' and
+%     the type fields variant, info, plm, update, gain, base, k, variables,
+%     cost, the transform kinds 'partial_adjustment' and 'wedge' and the
+%     fields profile and factor) raise hetlearn:options:removed; in a
+%     merged tree saved before the cut they are dropped when they hold
+%     their old default (off) values, so saved res.cfg trees still load.
 %
 %   See also hetlearn.defaults.
 
@@ -134,6 +136,27 @@ end
 end
 
 
+function drop = removed_br_option(full, val)
+% Bounded-rationality options removed on 2026-10-22 (docs/BR_audit.txt: only the seven kept portfolio
+% variants' machinery stays). A merged tree saved before the cut (res.cfg) holds them at their old
+% defaults: those are dropped (drop = true). Any other value is an error naming the removal.
+old = struct('switching_inertia', 0, 'switching_costs', [], 'switching_fitness', 'normalized', ...
+    'beliefs_kf', struct('gamma', [], 's2', 're_moments'), 'gain_decreasing', struct('n0', 1));
+key = strrep(full, '.', '_');
+drop = false;
+if ~isfield(old, key)
+    return
+end
+if isequal(val, old.(key))
+    drop = true;
+    return
+end
+error('hetlearn:options:removed', ['Option "%s" was removed on 2026-10-22 with the bounded-rationality ' ...
+    'variants that used it (docs/BR_audit.txt): switching has no inertia, costs or unnormalized fitness, ' ...
+    'beliefs.update is ''rls'' or ''fixed'', and gain.rule has no ''decreasing'' rule.'], full);
+end
+
+
 % -------------------------------------------------------------------------
 function m = call_master()
 m = struct();
@@ -160,7 +183,7 @@ function base = merge(base, over, path)
 FREE = {'beliefs.init.values', 'beliefs.plm.by_var', 'beliefs.plm.derived', 'gain.by_var', ...
     'shares.fixed_n2', 'shocks.add', 'report'};
 REPLACE = {'conditions', 'policy.loss', ...
-    'expectations.types', 'expectations.transforms', 'shares.init', 'shares.fixed', 'switching.costs'};   % BR (P0)
+    'expectations.types', 'expectations.transforms', 'shares.init', 'shares.fixed'};   % BR (P0)
 if ~isstruct(over) || ~isscalar(over)
     error('hetlearn:options:type', 'Option "%s" must be a scalar struct.', strip_path(path));
 end
@@ -171,6 +194,9 @@ for i = 1:numel(f)
     full = full(2:end);   % drop the leading '.'
     val = over.(name);
     if ~isfield(base, name)
+        if removed_br_option(full, val)
+            continue        % removed on 2026-10-22, at its old default (a merged tree saved before the cut)
+        end
         removed_option(full);
         error('hetlearn:options:unknown', 'Unknown option "%s".', full);
     end
@@ -288,12 +314,8 @@ if isfield(o.report, 'variables')
     o.report.variables = tocell(o.report.variables, 'report.variables');
 end
 % bounded-rationality extensions (DESIGN_br_extensions, schema of phase P0)
-o.switching.fitness = tochar(o.switching.fitness, 'switching.fitness');
 if isstring(o.switching.intensity) && isscalar(o.switching.intensity)
     o.switching.intensity = char(o.switching.intensity);
-end
-if isstring(o.beliefs.kf.s2) && isscalar(o.beliefs.kf.s2)
-    o.beliefs.kf.s2 = char(o.beliefs.kf.s2);
 end
 o.history.kalman.init = tochar(o.history.kalman.init, 'history.kalman.init');
 o.expectations.types = normalise_types(o.expectations.types);
@@ -303,29 +325,36 @@ end
 
 % -------------------------------------------------------------------------
 function T = normalise_types(T)
-% expectations.types (DESIGN_br_extensions 1.1): -> 1xN struct array with every field
-F = {'name', 'kind', 'variant', 'info', 'plm', 'update', 'gain', 'rule', 'base', 'k', 'variables', 'cost'};
+% expectations.types (DESIGN_br_extensions 1.1): -> 1xN struct array with the fields name, kind, rule.
+% The fields removed on 2026-10-22 are dropped when empty (a merged tree saved before the cut has them
+% at []), an error otherwise.
+F = {'name', 'kind', 'rule'};
+OLD = {'variant', 'info', 'plm', 'update', 'gain', 'base', 'k', 'variables', 'cost'};
+T = drop_removed_fields(T, OLD, 'expectations.types', ...
+    'kind ''level'' and the per-type fields variant, info, plm, update, gain, base, k, variables and cost');
 T = struct_list(T, F, 'expectations.types', 'hetlearn:options:types');
 for i = 1:numel(T)
-    for f = {'name', 'kind', 'variant', 'info', 'update', 'base', 'plm', 'rule'}
+    for f = {'name', 'kind', 'rule'}
         if isstring(T(i).(f{1})) && isscalar(T(i).(f{1}))
             T(i).(f{1}) = char(T(i).(f{1}));
         end
     end
-    T(i).variables = cell_or_empty(T(i).variables);
 end
 end
 
 
 function X = normalise_transforms(X)
-% expectations.transforms (DESIGN_br_extensions 1.3): -> 1xN struct array, defaults filled in
-F = {'kind', 'types', 'scope', 'exclude', 'profile', 'value', 'factor'};
+% expectations.transforms (DESIGN_br_extensions 1.3): -> 1xN struct array, defaults filled in. The
+% fields removed on 2026-10-22 are dropped at their old defaults (profile [] or 'geometric', factor []),
+% an error otherwise.
+F = {'kind', 'types', 'scope', 'exclude', 'value'};
+X = drop_old_profile(X);
+X = drop_removed_fields(X, {'factor'}, 'expectations.transforms', ...
+    'the transform kinds ''partial_adjustment'' and ''wedge'' and the fields profile and factor');
 X = struct_list(X, F, 'expectations.transforms', 'hetlearn:options:transforms');
 for i = 1:numel(X)
-    for f = {'kind', 'profile'}
-        if isstring(X(i).(f{1})) && isscalar(X(i).(f{1}))
-            X(i).(f{1}) = char(X(i).(f{1}));
-        end
+    if isstring(X(i).kind) && isscalar(X(i).kind)
+        X(i).kind = char(X(i).kind);
     end
     X(i).types = all_or_cell(X(i).types, 'all', {'all'});
     X(i).scope = all_or_cell(X(i).scope, 'learning', {'learning', 'all'});
@@ -333,29 +362,72 @@ for i = 1:numel(X)
     if isempty(X(i).exclude)
         X(i).exclude = {};
     end
-    if isempty(X(i).profile)
-        X(i).profile = '';
-        if ischar(X(i).kind) && strcmp(X(i).kind, 'multiplier')
-            X(i).profile = 'geometric';
+end
+end
+
+
+function X = drop_old_profile(X)
+% the multiplier profile (removed 2026-10-22): [] or 'geometric' is dropped, 'flat' and 'hyperbolic' are errors
+C = struct_cells(X);
+if isempty(C)
+    return
+end
+for i = 1:numel(C)
+    if ~isfield(C{i}, 'profile')
+        continue
+    end
+    pr = C{i}.profile;
+    if ~(isempty(pr) || ((ischar(pr) || isstring(pr)) && strcmp(char(pr), 'geometric')))
+        error('hetlearn:options:removed', ['Option "expectations.transforms(%d).profile" = ''%s'' was removed on ' ...
+            '2026-10-22 (docs/BR_audit.txt): a multiplier is m^h, the geometric profile.'], i, char(pr));
+    end
+    C{i} = rmfield(C{i}, 'profile');
+end
+X = back_to_input(X, C);
+end
+
+
+function X = drop_removed_fields(X, OLD, name, what)
+% fields removed on 2026-10-22: dropped when empty, an error when one holds a value
+C = struct_cells(X);
+if isempty(C)
+    return
+end
+for i = 1:numel(C)
+    f = intersect(fieldnames(C{i}), OLD);
+    for j = 1:numel(f)
+        if ~isempty(C{i}.(f{j}))
+            error('hetlearn:options:removed', ['Option "%s(%d).%s" was removed on 2026-10-22 with %s ' ...
+                '(docs/BR_audit.txt: only the seven kept portfolio variants'' machinery stays).'], name, i, f{j}, what);
         end
     end
-    if ischar(X(i).kind) && strcmp(X(i).kind, 'wedge')
-        fac = X(i).factor;
-        if isempty(fac)
-            fac = struct();
-        end
-        if isstruct(fac) && isscalar(fac)
-            def = struct('rho', 0, 'std', 0, 'mean', 0, 'loadings', [], 'shock', '');
-            for g = fieldnames(def)'
-                if ~isfield(fac, g{1})
-                    fac.(g{1}) = def.(g{1});
-                elseif isstring(fac.(g{1})) && isscalar(fac.(g{1}))
-                    fac.(g{1}) = char(fac.(g{1}));
-                end
-            end
-        end
-        X(i).factor = fac;
-    end
+    C{i} = rmfield(C{i}, f);
+end
+X = back_to_input(X, C);
+end
+
+
+function C = struct_cells(X)
+% the elements of a struct array or of a cell array of scalar structs; {} for anything else (struct_list
+% then reports the type error) or an empty input
+C = {};
+if isempty(X)
+    return
+end
+if isstruct(X)
+    C = num2cell(reshape(X, 1, []));
+elseif iscell(X) && all(cellfun(@(c) isstruct(c) && isscalar(c), X(:)))
+    C = reshape(X, 1, []);
+end
+end
+
+
+function X = back_to_input(X, C)
+% the cleaned elements in the input's form (a cell array stays one: its structs may differ in fields)
+if iscell(X)
+    X = C;
+else
+    X = [C{:}];
 end
 end
 
@@ -474,16 +546,11 @@ if strcmp(o.expectations.re_info, 'lagged')
             'derived or tested (DESIGN 19). Use policy.mode = ''rule'' or re_info = ''current''.']);
     end
 end
-enum(o.beliefs.update, {'rls', 'fixed', 'sac', 'kf'}, 'beliefs.update');   % 'sac', 'kf': DESIGN_br_extensions 1.5 (P5)
-kf = o.beliefs.kf;
-if ~isempty(kf.gamma)
-    num(kf.gamma, @(x) x > 0 && x < 1, 'beliefs.kf.gamma', 'in (0, 1), or [] (= gain.value)');
+if any(strcmp(o.beliefs.update, {'sac', 'kf'}))
+    error('hetlearn:options:removed', ['beliefs.update = ''%s'' was removed on 2026-10-22 with the ' ...
+        'bounded-rationality variants that used it (docs/BR_audit.txt); use ''rls'' or ''fixed''.'], o.beliefs.update);
 end
-if ischar(kf.s2)
-    enum(kf.s2, {'re_moments'}, 'beliefs.kf.s2');
-else
-    num(kf.s2, @(x) x > 0 && isfinite(x), 'beliefs.kf.s2', '> 0, or ''re_moments''');
-end
+enum(o.beliefs.update, {'rls', 'fixed'}, 'beliefs.update');
 enum(o.beliefs.info, {'lagged', 'current'}, 'beliefs.info');
 d = o.beliefs.plm.default;
 if ~ischar(d)
@@ -525,9 +592,12 @@ end
 if ~isstruct(o.beliefs.init.values)
     error('hetlearn:options:type', 'Option "beliefs.init.values" must be a struct.');
 end
+if strcmp(o.gain.rule, 'decreasing')
+    error('hetlearn:options:removed', ['gain.rule = ''decreasing'' was removed on 2026-10-22 with the ' ...
+        'bounded-rationality variant that used it (docs/BR_audit.txt, variant 17).']);
+end
 fn(o.gain.rule, 'gain');
 num(o.gain.value, @(x) x > 0 && x <= 1, 'gain.value', 'in (0, 1]');
-num(o.gain.decreasing.n0, @(x) x >= 1 && isfinite(x), 'gain.decreasing.n0', '>= 1');
 if ~isstruct(o.gain.by_var)
     error('hetlearn:options:type', 'Option "gain.by_var" must be a struct.');
 end
@@ -565,22 +635,13 @@ if ~isempty(f2)
     end
 end
 fn(o.switching.rule, 'switching');
-if ischar(o.switching.intensity)       % 'model:<rule>', computed from the RE limit (P2)
-    if isempty(regexp(o.switching.intensity, '^model:[A-Za-z]\w*$', 'once'))
-        error('hetlearn:options:value', ['Option "switching.intensity" must be a numeric scalar >= 0 or ' ...
-            '''model:<rule>'' (e.g. ''model:bma''); got ''%s''.'], o.switching.intensity);
-    end
-else
-    num(o.switching.intensity, @(x) x >= 0, 'switching.intensity', '>= 0');
+if ischar(o.switching.intensity)
+    error('hetlearn:options:removed', ['switching.intensity = ''%s'': model-implied intensities ' ...
+        '(''model:<rule>'') were removed on 2026-10-22 (docs/BR_audit.txt, variant 27); give a number >= 0.'], ...
+        o.switching.intensity);
 end
-enum(o.switching.fitness, {'normalized', 'unnormalized'}, 'switching.fitness');
-if strcmp(o.switching.fitness, 'unnormalized')
-    % cumulative errors without forgetting (memory 1) are the Bayesian model averaging case (variant 27)
-    num(o.switching.memory, @(x) x >= 0 && x <= 1, 'switching.memory', 'in [0, 1] (fitness ''unnormalized'')');
-else
-    num(o.switching.memory, @(x) x >= 0 && x < 1, 'switching.memory', 'in [0, 1)');
-end
-num(o.switching.inertia, @(x) x >= 0 && x < 1, 'switching.inertia', 'in [0, 1) (0 = off)');
+num(o.switching.intensity, @(x) x >= 0, 'switching.intensity', '>= 0');
+num(o.switching.memory, @(x) x >= 0 && x < 1, 'switching.memory', 'in [0, 1)');
 enum(o.projection.facility, {'plm_alm', 'alm', 'none'}, 'projection.facility');
 if ~(islogical(o.history.learn) || isnumeric(o.history.learn)) || ~isscalar(o.history.learn)
     error('hetlearn:options:type', 'Option "history.learn" must be true or false.');
@@ -628,8 +689,8 @@ end
 % -------------------------------------------------------------------------
 function validate_ntype_stages(o)
 % Stages that do not take the N-type engine path (docs/DESIGN_br_extensions.md sec. 6, phase P6):
-% policy.mode = 'ramsey' and history.mode = 'inversion' with N agent types, forecast transforms or the
-% switching options of DESIGN_br_extensions 1.2 stop here, naming the options involved
+% policy.mode = 'ramsey' and history.mode = 'inversion' with N agent types, forecast transforms,
+% shares.init or shares.fixed stop here, naming the options involved
 if ~(strcmp(o.policy.mode, 'ramsey') || strcmp(o.history.mode, 'inversion'))
     return
 end
@@ -645,8 +706,7 @@ if ~isempty(o.expectations.transforms)
     c{end+1} = 'forecast transforms (expectations.transforms)';
 end
 if isempty(c)
-    c{end+1} = ['the switching options of DESIGN_br_extensions 1.2 (switching.inertia, .costs, .fitness, ' ...
-        'intensity ''model:<rule>'', shares.init, shares.fixed), which take the N-type engine path'];
+    c{end+1} = 'shares.init or shares.fixed, which take the N-type engine path';
 end
 what = strjoin(c, ' and ');
 if strcmp(o.policy.mode, 'ramsey')
@@ -663,19 +723,14 @@ end
 % -------------------------------------------------------------------------
 function validate_types(o)
 % expectations.types (DESIGN_br_extensions 1.1); model-dependent checks (forward-looking variables,
-% share groups of 'all', mode semantics) are left to the engine
+% mode semantics) are left to the engine. Kinds and fields as cut on 2026-10-22: every type inherits
+% its information set, PLM, update and gain (docs/DESIGN_br_extensions.md, note of 2026-10-22)
 T = o.expectations.types;
 if isempty(T)
     return
 end
 ID = 'hetlearn:options:types';
-kinds = {'re', 'plm', 'rule', 'level', 're_mean'};
-applies = struct('re', {{'variant', 'info', 'variables', 'cost'}}, ...
-    'plm', {{'info', 'plm', 'update', 'gain', 'variables', 'cost'}}, ...
-    'rule', {{'info', 'rule', 'update', 'gain', 'variables', 'cost'}}, ...
-    'level', {{'variant', 'info', 'base', 'k', 'variables', 'cost'}}, ...
-    're_mean', {{'variant', 'info', 'update', 'gain', 'variables', 'cost'}});
-optional = {'variant', 'info', 'plm', 'update', 'gain', 'rule', 'base', 'k', 'variables', 'cost'};
+kinds = {'re', 'plm', 'rule', 're_mean'};
 names = cell(1, numel(T));
 for i = 1:numel(T)
     t = T(i);
@@ -688,10 +743,13 @@ dup = unique(names(cellfun(@(n) sum(strcmp(names, n)) > 1, names)));
 if ~isempty(dup)
     error(ID, 'Option "expectations.types": type names must be unique; repeated: %s.', strjoin(dup, ', '));
 end
-lv = o.expectations.variables;
 for i = 1:numel(T)
     t = T(i);
     p = sprintf('expectations.types(%d) (''%s'')', i, t.name);
+    if ischar(t.kind) && strcmp(t.kind, 'level')
+        error('hetlearn:options:removed', ['Option "%s.kind" = ''level'' was removed on 2026-10-22 with the ' ...
+            'level-k variants (docs/BR_audit.txt, variants 1a and 1b).'], p);
+    end
     if ~(ischar(t.kind) && any(strcmp(t.kind, kinds)))
         error(ID, 'Option "%s.kind" must be one of: %s.', p, strjoin(kinds, ', '));
     end
@@ -699,108 +757,15 @@ for i = 1:numel(T)
         error(ID, ['Option "%s": the type named RE is the always-generated RE type and must be of kind ''re'' ' ...
             '(name the other type differently).'], p);
     end
-    given = optional(cellfun(@(f) ~isempty(t.(f)), optional));
-    bad = setdiff(given, applies.(t.kind));
-    if ~isempty(bad)
-        error(ID, 'Option "%s": field(s) %s do not apply to kind ''%s''.', p, strjoin(bad, ', '), t.kind);
-    end
-    if ~isempty(t.variant)
-        check_enum(t.variant, {'anchored', 'model_consistent'}, [p '.variant'], ID);
-    end
-    if ~isempty(t.info)
-        check_enum(t.info, {'lagged', 'current'}, [p '.info'], ID);
-    end
-    if ~isempty(t.update)
-        check_enum(t.update, {'rls', 'fixed', 'sac', 'kf'}, [p '.update'], ID);
-    end
-    if ~isempty(t.plm)
-        check_type_plm(t.plm, [p '.plm'], ID);
-    end
-    if ~isempty(t.gain)
-        check_type_gain(o, t.gain, [p '.gain'], ID);
+    if strcmp(t.kind, 're') && ~strcmp(t.name, 'RE')
+        error(ID, ['Option "%s": kind ''re'' is the RE type, named RE; a second RE type was removed on ' ...
+            '2026-10-22 (docs/BR_audit.txt, variant 18).'], p);
     end
     if strcmp(t.kind, 'rule')
         check_rule(t.rule, [p '.rule'], ID);
+    elseif ~isempty(t.rule)
+        error(ID, 'Option "%s": field rule applies to kind ''rule'' only.', p);
     end
-    if strcmp(t.kind, 'level')
-        if ~(ischar(t.base) && any(strcmp(t.base, [names, {'RE'}])) && ~strcmp(t.base, t.name))
-            error(ID, 'Option "%s.base" must name another type of the list (or ''RE'').', p);
-        end
-        if ~(isnumeric(t.k) && isscalar(t.k) && isreal(t.k) && t.k >= 1 && t.k == round(t.k))
-            error(ID, 'Option "%s.k" must be an integer >= 1.', p);
-        end
-    end
-    if ~isempty(t.variables)
-        v = t.variables;
-        if ~(iscellstr(v) && all(cellfun(@isvarname, v)))
-            error(ID, 'Option "%s.variables" must be a cellstr of variable names, or [] (every learning variable).', p);
-        end
-        if iscell(lv) && ~all(ismember(v, lv))
-            error(ID, 'Option "%s.variables": %s not in expectations.variables (%s).', p, ...
-                strjoin(setdiff(v, lv), ', '), strjoin(lv, ', '));
-        end
-    end
-    if ~isempty(t.cost)
-        if ~(isnumeric(t.cost) && isscalar(t.cost) && isreal(t.cost) && isfinite(t.cost) && t.cost >= 0)
-            error(ID, 'Option "%s.cost" must be a number >= 0 (Brock-Hommes cost), or [].', p);
-        end
-        if isstruct(o.switching.costs) && isfield(o.switching.costs, t.name)
-            error(ID, 'The cost of type %s is set twice, in "%s.cost" and in "switching.costs.%s"; use one.', ...
-                t.name, p, t.name);
-        end
-    end
-end
-end
-
-
-function check_enum(v, allowed, name, id)
-if ~(ischar(v) && any(strcmp(v, allowed)))
-    error(id, 'Option "%s" must be one of: %s.', name, strjoin(allowed, ', '));
-end
-end
-
-
-function check_type_plm(p, name, id)
-% a PLM shorthand or a partial beliefs.plm subtree (names checked against the defaults)
-if ischar(p)
-    check_enum(p, {'ar1', 'ar2', 'ar1_noconst', 'var1'}, name, id);
-    return
-end
-d = hetlearn.defaults();
-try
-    q = merge(d.beliefs.plm, p, '.beliefs.plm');
-catch err
-    error(id, 'Option "%s": %s', name, err.message);
-end
-if ~ischar(q.default)
-    error(id, 'Option "%s.default" must be a shorthand string.', name);
-end
-check_enum(q.default, {'ar1', 'ar2', 'ar1_noconst', 'var1'}, [name '.default'], id);
-if ~isstruct(q.by_var) || ~isstruct(q.derived) || ~isstruct(q.var)
-    error(id, 'Option "%s": by_var, derived and var must be structs.', name);
-end
-end
-
-
-function check_type_gain(o, g, name, id)
-% a partial gain subtree, merged over gain and checked as gain
-if ~(isstruct(g) && isscalar(g))
-    error(id, 'Option "%s" must be a partial gain subtree (a struct), or [].', name);
-end
-try
-    q = merge(o.gain, g, '.gain');
-    q.rule = tochar(q.rule, 'gain.rule');
-    q.koz.structure = tochar(q.koz.structure, 'gain.koz.structure');
-    q.koz.error = tochar(q.koz.error, 'gain.koz.error');
-    q.koz.master = tocell(q.koz.master, 'gain.koz.master');
-    fn(q.rule, 'gain');
-    num(q.value, @(x) x > 0 && x <= 1, 'gain.value', 'in (0, 1]');
-    num(q.decreasing.n0, @(x) x >= 1 && isfinite(x), 'gain.decreasing.n0', '>= 1');
-    ot = o;
-    ot.gain = q;
-    validate_gain(ot);
-catch err
-    error(id, 'Option "%s": %s', name, err.message);
 end
 end
 
@@ -831,26 +796,29 @@ if isstring(e) && isscalar(e)
 end
 if ~(ischar(e) && ~isempty(strtrim(e)) && ~isempty(regexp(e, '^[\w\s\.\+\-\*/\(\)\{\},]+$', 'once')))
     error(id, ['Option "%s" must hold the rule expression (names, numbers, + - * / ( ) and lags x{-k}), ' ...
-        'e.g. ''0.65*x{-1} + 0.35*self{-1}'', or struct(''expr'', ..., ''params'', ...).'], name);
+        'e.g. ''0'' or ''0.5*x{-1}'', or struct(''expr'', ..., ''params'', ...).'], name);
 end
 end
 
 
 % -------------------------------------------------------------------------
 function validate_transforms(o)
-% expectations.transforms (DESIGN_br_extensions 1.3); equation labels and variables are checked
-% against the model by the generator
+% expectations.transforms (DESIGN_br_extensions 1.3; kinds as cut on 2026-10-22); equation labels and
+% variables are checked against the model by the generator
 X = o.expectations.transforms;
 if isempty(X)
     return
 end
 ID = 'hetlearn:options:transforms';
-kinds = {'multiplier', 'diagnostic', 'myopia_anchoring', 'partial_adjustment', 'wedge'};
+kinds = {'multiplier', 'diagnostic', 'myopia_anchoring'};
 pop = population(o);
-shocks = {};
 for i = 1:numel(X)
     x = X(i);
     p = sprintf('expectations.transforms(%d)', i);
+    if ischar(x.kind) && any(strcmp(x.kind, {'partial_adjustment', 'wedge'}))
+        error('hetlearn:options:removed', ['Option "%s.kind" = ''%s'' was removed on 2026-10-22 with the ' ...
+            'bounded-rationality variants that used it (docs/BR_audit.txt).'], p, x.kind);
+    end
     if ~(ischar(x.kind) && any(strcmp(x.kind, kinds)))
         error(ID, 'Option "%s.kind" must be one of: %s.', p, strjoin(kinds, ', '));
     end
@@ -875,78 +843,22 @@ for i = 1:numel(X)
     if ~isempty(x.exclude) && ~(iscellstr(x.exclude) && all(cellfun(@isvarname, x.exclude)))
         error(ID, 'Option "%s.exclude" must be a cellstr of variable names.', p);
     end
-    if strcmp(x.kind, 'multiplier')
-        check_enum(x.profile, {'geometric', 'flat', 'hyperbolic'}, [p '.profile'], ID);
-    elseif ~isempty(x.profile)
-        error(ID, 'Option "%s.profile" applies to kind ''multiplier'' only.', p);
-    end
     v = x.value;
     isnum = @(v, n) isnumeric(v) && isreal(v) && numel(v) == n && all(isfinite(v(:)));
     switch x.kind
         case 'multiplier'
             ok = isnum(v, 1) && v >= 0;
-            what = 'a number >= 0 (m or lambda; alpha for ''hyperbolic'')';
+            what = 'a number m >= 0 (1 = identity)';
         case 'diagnostic'
             ok = isnum(v, 1);
             what = 'a number (theta; 0 = identity)';
-        case 'myopia_anchoring'
+        otherwise    % myopia_anchoring
             ok = isnum(v, 2);
             what = '[omega_f, b] ([1 0] = identity)';
-        case 'partial_adjustment'
-            ok = isnum(v, 1) && v >= 0 && v <= 1;
-            what = 'a number g in [0, 1] (1 = identity)';
-        otherwise    % wedge
-            ok = isempty(v);
-            what = 'empty (a wedge is set by its factor)';
     end
     if ~ok
         error(ID, 'Option "%s.value" must be %s.', p, what);
     end
-    if strcmp(x.kind, 'wedge')
-        shocks = check_factor(x.factor, [p '.factor'], ID, shocks);
-    elseif ~isempty(x.factor)
-        error(ID, 'Option "%s.factor" applies to kind ''wedge'' only.', p);
-    end
-end
-end
-
-
-function shocks = check_factor(f, name, id, shocks)
-if ~(isstruct(f) && isscalar(f))
-    error(id, 'Option "%s" must be a struct (rho, std, mean, loadings, shock).', name);
-end
-bad = setdiff(fieldnames(f), {'rho', 'std', 'mean', 'loadings', 'shock'});
-if ~isempty(bad)
-    error(id, 'Unknown field(s) in option "%s": %s (fields: rho, std, mean, loadings, shock).', name, strjoin(bad', ', '));
-end
-isModel = @(v, sign) ischar(v) && ~isempty(regexp(v, ['^' sign 'model:[A-Za-z]\w*$'], 'once'));
-fin = @(v) isnumeric(v) && isscalar(v) && isreal(v) && isfinite(v);
-if ~(fin(f.rho) && abs(f.rho) < 1)
-    error(id, 'Option "%s.rho" must be a number in (-1, 1).', name);
-end
-if ~((fin(f.std) && f.std >= 0) || isModel(f.std, ''))
-    error(id, 'Option "%s.std" must be a number >= 0 or ''model:<rule>''.', name);
-end
-if ~(fin(f.mean) || isModel(f.mean, '-?'))
-    error(id, 'Option "%s.mean" must be a number or ''model:<rule>'' (''-model:<rule>'' for minus that value).', name);
-end
-L = f.loadings;
-okL = isempty(L) || isModel(L, '') || (isstruct(L) && isscalar(L) && all(cellfun(@(g) fin(L.(g)), fieldnames(L))));
-if ~okL
-    error(id, 'Option "%s.loadings" must be [] (1 for every variable), a struct of numbers by variable or ''model:<rule>''.', name);
-end
-s = f.shock;
-if ~(ischar(s) && (isempty(s) || isvarname(s)))
-    error(id, 'Option "%s.shock" must be a shock name, or '''' for a constant wedge.', name);
-end
-if isempty(s) && ~(fin(f.std) && f.std == 0)
-    error(id, 'Option "%s": a wedge with std other than 0 needs factor.shock (the name of its new shock).', name);
-end
-if ~isempty(s)
-    if any(strcmp(shocks, s))
-        error(id, 'Option "%s.shock" = ''%s'' is used by another wedge; use one name per factor.', name, s);
-    end
-    shocks{end+1} = s;
 end
 end
 
@@ -964,9 +876,9 @@ end
 
 % -------------------------------------------------------------------------
 function validate_by_type(o)
-% shares.init, shares.fixed, switching.costs: structs by type name (DESIGN_br_extensions 1.1-1.2)
+% shares.init, shares.fixed: structs by type name (DESIGN_br_extensions 1.1-1.2); every type forecasts
+% every learning variable, so the shares of all types sum to 1
 ID = 'hetlearn:options:value';
-T = o.expectations.types;
 pop = population(o);
 known = unique([pop, {'RE'}], 'stable');
 for nm = {'init', 'fixed'}
@@ -990,43 +902,14 @@ for nm = {'init', 'fixed'}
     if ~isempty(miss)
         error(ID, 'Option "%s" gives no share for type(s) %s.', p, strjoin(miss, ', '));
     end
-    % share groups: all types forecast every learning variable, or per variable of a cellstr set
-    lv = o.expectations.variables;
-    hasVars = ~isempty(T) && any(arrayfun(@(t) ~isempty(t.variables), T));
-    if ~hasVars
-        groups = {f};
-        gname = {'all learning variables'};
-    elseif iscell(lv)
-        groups = cell(1, numel(lv));
-        gname = lv;
-        for j = 1:numel(lv)
-            mem = arrayfun(@(t) isempty(t.variables) || any(strcmp(t.variables, lv{j})), T);
-            groups{j} = intersect(f, [{T(mem).name}, setdiff({'RE'}, pop)]);
-        end
-    else
-        groups = {};    % types with own variables and expectations.variables = 'all': checked by the engine
-        gname = {};
-    end
+    groups = {f};
+    gname = {'all learning variables'};
     for j = 1:numel(groups)
         tot = sum(cellfun(@(n) double(s.(n)), groups{j}));
         if abs(tot - 1) > 1e-10
             error(ID, 'Option "%s": the shares of %s (%s) sum to %.12g, not 1.', p, gname{j}, ...
                 strjoin(groups{j}, ', '), tot);
         end
-    end
-end
-c = o.switching.costs;
-if ~isempty(c)
-    if ~(isstruct(c) && isscalar(c))
-        error(ID, 'Option "switching.costs" must be a struct by type name, or [].');
-    end
-    f = fieldnames(c)';
-    bad = setdiff(f, known);
-    if ~isempty(bad)
-        error(ID, 'Option "switching.costs": %s not a type of the population (%s).', strjoin(bad, ', '), strjoin(known, ', '));
-    end
-    for j = 1:numel(f)
-        num(c.(f{j}), @(x) x >= 0 && isfinite(x), ['switching.costs.' f{j}], '>= 0');
     end
 end
 end
