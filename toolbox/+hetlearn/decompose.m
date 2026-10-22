@@ -62,15 +62,13 @@ function D = decompose(res, vars, range, opts)
 %
 %   N agent types and forecast transforms (docs/DESIGN_br_extensions.md
 %   1.1-1.5; phase P6): supported, with the model of the run (the N-type file:
-%   transform factors, rule constants and wedge stds are its parameters, a
-%   wedge shock is a component like any shock). 'tv' over the forecast takes
-%   every learning type's beliefs from res.learning.<target>__<type> and the
-%   share parameters from res.learning.<x>.n_model_<type>; in the RE-model
-%   periods the paths of the type forecasts <x>_exp1_<type> ('plm', 'rule',
-%   'level', 're_mean' types; they hold the agents' forecasts) are left out of
-%   the reconstruction check, as <x>_exp1_BR. Errors (hetlearn:options:
-%   unsupported): 'tv' with level types (their coefficients are re-solved each
-%   quarter and not recorded in res.learning), and any result of
+%   transform parameters and rule constants are its parameters). 'tv' over
+%   the forecast takes every learning type's beliefs from
+%   res.learning.<target>__<type> and the share parameters from
+%   res.learning.<x>.n_model_<type>; in the RE-model periods the paths of the
+%   type forecasts <x>_exp1_<type> ('plm', 'rule', 're_mean' types; they hold
+%   the agents' forecasts) are left out of the reconstruction check, as
+%   <x>_exp1_BR. Error (hetlearn:options:unsupported): any result of
 %   history.mode = 'kalman' (its filtered history is not a path of the model
 %   with the filtered shocks, since the state covariance never collapses, so
 %   the components would not add up by shock).
@@ -147,14 +145,6 @@ if strcmp(hm, 'kalman')
         'Its history is the filtered state of the ALM in force each quarter, which is not a path of the model ' ...
         'with the filtered shocks (the state covariance never collapses), so the components would not add up by ' ...
         'shock. Decompose a run of the same scenario with history.mode = ''re_smoother'' or ''inversion''.'], o.id);
-end
-if strcmp(method, 'tv') && isfield(info, 'nt') && ~isempty(info.nt) && isfield(info.nt, 'levels') ...
-        && ~isempty(info.nt.levels)
-    lt = info.nt.types(strcmp({info.nt.types.kind}, 'level'));
-    error('hetlearn:options:unsupported', ['hetlearn.decompose of %s with method ''tv'': level types (%s; ' ...
-        'expectations.types kind ''level'') are not supported. Their coefficients are re-solved every quarter ' ...
-        '(hetlearn.engine.anchor_update) and not recorded in res.learning, so the model in force in each forecast ' ...
-        'quarter cannot be rebuilt. Method ''iris'' (mode ''rational'') is available.'], o.id, strjoin({lt.name}, ', '));
 end
 
 % ---- names, data, RE steady state ------------------------------------------------------
@@ -352,12 +342,12 @@ end
 
 function fv = type_forecast_vars(nt, lv)
 % the paths that hold the agents' own forecasts over the record (hetlearn.engine.assemble): <x>_exp1_<k> of
-% the 'plm', 'rule', 'level' and 're_mean' types of each learning variable
+% the 'plm', 'rule' and 're_mean' types of each learning variable
 fv = {};
 for i = 1:numel(lv)
     b = nt.byvar.(lv{i});
     for jj = 1:numel(b.types)
-        if any(strcmp(nt.types(b.types(jj)).kind, {'plm', 'rule', 'level', 're_mean'}))
+        if any(strcmp(nt.types(b.types(jj)).kind, {'plm', 'rule', 're_mean'}))
             fv{end+1} = b.fvars{jj}; %#ok<AGROW>
         end
     end
