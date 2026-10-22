@@ -37,7 +37,7 @@ catch err
     R = add(R, 'rls: 300-step loop equals hand-coded reference', false, err.message);
 end
 
-% decreasing gain 1/t reproduces recursive OLS exactly
+% the RLS update with gain 1/t reproduces recursive OLS exactly
 try
     T = 500; t0 = 10;
     Z = [ones(T, 1), randn(T, 2)];
