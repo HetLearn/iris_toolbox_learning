@@ -78,14 +78,13 @@ lastP = [];
 [d, C] = hetlearn.policy.forecast_setup(ctx, d, C);     % Ramsey: multipliers 0 up to the origin
 isNT = hetlearn.engine.ntypes('on', ctx);              % N agent types (DESIGN_br_extensions 1.1)
 if isNT
-    d = hetlearn.engine.ntypes('seed', ctx, S, d, hz(1) - 1);   % rule types' own lagged forecasts
+    d = hetlearn.engine.ntypes('seed', ctx, S, d, hz(1) - 1);   % re_mean types: the RE forecast at the origin
 end
 for k = 1:numel(hz)
     t = hz(k);
     % (1) parameters
     n1m = hetlearn.engine.shares_for_mode(ctx, S);
-    P = hetlearn.engine.facility('params', sys, S.phi, lv, n1m, ...
-        hetlearn.engine.anchor_update('params', ctx, S));     % level coefficients in force (phase P4)
+    P = hetlearn.engine.facility('params', sys, S.phi, lv, n1m);
     pv = cell2mat(struct2cell(P));
     if k == 1 && ~isempty(warm) && isequal(pv, warm.pv)
         m = warm.m;                     % solved for these parameters by an earlier call
@@ -115,7 +114,7 @@ for k = 1:numel(hz)
     end
     getVal = @(name, j) d.(name)(t + j);
     if isNT
-        % asserts the PLM, rule, level and re_mean types; fRE = the forecasts as they enter the aggregate,
+        % asserts the PLM, rule and re_mean types; fRE = the forecasts as they enter the aggregate,
         % fBR = the forecasts before the transforms (phase P4)
         [fRE, fBR] = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'model', t);
     else
