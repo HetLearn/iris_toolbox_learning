@@ -81,7 +81,7 @@ o = struct();
 % history.re_states = 'smoothed' (the option applies to the RE smoother only). With facility
 % 'none' a quarter without a model solution stops the run (hetlearn:engine:noSolution): such a
 % run is recorded as failed, not moved to another facility.
-% Tests do not read this file: tests/run_tests.m puts tests/config/master_options.m (the previous
+% Tests do not read this file: tests/run_tests.m puts tests/scenarios/master_options.m (the previous
 % values) first on the path.
 o.model_params = 'sw07_params_original';   % published SW07 (2007) mode, models/sw07/sw07_params_original.m
 o.gain.rule = 'koz';                       % endogenous gain, Kostyshyna, Ozden and Zhang (2024) eq. 9
