@@ -40,12 +40,14 @@ suites = {'test_options', 'test_rls', 'test_switching', 'test_plm', 'test_genera
     'test_facility', ...  % test_facility: projection facility (DESIGN 4.4; unit systems and toy, about 30 s)
     'test_re_states', ... % test_re_states: history.re_states 'smoothed' | 'filtered' (DESIGN 5.2; toy + SW07 runs, about 2 min)
     'test_re_info', ...   % test_re_info: expectations.re_info (DESIGN 19; about 8 min, or one part: see below)
-    'test_kalman', ...    % test_kalman: history.mode = 'kalman', gates K1-K4 (DESIGN_br_extensions 5; SW07 runs, about 2 min)
-    'test_ntypes', ...    % test_ntypes: N agent types, R3 and the P2 gates (DESIGN_br_extensions 1.1-1.2; toy, AH, SW07 runs, about 2 min)
-    'test_learning_rules', ...  % test_learning_rules: SAC, KF learning, decreasing gain, the P5 gates (DESIGN_br_extensions 1.5; unit, toy, AH runs)
-    'test_transforms', ...  % test_transforms: forecast transforms, R4 and the P3 gates (DESIGN_br_extensions 1.3; SW07 models and runs, about 4 min)
-    'test_anchor', ...      % test_anchor: generalised anchor, the P4 gates (DESIGN_br_extensions 1.4; EGM toy, SW07 models and runs, about 2 min)
+    'test_kalman', ...    % test_kalman: history.mode = 'kalman', K1-K8 (DESIGN_br_extensions 5; SW07 runs, about 2 min)
+    'test_ntypes', ...    % test_ntypes: N agent types, R3 and the P2 gates (DESIGN_br_extensions 1.1-1.2; toy, SW07 runs, about 2 min)
+    'test_transforms', ...  % test_transforms: forecast transforms, R4 and the P3 gates (DESIGN_br_extensions 1.3; SW07 models and runs, about 3 min)
+    'test_anchor', ...      % test_anchor: generalised anchor, the P4 gates (DESIGN_br_extensions 1.4; SW07 models and runs, about 1 min)
     'test_br_regression'}; % test_br_regression: frozen regression gate of the bounded-rationality extensions
+% The bounded-rationality suites cover the seven kept portfolio variants (docs/BR_audit.txt, cut on
+%   2026-10-22); test_learning_rules and the test packages tests/models/ah and tests/models/egm went with
+%   the dropped features (copies in archive/2026-10-22_br_cleanup/tests).
 % test_re_info: 'current' | 'lagged'; test_re_info('toy' | 'sw07_model' | 'sw07_runs' | 'sw07_stages') runs one
 %   part at a time. test_br_regression (docs/DESIGN_br_extensions.md 1.7): R1 generated files, R2 30 runs exact,
 %   about 2 min; references tests/reference/br_freeze.mat, made by tests/scenarios/make_br_freeze.m.
