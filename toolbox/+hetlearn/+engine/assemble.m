@@ -31,13 +31,15 @@ function res = assemble(ctx, d, rec, recDates, ev, S, H)
 %                version
 %
 %   N agent types (ctx.nt, docs/DESIGN_br_extensions.md 1.1): .paths
-%   <x>_exp1_<k> of 'plm' and 'rule' types hold the type's forecasts over the
-%   record dates (NaN before), as <x>_exp1_BR above; .learning.<target>__<k>
+%   <x>_exp1_<k> of 'plm', 'rule' and 're_mean' types hold the type's
+%   forecasts over the record dates (NaN before), as <x>_exp1_BR above (the
+%   forecast before the transforms, fb_<k>, when there are transforms);
+%   .learning.<target>__<k>
 %   holds the PLM series of each learning type (with .type and .variable),
 %   and .learning.<x> the per-variable series of every type k: n_<k>,
 %   n_model_<k>, U_<k>, FE_<k>, f_<k> (plus .types). .meta.types (name, kind,
-%   variant, info, variables, cost, population) and .meta.model_values
-%   ('model:<rule>' values, e.g. bma.sigma2 and the intensities used).
+%   variant, info, variables, population) and .meta.model_values
+%   (ctx.nt.model_values: the transform values, when there are transforms).
 
 o = ctx.opts;
 hz = ctx.horizon;
@@ -127,13 +129,8 @@ meta.iris_version = char(string(iris.release()));
 if isNT
     nt = ctx.nt;
     meta.types = struct('name', {nt.types.name}, 'kind', {nt.types.kind}, 'variant', {nt.types.variant}, ...
-        'info', {nt.types.info}, 'variables', {nt.types.vars}, 'cost', {nt.types.cost}, ...
-        'population', {nt.types.inpop});
-    mv = nt.model_values;
-    if isfield(mv, 'bma')
-        mv.bma.chi = [ctx.groups.chi];      % intensity of each share group
-    end
-    meta.model_values = mv;
+        'info', {nt.types.info}, 'variables', {nt.types.vars}, 'population', {nt.types.inpop});
+    meta.model_values = nt.model_values;
 end
 res.meta = meta;
 end
@@ -147,7 +144,7 @@ for i = 1:numel(ctx.learnVars)
     x = ctx.learnVars{i};
     b = nt.byvar.(x);
     for jj = 1:numel(b.types)
-        if any(strcmp(nt.types(b.types(jj)).kind, {'plm', 'rule', 'level', 're_mean'}))
+        if any(strcmp(nt.types(b.types(jj)).kind, {'plm', 'rule', 're_mean'}))
             s = Series(full, NaN(numel(full), 1));
             fn = ['f_' b.names{jj}];
             if isfield(rec.var.(x), ['fb_' b.names{jj}])
