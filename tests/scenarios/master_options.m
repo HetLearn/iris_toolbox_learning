@@ -8,7 +8,8 @@ function o = master_options()
 %   SW07 suite add tests/scenarios/ to the front of the path, so hetlearn.load_options finds this
 %   file first (run_tests asserts it). Added on 2026-10-20, when the project baseline moved to the
 %   published SW07 parameters, the KOZ gain from 0.05, chi 2, memory 0.8, t-1 RE information,
-%   filtered RE states and no projection facility (config/master_options.m).
+%   filtered RE states and no projection facility (config/master_options.m; facility 'alm' since
+%   2026-10-21).
 %
 %   The values are those config/master_options.m set until 2026-10-19; they equal
 %   hetlearn.defaults(), so the tests run on the defaults as before.
