@@ -287,7 +287,6 @@ Other documents in the repository:
 | [docs/DESIGN.md](docs/DESIGN.md) | Design specification of the toolbox |
 | [docs/DESIGN_br_extensions.md](docs/DESIGN_br_extensions.md) | Design of the agent types, transforms and the Kalman history |
 | [docs/FEATURES.md](docs/FEATURES.md) | Feature register |
-| [README_PIPELINE.md](README_PIPELINE.md) | Internal pipeline map: every step, its inputs and outputs, status and log |
 
 ## 11. Repository layout
 
