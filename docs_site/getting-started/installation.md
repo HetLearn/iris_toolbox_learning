@@ -6,7 +6,7 @@
 |---|---|---|
 | MATLAB | R2025a (the version the toolbox is developed and tested on) | everything |
 | IRIS Toolbox | release **20230622** exactly | model parsing, solution, Kalman filter, simulation |
-| Python 3 with pandas | any recent version | only the report and figure builders in `reports/` and `paper/figures/` |
+| Python 3 with pandas | any recent version | only the report builders in `reports/` |
 | MkDocs Material | see `docs_site/requirements.txt` | only to build these pages locally |
 
 No other MATLAB toolbox is required by `hetlearn` itself. Dynare is not needed; it was used
@@ -115,10 +115,8 @@ itself; anything else needs `setup_paths` first.
 
 ## Optional: Python
 
-The HTML report (`reports/build_report_v3.py`) and the paper figures
-(`paper/figures/make_figures.py`) are Python scripts that read the CSV summary tables. They
-need Python 3 with pandas (and matplotlib for the figures). The toolbox itself does not use
-Python.
+The HTML report builder (`reports/build_report_v3.py`) is a Python script that reads the CSV
+summary tables. It needs Python 3 with pandas. The toolbox itself does not use Python.
 
 ## Optional: build these pages
 
