@@ -43,7 +43,6 @@ group table.
 
 ## Results used on these pages
 
-All numbers on the application pages come from the baseline run of 2026-10-21
-(`results/summary_v3/key_numbers.csv`) and the paper figures in `paper/figures/`
-(`FIGURE_NOTES.txt`). Inflation, output and consumption growth are in % q/q annualised, the
+All numbers on the application pages come from the summary tables of the baseline run of
+2026-10-21 (`results/summary_v3/`). Inflation, output and consumption growth are in % q/q annualized, the
 policy rate in % a year, differences in percentage points (pp).
