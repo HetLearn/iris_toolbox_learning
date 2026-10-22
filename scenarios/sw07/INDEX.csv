@@ -55,7 +55,7 @@ var2_plm,v2_ar2,a1_learn,beliefs.plm.default = 'ar2',{'a1_learn'},true,Variant 2
 var2_plm,v2_reg,a1_learn,"beliefs.plm.derived.ygap = 'y - yf'; beliefs.plm.by_var.pinf = struct('regressors', {{'pinf{-1}', 'ygap{-1}', 'r{-1}'}}, 'constant', true)",{'a1_learn'},true,"Variant 2: learning on inflation with lagged inflation, output gap and rate as regressors"
 var2_plm,v2_var12,a1_learn,"beliefs.plm.var = struct('variables', {{'invef', 'rkf', 'pkf', 'cf', 'labf', 'inve', 'pinf', 'rk', 'pk', 'c', 'lab', 'w'}}, 'lags', 1, 'constant', true)",{'a1_learn'},true,Variant 2: learning on inflation with a VAR(1) in the 12 forward-looking variables
 var2_plm,v2_var3,a1_learn,"beliefs.plm.derived.ygap = 'y - yf'; beliefs.plm.var = struct('variables', {{'pinf', 'ygap', 'r'}}, 'lags', 1, 'constant', true)",{'a1_learn'},true,"Variant 2: learning on inflation with a VAR(1) in inflation, output gap and rate"
-var3_allvars,v3_all,a1_learn,expectations.variables = 'all',{'a1_learn'},true,"Variant 3: learning on all 12 forward-looking variables (no projection facility, the baseline)"
+var3_allvars,v3_all,a1_learn,expectations.variables = 'all',{'a1_learn'},true,"Variant 3: learning on all 12 forward-looking variables (facility alm, the baseline)"
 var3_allvars,v3_all_alm,v3_all,projection.facility = 'alm',{'v3_all'},true,Variant 3: learning on all 12 forward-looking variables (facility alm)
 var3_allvars,v3_all_plm_alm,v3_all,projection.facility = 'plm_alm',{'v3_all'},true,Variant 3: learning on all 12 forward-looking variables (facility plm_alm)
 var4_gain,v4_const,a1_learn,gain.rule = 'constant'; gain.value = 0.05,{'a1_learn'},true,Variant 4: learning on inflation with a constant gain of 0.05 (baseline: endogenous KOZ gain)
