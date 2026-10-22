@@ -1,13 +1,17 @@
 function R = test_ntypes(part)
-%TEST_NTYPES  N agent types, phase P2 of docs/DESIGN_br_extensions.md (1.1-1.2, 1.7 R3, sec. 2 variants 17, 19, 27).
+%TEST_NTYPES  N agent types, phase P2 of docs/DESIGN_br_extensions.md (1.1-1.2, 1.7 R3; variant 19).
 %
 %   R = test_ntypes()        every part
-%   R = test_ntypes(part)    'units' | 'r3' | 'hl' | 'bma' | 'shares' | 'modes' | 'ah'
+%   R = test_ntypes(part)    'units' | 'r3' | 'hl' | 'modes'
 %
+%   13 checks. B1-B2, S1 and A1-A4 were removed with the features they tested
+%   on 2026-10-22 (docs/BR_audit.txt); the other labels are unchanged.
 %   U1-U5  hetlearn.switching.discrete_choice_n and init_fitness_n: the two-type
-%          case equals discrete_choice/init_fitness, inertia, costs, the fitness
-%          normalisation (unnormalized at beta = normalized at beta/(1 - omega)),
-%          edge cases; hetlearn.plm.rule_terms
+%          case equals discrete_choice/init_fitness, the N-type logit with
+%          normalized fitness (hand formula), edge cases, initial fitness through
+%          the logit; hetlearn.plm.rule_terms on the rule grammar (numbers,
+%          + - * / ( ), x{-k}, other transition variables with lags, constants)
+%          and the rejected rules (malformed, or using terms that no longer exist)
 %   R3     the baseline in N-type syntax (types RE and BR spelled out) equals the
 %          two-type run: SW07 2026-10-20 baseline (tsw07_a1_learn) and its RE(t-1)
 %          benchmark (tsw07_a1_re), the toy switching run; the two-type file on the
@@ -22,29 +26,16 @@ function R = test_ntypes(part)
 %          rounding level, about 2e-11 on SW07); a TB-only population (share 1)
 %          is the SW07 model with every pinf{+1} replaced by 0, written from the
 %          source text (IRFs, 1e-10)
-%   B1-B2  Bayesian model averaging (variant 27, fitness 'unnormalized', memory 1,
-%          intensity 'model:bma'): shares = prior x exp(-chi*SSE) / sum from the
-%          recorded errors (1e-12); chi = 1/(2 sigma^2) with sigma^2 the h-step
-%          forecast-error variance from IRIS srf (toy h = 1, SW07 RE(t-1) h = 2)
-%   S1     engine shares with inertia, a cost and unnormalized fitness = the hand
-%          recursion from the recorded errors (toy, 1e-12)
 %   M1-M2  mode semantics with N types (toy): 'fixed_shares' with shares.fixed,
-%          'learning' on the single non-RE type, 'rational' without a listed RE type
-%          = the RE run, 'learning' with two non-RE types an error; history.learn =
-%          false with RE and BR spelled out = the two-type run; two PLM types (AR(1),
-%          AR(2)) with RE under the projection facility
-%   A1-A4  Anufriev-Hommes four heuristics (variant 17; tests/models/ah, the LAA
-%          anchor on the test gain rule ah_sample_mean = the sample mean): the
-%          engine's forecast stage equals an independent loop of the AH equations
-%          (prices and shares, 1e-10) from three initial price and share settings
-%          that give monotone convergence, damped and persistent oscillation;
-%          four identical rules keep shares at 0.25 (1e-15)
+%          'learning' on the single non-RE type (a rule type), 'rational' without a
+%          listed RE type = the RE run, 'learning' with two non-RE types an error;
+%          history.learn = false with RE and BR spelled out = the two-type run
 %
-%   Runs are not saved (hetlearn.run 'save', false). Toy and AH results only in
-%   memory. About 3 minutes; the first call generates the N-type model files.
+%   Runs are not saved (hetlearn.run 'save', false). Toy results only in
+%   memory. About 2 minutes; the first call generates the N-type model files.
 
 if nargin < 1 || isempty(part)
-    part = {'units', 'r3', 'hl', 'bma', 'shares', 'modes', 'ah'};
+    part = {'units', 'r3', 'hl', 'modes'};
 end
 part = cellstr(part);
 here = fileparts(mfilename('fullpath'));
@@ -59,24 +50,15 @@ end
 if any(strcmp(part, 'hl'))
     R = hl(R, here);
 end
-if any(strcmp(part, 'bma'))
-    R = bma(R, here);
-end
-if any(strcmp(part, 'shares'))
-    R = shares_engine(R, here);
-end
 if any(strcmp(part, 'modes'))
     R = modes(R, here);
-end
-if any(strcmp(part, 'ah'))
-    R = ah(R, here);
 end
 end
 
 
 % =========================================================================================
 function R = units(R)
-nm = 'nt U1: discrete_choice_n with two types, no inertia, no costs, normalized = discrete_choice (3 groups)';
+nm = 'nt U1: discrete_choice_n with two types = discrete_choice, init_fitness_n = init_fitness (3 groups)';
 try
     rs = RandStream('mt19937ar', 'Seed', 1);
     FE = rand(rs, 3, 2) * 2;
@@ -92,43 +74,30 @@ catch err
     R = add(R, nm, false, err.message);
 end
 
-nm = 'nt U2: inertia, costs and the fitness normalisation follow DESIGN_br_extensions 1.2 (hand formulas)';
+nm = 'nt U2: the N-type logit with normalized fitness follows DESIGN_br_extensions 1.2 (hand formula, 4 types, 30 periods)';
 try
     rs = RandStream('mt19937ar', 'Seed', 2);
-    chi = 0.7; om = 0.6; dl = 0.9; C = [0 0.3 0.1 0.5];
-    FE = rand(rs, 1, 4); U = -rand(rs, 1, 4); np = [0.1 0.2 0.3 0.4];
-    [n, Un] = hetlearn.switching.discrete_choice_n(FE, U, chi, om, 'inertia', dl, 'nprev', np, 'costs', C);
+    chi = 0.7; om = 0.6;
+    FE = rand(rs, 1, 4); U = -rand(rs, 1, 4);
+    [n, Un] = hetlearn.switching.discrete_choice_n(FE, U, chi, om);
     Uh = om * U - (1 - om) * FE;
-    e = exp(chi * (Uh - C));
-    nh = dl * np + (1 - dl) * e / sum(e);
-    d1 = max(abs([n - nh, Un - Uh]));
-    [n, Un] = hetlearn.switching.discrete_choice_n(FE, U, chi, om, 'fitness', 'unnormalized');
-    Uh = om * U - FE;
     e = exp(chi * Uh);
-    d2 = max(abs([n - e / sum(e), Un - Uh]));
-    % unnormalized at beta = normalized at beta/(1 - omega), from zero fitness, 30 periods
-    beta = 0.4;
-    Ua = zeros(1, 3); Ub = zeros(1, 3); d3 = 0;
+    d1 = max(abs([n - e / sum(e), Un - Uh]));
+    % the recursion over 30 periods from zero fitness, against the hand recursion
+    Ua = zeros(1, 4); Uh = zeros(1, 4); d2 = 0;
     for t = 1:30
-        fe = rand(rs, 1, 3) * 4;
-        [na, Ua] = hetlearn.switching.discrete_choice_n(fe, Ua, beta, 0.7, 'fitness', 'unnormalized');
-        [nb, Ub] = hetlearn.switching.discrete_choice_n(fe, Ub, beta / (1 - 0.7), 0.7);
-        d3 = max([d3, abs(na - nb)]);
+        fe = rand(rs, 1, 4) * 4;
+        [na, Ua] = hetlearn.switching.discrete_choice_n(fe, Ua, chi, om);
+        Uh = om * Uh - (1 - om) * fe;
+        e = exp(chi * (Uh - max(Uh)));
+        d2 = max([d2, abs(na - e / sum(e)), abs(Ua - Uh)]);
     end
-    % equal fitness: shares proportional to exp(-chi*C); a common cost does nothing
-    n4 = hetlearn.switching.discrete_choice_n(zeros(1, 3), zeros(1, 3), 2, 0.5, 'costs', [0 0.2 0.5]);
-    n5 = hetlearn.switching.discrete_choice_n(FE(1:3), U(1:3), 2, 0.5, 'costs', [1 1 1]);
-    n6 = hetlearn.switching.discrete_choice_n(FE(1:3), U(1:3), 2, 0.5);
-    e4 = exp(-2 * [0 0.2 0.5]);
-    d4 = max(abs([n4 - e4 / sum(e4), n5 - n6]));
-    ok = d1 <= 1e-15 && d2 <= 1e-15 && d3 <= 1e-12 && d4 <= 1e-15;
-    R = add(R, nm, ok, sprintf(['inertia+costs %.2g, unnormalized %.2g, beta vs beta/(1-omega) over 30 periods ' ...
-        '%.2g, cost logit %.2g'], d1, d2, d3, d4));
+    R = add(R, nm, d1 <= 1e-15 && d2 <= 1e-12, sprintf('one step %.2g, 30 periods %.2g', d1, d2));
 catch err
     R = add(R, nm, false, err.message);
 end
 
-nm = 'nt U3: discrete_choice_n edge cases (share 0 stays 0, memory 0, chi = 0, chi*U ~ 1e7, NaN error, memory 1)';
+nm = 'nt U3: discrete_choice_n edge cases (share 0 stays 0, memory 0, chi = 0, chi*U ~ 1e7, NaN error)';
 try
     U0 = hetlearn.switching.init_fitness_n([0.5 0.5 0], 2);
     [n, U] = hetlearn.switching.discrete_choice_n([1 2 0], U0, 2, 0.8);
@@ -141,28 +110,19 @@ try
     dd = all(isfinite(n)) && abs(n(1) - 1) < 1e-15;
     n = hetlearn.switching.discrete_choice_n([NaN 1 1], [0 0 0], 1, 0.5);
     e = all(isnan(n));
-    U = zeros(1, 2); sse = zeros(1, 2);
-    for t = 1:5
-        fe = [t, 2];
-        sse = sse + fe;
-        [n, U] = hetlearn.switching.discrete_choice_n(fe, U, 0.3, 1, 'fitness', 'unnormalized');
-    end
-    w = exp(-0.3 * sse);
-    f = max(abs([U + sse, n - w / sum(w)])) < 1e-14;
-    R = add(R, nm, a && b && c && dd && e && f, sprintf('%d %d %d %d %d %d', a, b, c, dd, e, f));
+    R = add(R, nm, a && b && c && dd && e, sprintf('%d %d %d %d %d', a, b, c, dd, e));
 catch err
     R = add(R, nm, false, err.message);
 end
 
-nm = 'nt U4: init_fitness_n returns the initial shares through the logit, costs included';
+nm = 'nt U4: init_fitness_n returns the initial shares through the logit (three groups, one chi each)';
 try
     n0 = [0.25 0.25 0.25 0.25; 0.1 0.2 0.3 0.4; 0 0.5 0.25 0.25];
-    C = [0 0.1 0.4 0.2];
-    U0 = hetlearn.switching.init_fitness_n(n0, [0.4; 2; 1.3], C);
     chi = [0.4; 2; 1.3];
+    U0 = hetlearn.switching.init_fitness_n(n0, chi);
     d = 0;
     for g = 1:3
-        a = chi(g) * (U0(g, :) - C);
+        a = chi(g) * U0(g, :);
         e = exp(a - max(a));
         d = max([d, abs(e / sum(e) - n0(g, :))]);
     end
@@ -171,17 +131,23 @@ catch err
     R = add(R, nm, false, err.message);
 end
 
-nm = 'nt U5: rule_terms: text, terms and timing of the AH rules, dn, constants; malformed rules rejected';
+nm = ['nt U5: rule_terms: text, terms and timing of rules in x{-k}, other variables and constants; ' ...
+    'output fields; malformed rules and the terms self, mean, dn, re1(...) rejected'];
 try
     tv = {'pinf', 'y', 'r'};
-    a = hetlearn.plm.rule_terms('0.65*x{-1} + 0.35*self{-1}', 'pinf', 'ADA', 'lagged', tv);
-    b = hetlearn.plm.rule_terms('0.5*(mean + x{-1}) + (x{-1} - x{-2})', 'pinf', 'LAA', 'lagged', tv);
-    c = hetlearn.plm.rule_terms(struct('expr', 'c1*dn{-1} + c2*r{-1}', 'params', struct('c1', 0.5, 'c2', 2)), ...
+    a = hetlearn.plm.rule_terms('x{-1} + 0.4*(x{-1} - x{-2})', 'pinf', 'WTR', 'lagged', tv);
+    b = hetlearn.plm.rule_terms('0', 'pinf', 'TB', 'lagged', tv);
+    c = hetlearn.plm.rule_terms(struct('expr', 'c1*x{-1} + c2*r{-1}', 'params', struct('c1', 0.5, 'c2', 2)), ...
         'pinf', 'FN', 'lagged', tv);
-    ok = strcmp(a.text, '0.65*pinf{-1} + 0.35*pinf_exp1_ADA{-1}') && a.self_maxlag == 1 && a.maxlag == 1 ...
-        && strcmp(b.text, '0.5*(alpha_pinf__LAA + pinf{-1}) + (pinf{-1} - pinf{-2})') && b.uses_mean ...
-        && b.maxlag == 2 && strcmp(c.text, 'c1__FN*(y{-1} - y{-2} + pinf{-1}) + c2__FN*r{-1}') ...
-        && c.maxlag == 2;
+    ok = strcmp(a.text, 'pinf{-1} + 0.4*(pinf{-1} - pinf{-2})') && a.maxlag == 2 ...
+        && strcmp(b.text, '0') && isempty(b.terms) && b.maxlag == 0 ...
+        && strcmp(c.text, 'c1__FN*pinf{-1} + c2__FN*r{-1}') && c.maxlag == 1 ...
+        && strcmp(c.param_names.c1, 'c1__FN') && c.param_values.c2 == 2;
+    % the output fields and term kinds of the cut grammar (no own-forecast, mean or re1 terms)
+    fl = {'text', 'mexpr', 'terms', 'param_names', 'param_values', 'maxlag', 'expr'};
+    kinds = unique([{a.terms.kind}, {c.terms.kind}]);
+    okf = isempty(setxor(fieldnames(a), fl)) && isempty(setxor(fieldnames(c), fl)) ...
+        && all(ismember(kinds, {'var', 'param'}));
     f = str2func(['@(v) ' c.mexpr]);
     v = zeros(numel(c.terms), 1);
     for j = 1:numel(c.terms)
@@ -192,21 +158,27 @@ try
                 v(j) = j;
         end
     end
-    ok = ok && isfinite(f(v));
-    % re1(y{+1} - y) is a valid term since phase P4 (2026-10-21); re1 of a lag is malformed
-    bad = {'x', 'lagged'; 'self + x{-1}', 'lagged'; 'x{-1}*x{-2}', 'lagged'; 're1(y{-1})', 'lagged'; ...
-        'x{+1}', 'current'; 'q{-1}', 'lagged'; 'mean{-1}', 'lagged'};
+    ok = ok && okf && isfinite(f(v));
+    % malformed rules, and rules in the terms removed on 2026-10-22 (own forecast, learned mean,
+    % nominal growth, anchored RE forecast)
+    bad = {'x', 'lagged'; 'x{-1}*x{-2}', 'lagged'; 'x{+1}', 'current'; 'q{-1}', 'lagged'; ...
+        '0.65*x{-1} + 0.35*self{-1}', 'lagged'; 'self + x{-1}', 'lagged'; ...
+        '0.5*(mean + x{-1}) + (x{-1} - x{-2})', 'lagged'; 'mean{-1}', 'lagged'; ...
+        'dn{-1}', 'lagged'; 'dn{-1} - re1(y{+1} - y)', 'lagged'; 're1(y{-1})', 'lagged'};
     nbad = 0;
+    miss = {};
     for i = 1:size(bad, 1)
         try
             hetlearn.plm.rule_terms(bad{i, 1}, 'pinf', 'K', bad{i, 2}, tv);
+            miss{end+1} = bad{i, 1}; %#ok<AGROW>
         catch err
             nbad = nbad + strcmp(err.identifier, 'hetlearn:types:rule');
         end
     end
     cur = hetlearn.plm.rule_terms('0.5*x + 0.5*x{-1}', 'pinf', 'K', 'current', tv);
     ok = ok && nbad == size(bad, 1) && strcmp(cur.text, '0.5*pinf + 0.5*pinf{-1}');
-    R = add(R, nm, ok, sprintf('%d of %d malformed rules rejected', nbad, size(bad, 1)));
+    R = add(R, nm, ok, sprintf('fields and term kinds %d; %d of %d rejected rules rejected (accepted: %s)', okf, ...
+        nbad, size(bad, 1), strjoin(miss, ' | ')));
 catch err
     R = add(R, nm, false, err.message);
 end
@@ -347,89 +319,6 @@ end
 
 
 % =========================================================================================
-function R = bma(R, here)
-nm = ['nt B1: BMA (unnormalized fitness, memory 1, intensity model:bma; toy, pie): shares = prior x ' ...
-    'exp(-chi*SSE) / sum from the recorded errors, chi = 1/(2 sigma^2) with sigma^2 from srf'];
-try
-    c = toy_cfg(here);
-    c.expectations.variables = {'pie'};
-    c.switching = struct('fitness', 'unnormalized', 'memory', 1, 'intensity', 'model:bma');
-    res = hetlearn.run(c, 'save', false, 'quiet', true);
-    mv = res.meta.model_values.bma;
-    o = hetlearn.load_options(c);
-    spec = hetlearn.load_spec(o.model);
-    m = hetlearn.load_model(spec, o);
-    s = srf(m, 1:1);
-    s2 = sum(s.pie(1, :).^2);                       % h = 1 (re_info 'current'), shocks at one sd
-    dchi = abs(mv.chi - 1 / (2 * s2)) / mv.chi;
-    L = res.learning.pie;
-    r = res.dates.record;
-    fe = [L.FE_RE(r), L.FE_BR(r)];
-    fe(1, :) = 0;                                   % first period: no errors
-    sse = cumsum(fe, 1);
-    w = 0.5 * exp(-mv.chi * sse);
-    nh = w ./ sum(w, 2);
-    dn = max(max(abs(nh - [L.n_RE(r), L.n_BR(r)])));
-    ok = mv.horizon == 1 && dchi < 1e-12 && dn < 1e-12;
-    R = add(R, nm, ok, sprintf('sigma^2 %.6g (srf %.6g), chi %.6g; max share diff %.3g over %d quarters; final n_RE %.3g', ...
-        mv.sigma2.pie, s2, mv.chi, dn, numel(r), L.n_RE(r(end))));
-catch err
-    R = add(R, nm, false, where(err));
-end
-
-nm = 'nt B2: model:bma on the SW07 RE(t-1) benchmark: sigma^2 = the two-step forecast-error variance of pinf (srf)';
-try
-    c = tsw07_a1_learn();
-    c.switching = struct('fitness', 'unnormalized', 'memory', 1, 'intensity', 'model:bma');
-    o = hetlearn.load_options(c);
-    spec = hetlearn.load_spec('sw07');
-    [m, info] = hetlearn.load_model(spec, o);
-    mv = info.nt.model_values.bma;
-    s = srf(m, 1:2);
-    s2 = sum(s.pinf(1, :).^2) + sum(s.pinf(2, :).^2);
-    d = abs(mv.sigma2.pinf - s2) / s2;
-    R = add(R, nm, mv.horizon == 2 && d < 1e-12, sprintf('sigma^2 %.8g, srf %.8g, chi %.6g', mv.sigma2.pinf, s2, ...
-        1 / (2 * mv.sigma2.pinf)));
-catch err
-    R = add(R, nm, false, where(err));
-end
-end
-
-
-% =========================================================================================
-function R = shares_engine(R, here)
-nm = ['nt S1: engine shares with inertia 0.6, a cost on BR (0.02) and unnormalized fitness (memory 0.5, chi 0.8) ' ...
-    '= the hand recursion from the recorded errors (toy)'];
-try
-    c = toy_cfg(here);
-    c.expectations.variables = {'pie'};
-    c.switching = struct('intensity', 0.8, 'memory', 0.5, 'inertia', 0.6, 'fitness', 'unnormalized', ...
-        'costs', struct('BR', 0.02));
-    res = hetlearn.run(c, 'save', false, 'quiet', true);
-    L = res.learning.pie;
-    r = res.dates.record;
-    C = [0 0.02];
-    n = [0.5 0.5];
-    U = hetlearn.switching.init_fitness_n(n, 0.8, C);
-    d = max(abs([n - [L.n_RE(r(1)), L.n_BR(r(1))], U - [L.U_RE(r(1)), L.U_BR(r(1))]]));
-    for t = 2:numel(r)
-        fe = [L.FE_RE(r(t)), L.FE_BR(r(t))];
-        U = 0.5 * U - fe;
-        a = 0.8 * (U - C);
-        e = exp(a - max(a));
-        n = 0.6 * n + 0.4 * e / sum(e);
-        d = max([d, abs(n - [L.n_RE(r(t)), L.n_BR(r(t))]), abs(U - [L.U_RE(r(t)), L.U_BR(r(t))])]);
-    end
-    hz = res.dates.horizon;
-    m1 = max(abs(L.n_model_RE(hz(2:end)) - L.n_RE(hz(1:end-1))));     % model shares of t = shares at the end of t-1
-    R = add(R, nm, d < 1e-12 && m1 < 1e-15, sprintf('max diff %.3g over %d quarters; model shares lag %.3g', d, numel(r), m1));
-catch err
-    R = add(R, nm, false, where(err));
-end
-end
-
-
-% =========================================================================================
 function R = modes(R, here)
 T = @(varargin) struct(varargin{:});
 nm = ['nt M1: mode semantics with N types (toy, pie): fixed_shares = shares.fixed in the model and the ' ...
@@ -454,21 +343,21 @@ try
     % (b) learning: share 1 on the one non-RE type (a rule)
     b = c;
     b.expectations.mode = 'learning';
-    b.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'ADA', 'kind', 'rule', 'rule', ...
-        '0.65*x{-1} + 0.35*self{-1}')};
+    b.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'LR', 'kind', 'rule', 'rule', ...
+        '0.65*x{-1} + 0.35*x{-2}')};
     rb = hetlearn.run(b, 'save', false, 'quiet', true);
     Lb = rb.learning.pie;
-    db = max(abs([Lb.n_model_ADA(hz) - 1; Lb.n_model_RE(hz); rb.paths.pie_exp1(hz) - rb.paths.pie_exp1_ADA(hz)]));
-    % ADA's own recursion in the simulated paths: f_t = 0.65 pie_{t-1} + 0.35 f_{t-1}
-    f = rb.paths.pie_exp1_ADA;
+    db = max(abs([Lb.n_model_LR(hz) - 1; Lb.n_model_RE(hz); rb.paths.pie_exp1(hz) - rb.paths.pie_exp1_LR(hz)]));
+    % the rule in the simulated paths: f_t = 0.65 pie_{t-1} + 0.35 pie_{t-2}
+    f = rb.paths.pie_exp1_LR;
     p = rb.paths.pie;
-    db = max([db; abs(f(hz) - (0.65 * p(hz - 1) + 0.35 * f(hz - 1)))]);
+    db = max([db; abs(f(hz) - (0.65 * p(hz - 1) + 0.35 * p(hz - 2)))]);
     % (c) rational with RE not listed: the RE run (common variables)
     r = c;
     r.expectations.mode = 'rational';
     rr = fresh_run(r);
     q = r;
-    q.expectations.types = {T('name', 'ADA', 'kind', 'rule', 'rule', '0.65*x{-1} + 0.35*self{-1}'), ...
+    q.expectations.types = {T('name', 'LR', 'kind', 'rule', 'rule', '0.65*x{-1} + 0.35*x{-2}'), ...
         T('name', 'WTR', 'kind', 'rule', 'rule', 'x{-1} + 0.4*(x{-1} - x{-2})')};
     rq = fresh_run(q);
     dc = 0;
@@ -497,8 +386,7 @@ catch err
     R = add(R, nm, false, where(err));
 end
 
-nm = ['nt M2: history.learn = false with RE and BR spelled out = the two-type run; two PLM types (AR(1) and ' ...
-    'AR(2) learners) switch with RE under the projection facility (toy)'];
+nm = 'nt M2: history.learn = false with RE and BR spelled out = the two-type run (toy, pie; <= 1e-12)';
 try
     c = toy_cfg(here);
     c.expectations.variables = {'pie'};
@@ -509,20 +397,7 @@ try
     b.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm')};
     rb = fresh_run(b);
     [d1, msg] = compare_runs(ra, rb, {'pie'}, 'BR');
-    q = c;
-    q.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm'), ...
-        T('name', 'B2', 'kind', 'plm', 'plm', 'ar2')};
-    rq = hetlearn.run(q, 'save', false, 'quiet', true);
-    L = rq.learning.pie;
-    r = rq.dates.record;
-    s = L.n_RE(r) + L.n_BR(r) + L.n_B2(r);
-    d2 = max(abs(s - 1));
-    k2 = rq.learning.pie__B2;
-    np = numel(k2.params);
-    mv = max(abs(diff(L.n_B2(r))));
-    ok = d1 <= 1e-12 && d2 < 1e-14 && np == 3 && mv > 0 && strcmp(rq.cfg.projection.facility, 'plm_alm');
-    R = add(R, nm, ok, sprintf(['learn = false: %s; three types: shares sum to 1 within %.2g, the AR(2) type has ' ...
-        '%d belief parameters (%s), its share moves (max change %.3g)'], msg, d2, np, strjoin(k2.params, ', '), mv));
+    R = add(R, nm, d1 <= 1e-12, sprintf('learn = false: %s', msg));
 catch err
     R = add(R, nm, false, where(err));
 end
@@ -530,137 +405,7 @@ end
 
 
 % =========================================================================================
-function R = ah(R, here)
-ahDir = fullfile(here, 'models', 'ah');
-addpath(ahDir);                                    % the test gain rule hetlearn.gain.ah_sample_mean
-cAH = onCleanup(@() rmpath(ahDir));
-T = @(varargin) struct(varargin{:});
-rules = {T('name', 'ADA', 'kind', 'rule', 'rule', '0.65*x{-1} + 0.35*self{-1}'), ...
-    T('name', 'WTR', 'kind', 'rule', 'rule', 'x{-1} + 0.4*(x{-1} - x{-2})'), ...
-    T('name', 'STR', 'kind', 'rule', 'rule', 'x{-1} + 1.3*(x{-1} - x{-2})'), ...
-    T('name', 'LAA', 'kind', 'rule', 'rule', '0.5*(mean + x{-1}) + (x{-1} - x{-2})', ...
-    'gain', struct('rule', 'ah_sample_mean'))};
-cases = {'monotone convergence', [0.25 0.25 0.25 0.25], [-5 0 -10], 1
-    'damped oscillation', [0.05 0.05 0.05 0.85], [-5 -10 -5], 2
-    'persistent oscillation', [0.1 0.1 0.7 0.1], [-10 -5 0], 3};
-names = {'ADA', 'WTR', 'STR', 'LAA'};
-for i = 1:size(cases, 1)
-    nm = sprintf(['nt A%d: Anufriev-Hommes four heuristics (beta 0.4, eta 0.7, delta 0.9), initial prices %s, ' ...
-        'shares %s: engine = hand loop of the AH equations (1e-10), %s'], i, mat2str(60 + cases{i, 3}), ...
-        mat2str(cases{i, 2}), cases{i, 1});
-    try
-        res = ah_run(ahDir, rules, cases{i, 2}, cases{i, 3}, sprintf('nt_ah%d', i));
-        hz = res.dates.horizon;
-        [ph, nh] = ah_loop(cases{i, 3}, cases{i, 2}, numel(hz));
-        pe = res.paths.p(hz);
-        L = res.learning.p;
-        ne = zeros(numel(hz), 4);
-        for k = 1:4
-            ne(:, k) = L.(['n_' names{k}])(hz);
-        end
-        dp = max(abs(pe - ph));
-        dn = max(abs(ne(:) - nh(:)));
-        cls = ah_classify(pe);
-        ok = dp < 1e-10 && dn < 1e-10 && cls == cases{i, 4};
-        R = add(R, nm, ok, sprintf(['price diff %.3g, share diff %.3g; pattern %d (expected %d); prices 2001Q1-2003Q4 ' ...
-            '%s; final shares %s'], dp, dn, cls, cases{i, 4}, mat2str(round(60 + pe(2:12)', 1)), mat2str(round(ne(end, :), 3))));
-    catch err
-        R = add(R, nm, false, where(err));
-    end
-end
-
-nm = 'nt A4: four identical rules keep shares at 0.25 (inertia 0.9, unnormalized fitness; AH economy; 1e-15)';
-try
-    same = cellfun(@(k) T('name', k, 'kind', 'rule', 'rule', '0.65*x{-1} + 0.35*self{-1}'), ...
-        {'A1', 'A2', 'A3', 'A4'}, 'UniformOutput', false);
-    res = ah_run(ahDir, same, [0.25 0.25 0.25 0.25], [-10 -5 0], 'nt_ah4');
-    L = res.learning.p;
-    r = res.dates.record;
-    d = 0;
-    for k = 1:4
-        d = max([d; abs(L.(sprintf('n_A%d', k))(r) - 0.25)]);
-    end
-    R = add(R, nm, d <= 1e-15, sprintf('max |n - 0.25| %.3g over %d quarters', d, numel(r)));
-catch err
-    R = add(R, nm, false, where(err));
-end
-clear cAH
-end
-
-
-function res = ah_run(ahDir, types, n0, p0, id)
-% one AH run: data p_obs = 60 + p0 over 2000Q1-Q3, origin 2000Q3, 50 quarters, zero shocks
-dates = qq(2000, 1):qq(2000, 3);
-if exist(fullfile(ahDir, 'data'), 'dir') ~= 7
-    mkdir(fullfile(ahDir, 'data'));
-end
-databank.toCSV(struct('p_obs', Series(dates, 60 + p0(:))), fullfile(ahDir, 'data', 'ah_database.csv'), dates, ...
-    'Format', '%.17g');
-c = struct();
-c.id = id;
-c.model = ahDir;
-c.forecast = struct('origin', qq(2000, 3), 'horizon', 50);
-c.expectations = struct('mode', 'switching', 'variables', {{'p'}}, 'types', {types});
-c.beliefs.init.date = qq(2000, 3);
-c.switching = struct('intensity', 0.4, 'memory', 0.7, 'inertia', 0.9, 'fitness', 'unnormalized');
-nm = cellfun(@(t) t.name, types, 'UniformOutput', false);
-c.shares.init = cell2struct(num2cell(n0(:)), nm(:), 1);
-c.projection.facility = 'none';
-res = hetlearn.run(c, 'save', false, 'quiet', true);
-end
-
-
-function [p, N] = ah_loop(p0, n0, H)
-% Anufriev and Hommes (2012) eqs. (KER 4-10) in deviations from p^f = 60, from three initial prices and
-% the engine's conventions for the first learning period (2000Q3): ADA's previous forecast 0.65*p1 (the
-% filter recursion from 0), the LAA anchor 0 there and then the sample mean from p3 on, shares n0 in
-% force in the first simulated quarter. Returns the H simulated prices and the shares at the end of each.
-r = 0.05; beta = 0.4; eta = 0.7; delta = 0.9;
-x = [p0(:); zeros(H, 1)];
-F = [0.65 * x(2) + 0.35 * 0.65 * x(1), x(2) + 0.4 * (x(2) - x(1)), x(2) + 1.3 * (x(2) - x(1)), ...
-    0.5 * (0 + x(2)) + (x(2) - x(1))];
-mu = x(3);
-cnt = 1;
-n = n0;
-U = log(n0) / beta;
-U = U - U(1);
-N = zeros(H, 4);
-for t = 4:3 + H
-    Fn = [0.65 * x(t-1) + 0.35 * F(1), x(t-1) + 0.4 * (x(t-1) - x(t-2)), x(t-1) + 1.3 * (x(t-1) - x(t-2)), ...
-        0.5 * (mu + x(t-1)) + (x(t-1) - x(t-2))];
-    x(t) = (n * Fn') / (1 + r);
-    U = eta * U - (x(t) - F).^2;
-    a = beta * U;
-    e = exp(a - max(a));
-    n = delta * n + (1 - delta) * e / sum(e);
-    N(t - 3, :) = n;
-    F = Fn;
-    cnt = cnt + 1;
-    mu = mu + (x(t) - mu) / cnt;
-end
-p = x(4:end);
-end
-
-
-function c = ah_classify(p)
-% 1 monotone convergence, 2 damped oscillation, 3 persistent oscillation, 4 other (deviations from p^f)
-s = sign(p);
-s(s == 0) = 1;
-ch = sum(abs(diff(s(5:end))) > 0);
-early = max(abs(p(5:15)));
-late = max(abs(p(end-9:end)));
-if ch == 0 && late < 0.5 * early && late < 1
-    c = 1;
-elseif ch >= 3 && late < 0.2 * early
-    c = 2;
-elseif ch >= 6 && late >= 0.5 * early && late > 0.5
-    c = 3;
-else
-    c = 4;
-end
-end
-
-
+% helpers
 function c = toy_cfg(here)
 c = struct();
 c.id = 'nt_toy';
