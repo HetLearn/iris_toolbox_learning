@@ -3,7 +3,9 @@ function R = test_kalman(part)
 %
 %   R = test_kalman()            every check
 %   R = test_kalman('options')   KO only (a few seconds)
-%   R = test_kalman('sw07')      K1-K5 (SW07 runs, about 2 min)
+%   R = test_kalman('sw07')      K1-K8 (SW07 runs, about 2 min)
+%
+%   12 checks: KO (3), K1 (2), K2-K8 (one each).
 %
 %   KO options: history.mode = 'kalman' loads (the P1 guard of load_options is gone),
 %      history.kalman.init 'stochastic' (default) | 'smoothed', a bad init and
@@ -38,10 +40,11 @@ function R = test_kalman(part)
 %      shares.init TB = 0) and a multiplier at 1 on every type's inflation forecast leave the
 %      two-type Kalman run unchanged (errors, log likelihood, beliefs, shares; <= 1e-10, the TB
 %      file has a larger state vector)
-%   K8 level types and an intercept-only type in the Kalman history (projection.facility
-%      'alm'): {L0 AR(1), L1, L2 levels on L0} and {RE, IO 're_mean'} run to 2026Q2 with their
-%      forecast stage; every type whose forecast uses data of one date only equals the model's
-%      prediction of it (res.kalman.ftypes_model_maxdiff < 1e-11); shares sum to 1
+%   K8 an intercept-only type in the Kalman history (projection.facility 'alm'): {RE, IO
+%      're_mean'} (variant 23) runs to 2026Q2 with its forecast stage; its forecast, which uses
+%      data of one date only, equals the model's prediction of it (res.kalman.ftypes_model_maxdiff
+%      < 1e-11); shares sum to 1 (the level-type half of K8 was removed with the level kind on
+%      2026-10-22, docs/BR_audit.txt)
 %   SW07 runs are not saved, except the K5 pair (tests/output/results/).
 
 if nargin < 1 || isempty(part)
@@ -311,7 +314,8 @@ end
 
 % =========================================================================
 function R = ntype_checks(R, run)
-% K6-K8: N agent types and forecast transforms in the Kalman history (phase P6)
+% K6-K8: N agent types and forecast transforms in the Kalman history (phase P6; K8 cut to the
+% intercept-only type on 2026-10-22)
 T = @(varargin) struct(varargin{:});
 pair = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm')};
 ra = [];
@@ -345,8 +349,7 @@ try
     c.shares.init = struct('RE', 0.5, 'BR', 0.5, 'TB', 0);
     r1 = run(c);
     c = kalman_cfg(tsw07_a1_learn(), 'tk_k7b', qq(2026, 2), 'stochastic');
-    c.expectations.transforms = struct('kind', 'multiplier', 'profile', 'geometric', 'types', 'all', 'value', 1, ...
-        'scope', 'learning');
+    c.expectations.transforms = struct('kind', 'multiplier', 'types', 'all', 'value', 1, 'scope', 'learning');
     r2 = run(c);
     d = zeros(1, 2);
     txt = cell(1, 2);
@@ -375,38 +378,24 @@ catch err
     R = add(R, nm, false, getReport(err, 'basic'));
 end
 
-nm = ['kalman K8: level types {L0, L1, L2} and an intercept-only type {RE, IO} in the Kalman history (facility alm): ' ...
-    'they run with their forecast stage; one-date forecasts = the model''s predictions (< 1e-11); shares sum to 1'];
+nm = ['kalman K8: an intercept-only type {RE, IO} in the Kalman history (facility alm): it runs with its forecast ' ...
+    'stage; its one-date forecast = the model''s prediction (< 1e-11); shares sum to 1'];
 try
-    c = kalman_cfg(tsw07_a1_learn(), 'tk_k8a', qq(2026, 2), 'stochastic');
-    c.projection.facility = 'alm';
-    c.expectations.types = {T('name', 'L0', 'kind', 'plm'), T('name', 'L1', 'kind', 'level', 'base', 'L0', 'k', 1), ...
-        T('name', 'L2', 'kind', 'level', 'base', 'L0', 'k', 2)};
-    c.shares.init = struct('L0', 1/3, 'L1', 1/3, 'L2', 1/3);
-    r1 = run(c);
     c = kalman_cfg(tsw07_a1_learn(), 'tk_k8b', qq(2026, 2), 'stochastic');
     c.projection.facility = 'alm';
     c.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'IO', 'kind', 're_mean')};
     r2 = run(c);
-    g1 = r1.kalman.ftypes_model_maxdiff;
     g2 = r2.kalman.ftypes_model_maxdiff;
-    gap = max([g1.L0, g1.L1, g1.L2, g2.IO]);
-    td = r1.dates.record;
-    L1 = r1.learning.pinf;
-    s1 = max(abs(L1.n_RE(td) + L1.n_L0(td) + L1.n_L1(td) + L1.n_L2(td) - 1));
+    td = r2.dates.record;
     L2 = r2.learning.pinf;
     s2 = max(abs(L2.n_RE(td) + L2.n_IO(td) - 1));
-    hz = r1.dates.horizon;
-    fin = all(isfinite(r1.paths.pinfobs(hz))) && all(isfinite(r2.paths.pinfobs(hz))) ...
-        && isfinite(r1.kalman.loglik) && isfinite(r2.kalman.loglik);
-    nLev = sum(strcmp(r1.events.type, 'projection_level'));
-    fprintf(['KALMAN-K8 | levels: log lik %.4f, model gap L0 %.2g L1 %.2g L2 %.2g, %d projection_level events, shares at ' ...
-        '2026Q2 L0 %.3f L1 %.3f L2 %.3f; intercept-only: log lik %.4f, gap IO %.2g, IO share %.3f\n'], r1.kalman.loglik, ...
-        g1.L0, g1.L1, g1.L2, nLev, L1.n_L0(qq(2026, 2)), L1.n_L1(qq(2026, 2)), L1.n_L2(qq(2026, 2)), r2.kalman.loglik, ...
+    hz = r2.dates.horizon;
+    fin = all(isfinite(r2.paths.pinfobs(hz))) && isfinite(r2.kalman.loglik);
+    nG = numel(fieldnames(g2));
+    fprintf('KALMAN-K8 | intercept-only: log lik %.4f, gap IO %.2g, IO share at 2026Q2 %.3f\n', r2.kalman.loglik, ...
         g2.IO, L2.n_IO(qq(2026, 2)));
-    R = add(R, nm, gap < 1e-11 && s1 < 1e-12 && s2 < 1e-12 && fin, sprintf(['model gap L0 %.2g, L1 %.2g, L2 %.2g, IO %.2g; ' ...
-        'share sums %.2g, %.2g; log lik %.4f, %.4f; %d projection_level events'], g1.L0, g1.L1, g1.L2, g2.IO, s1, s2, ...
-        r1.kalman.loglik, r2.kalman.loglik, nLev));
+    R = add(R, nm, g2.IO < 1e-11 && s2 < 1e-12 && fin, sprintf(['model gap IO %.2g (%d types with a gap); ' ...
+        'share sum %.2g; log lik %.4f'], g2.IO, nG, s2, r2.kalman.loglik));
 catch err
     R = add(R, nm, false, getReport(err, 'basic'));
 end
