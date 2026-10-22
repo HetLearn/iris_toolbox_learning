@@ -3,21 +3,22 @@ function varargout = ntypes(cmd, varargin)
 %
 %   tf       = hetlearn.engine.ntypes('on', ctx)
 %   [S, ctx] = hetlearn.engine.ntypes('init', ctx, m, H)
-%   F        = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, src, t)
-%   S        = hetlearn.engine.ntypes('store', ctx, S, F)
+%   [F, X]   = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, src, t)
+%   S        = hetlearn.engine.ntypes('store', ctx, S, F, X)
 %   d        = hetlearn.engine.ntypes('seed', ctx, S, d, t0)
 %   out      = hetlearn.engine.ntypes('no_update', ctx)
 %
 %   The N-type path of the engine is on when hetlearn.load_model returned
-%   info.nt (expectations.types, or the default pair RE/BR with the switching
-%   options of DESIGN_br_extensions 1.2; hetlearn.agent_types). Without it
-%   every engine function runs its two-type code of 2026-10-20 unchanged.
+%   info.nt (expectations.types, forecast transforms, shares.init or
+%   shares.fixed; hetlearn.agent_types). Without it every engine function
+%   runs its two-type code of 2026-10-20 unchanged.
 %
 %   'on'         true when ctx.nt is set (by 'init', from ctx.info.nt)
 %   'init'       called by hetlearn.engine.state_init: ctx.nt; share groups
 %                ctx.groups(g) (.G, .members as before, plus .types =
 %                population types of the group, indices into ctx.nt.types,
-%                .chi intensity, .C costs) and ctx.groupOf; the initial state
+%                .chi intensity = switching.intensity) and ctx.groupOf; the
+%                initial state
 %                  S.phi.<key>, S.R.<key>   beliefs of every learning type, key
 %                                           <target>__<type> (ctx.sys, the keyed
 %                                           system of hetlearn.load_model)
@@ -28,16 +29,11 @@ function varargout = ntypes(cmd, varargin)
 %                  S.U{g}, S.n{g}           fitness and discrete-choice shares of
 %                                           group g (its population types)
 %                  S.f.<x>.<type>           last forecasts (NaN at the start)
-%                  S.fh.<x>.<type>          own forecasts of rule types with
-%                                           self{-k} terms, newest first
 %                Initial shares: shares.init (struct by type; a type not listed
 %                0); [] = shares.init_n2 for the default pair RE/BR, equal
 %                shares otherwise. Initial fitness:
 %                hetlearn.switching.init_fitness_n. Initial beliefs as before
-%                (beliefs.init.method), per type with its own system.
-%                switching.intensity 'model:bma': chi = 1/(2 sigma^2) per
-%                group, sigma^2 the mean over its variables of
-%                ctx.info.nt.model_values.bma.sigma2. Errors
+%                (beliefs.init.method), per type with its own system. Errors
 %                (hetlearn:engine:types): history.mode 'inversion' (the
 %                history stages are 're_smoother' and, since phase P6,
 %                'kalman'), mode 'learning' with more than one non-RE type
@@ -51,37 +47,23 @@ function varargout = ntypes(cmd, varargin)
 %                transforms that act on its term (phase P4; without
 %                transforms the forecast itself), the forecast that fitness,
 %                FE_<type> and f_<type> use. X.base.<x>.<type> = the forecast
-%                before the transforms, X.pa = partial-adjustment values. src
-%                'history' (RE smoother history, nothing simulated; also the
-%                Kalman history, whose getVal serves the agents' real-time
-%                data, hetlearn.engine.kalman_history): 're'
-%                types read <x>_exp1_<type>(t) from the history databank (a
-%                second RE type that forecasts as the RE type reads
-%                <x>_exp1_RE, which hetlearn.engine.history_db takes from the
-%                predictions under 'filtered' RE states), 'plm' types
+%                before the transforms. src 'history' (RE smoother history,
+%                nothing simulated; also the Kalman history, whose getVal
+%                serves the agents' real-time data,
+%                hetlearn.engine.kalman_history): the 're' type reads
+%                <x>_exp1_RE(t) from the history databank, 'plm' types
 %                hetlearn.plm.forecast_value with phi_{t-1} on the type's
-%                information set, 'rule' types their expression (self{-k}
-%                from S.fh, or the databank before the first own forecast;
-%                mean = the type's mean belief in force; re1(...) = its
-%                anchored coefficients on the states dated t-1), 'level'
-%                types their coefficients in force (S.levels,
-%                hetlearn.engine.anchor_update) on the states dated t-1 (or
-%                t), 're_mean' types the RE type's forecast plus the mean belief
-%                in force. Transforms use the databank (x{-1}, the diagnostic
-%                reference, wedge factors) and, for partial adjustment in the
-%                history, the engine's own previous value (S.pa). src 'model'
-%                (forecast stage): every <x>_exp1_<type>(t) of the simulated
-%                databank, the 'plm', 'rule', 'level' and 're_mean' ones
-%                asserted equal to the same formulas (1e-9, error
-%                hetlearn:engine:timing); partial adjustment reads the model's
-%                state.
-%   'store'      S.f = F, S.fb = X.base, S.pa, and the own-forecast history
-%                S.fh (base forecasts) moved by one period
-%   'seed'       the forecast databank d at t0 (the origin) and before: the
-%                own forecasts S.fh of rule types with self{-k} terms, so the
-%                simulated rule continues from the history stage's forecasts;
-%                with a 're_mean' type, <x>_exp1_RE(t0) = the RE forecast of
-%                the history stage (the target <x>_feRE of t0+1 uses it)
+%                information set, 'rule' types their expression on the
+%                databank, 're_mean' types the RE type's forecast plus the
+%                mean belief in force. Transforms use the databank (x{-1}
+%                and the diagnostic reference). src 'model' (forecast stage):
+%                every <x>_exp1_<type>(t) of the simulated databank, the
+%                'plm', 'rule' and 're_mean' ones asserted equal to the same
+%                formulas (1e-9, error hetlearn:engine:timing).
+%   'store'      S.f = F, S.fb = X.base
+%   'seed'       the forecast databank d at t0 (the origin): with a 're_mean'
+%                type, <x>_exp1_RE(t0) = the RE forecast of the history stage
+%                (the target <x>_feRE of t0+1 uses it)
 %   'no_update'  the per-period output of a period without an update (record)
 %
 %   See also hetlearn.agent_types, hetlearn.engine.update_learning,
@@ -114,7 +96,7 @@ nt = ctx.info.nt;
 ID = 'hetlearn:engine:types';
 if ~any(strcmp(o.history.mode, {'re_smoother', 'kalman'}))
     % hetlearn.load_options refuses this first (hetlearn:options:unsupported); kept for direct engine calls
-    error(ID, ['N agent types, forecast transforms or the switching options of DESIGN_br_extensions 1.2 with ' ...
+    error(ID, ['N agent types, forecast transforms, shares.init or shares.fixed with ' ...
         'history.mode = ''%s'' are not supported: use history.mode = ''re_smoother'' or ''kalman''.'], o.history.mode);
 end
 lv = ctx.learnVars;
@@ -166,7 +148,7 @@ for j = 1:numel(nt.types)
 end
 
 % ---- share groups -----------------------------------------------------------------------
-groups = struct('G', {}, 'members', {}, 'types', {}, 'chi', {}, 'C', {});
+groups = struct('G', {}, 'members', {}, 'types', {}, 'chi', {});
 groupOf = struct();
 switch o.shares.structure
     case 'per_variable'
@@ -190,7 +172,6 @@ switch o.shares.structure
             end
         end
 end
-chi0 = o.switching.intensity;
 for g = 1:numel(groups)
     vs = unique([groups(g).G, groups(g).members], 'stable');
     b = nt.byvar.(vs{1});
@@ -206,13 +187,7 @@ for g = 1:numel(groups)
         error(ID, 'Share group {%s} has no agent types.', strjoin(vs, ', '));
     end
     groups(g).types = tix;
-    groups(g).C = [nt.types(tix).cost];
-    if ischar(chi0)
-        s2 = cellfun(@(v) nt.model_values.bma.sigma2.(v), groups(g).G);
-        groups(g).chi = 1 / (2 * mean(s2));
-    else
-        groups(g).chi = chi0;
-    end
+    groups(g).chi = o.switching.intensity;
 end
 ctx.groups = groups;
 ctx.groupOf = groupOf;
@@ -228,7 +203,7 @@ for g = 1:numel(groups)
     names = {nt.types(tix).name};
     n0 = initial_shares(o, nt, names, o.shares.init, 'shares.init');
     S.n{g} = n0;
-    S.U{g} = hetlearn.switching.init_fitness_n(n0, groups(g).chi, groups(g).C);
+    S.U{g} = hetlearn.switching.init_fitness_n(n0, groups(g).chi);
 end
 
 % ---- mode semantics ----------------------------------------------------------------------------
@@ -279,16 +254,12 @@ ctx.nt = nt;
 
 % ---- forecasts, histories, gains -----------------------------------------------------------
 S.f = struct();
-S.fh = struct();
 for i = 1:numel(lv)
     x = lv{i};
     b = nt.byvar.(x);
     for jj = 1:numel(b.types)
         t = nt.types(b.types(jj));
         S.f.(x).(t.name) = NaN;
-        if strcmp(t.kind, 'rule') && t.self_maxlag > 0
-            S.fh.(x).(t.name) = zeros(0, 1);
-        end
     end
 end
 S.fe_hist = struct();
@@ -307,21 +278,10 @@ for j = 1:numel(nt.types)
     S.gain.(t.name) = feval(['hetlearn.gain.' t.gain.rule], 'init', t.sys, ...
         intersect(t.vars, t.sys.targets, 'stable'), t.gain);
 end
-S.pa = struct();
 
 % ---- forecasts as they enter the aggregate (phase P4): the transforms of each type's term -------
 ctx.nt.score = score_steps(ctx);
 ctx.nt.has_tf = ~isempty(fieldnames(ctx.nt.score));
-
-% ---- level types: the levels in force at the start (phase P4) -------------------------------------
-if isfield(ctx.nt, 'levels') && ~isempty(ctx.nt.levels)
-    ctx.nt.level_m = m;             % the model of the level economies (hetlearn.engine.anchor_update)
-    t0 = NaN;
-    if isfield(ctx, 'init_date')
-        t0 = ctx.init_date;
-    end
-    S = hetlearn.engine.anchor_update('compute', ctx, S, t0);
-end
 end
 
 
@@ -329,7 +289,7 @@ end
 function sc = score_steps(ctx)
 % sc.<x>.<type>: the forecast transforms acting on the type's term of x_exp1 (the aggregate, not
 % the equation copies), in list order, as the generator writes them (hetlearn.extend_model tf_chain,
-% tf_unblocked, tf_expr), with their factor values. Empty without transforms.
+% tf_unblocked, tf_expr), with their parameter values. Empty without transforms.
 sc = struct();
 info = ctx.info;
 if ~isfield(info, 'meta') || ~isfield(info.meta, 'transforms') || isempty(info.meta.transforms)
@@ -344,17 +304,13 @@ degv = {};
 if isfield(Tm, 'deg_vars')
     degv = Tm.deg_vars;
 end
-gv = struct();
-for j = 1:numel(info.meta.types)
-    gv.(info.meta.types(j).name) = info.meta.types(j).variant;      % '' = follows re_variant
-end
 for i = 1:numel(ctx.learnVars)
     x = ctx.learnVars{i};
     b = nt.byvar.(x);
     for jj = 1:numel(b.types)
         ty = nt.types(b.types(jj));
         k = ty.name;
-        st = struct('kind', {}, 'a', {}, 'b', {}, 'ref', {}, 'reflag', {}, 'state', {}, 'xi', {}, 'i', {});
+        st = struct('kind', {}, 'a', {}, 'b', {}, 'ref', {}, 'reflag', {});
         for q = 1:numel(T)
             t = T(q);
             if ~((t.typesAll || any(strcmp(t.types, k))) && any(strcmp(t.globL, x)))
@@ -364,7 +320,7 @@ for i = 1:numel(ctx.learnVars)
                 continue
             end
             p = t.prefix;
-            s = struct('kind', t.kind, 'a', 0, 'b', 0, 'ref', '', 'reflag', 0, 'state', '', 'xi', '', 'i', q);
+            s = struct('kind', t.kind, 'a', 0, 'b', 0, 'ref', '', 'reflag', 0);
             switch t.kind
                 case 'multiplier'
                     s.a = P.([p '_D__' k]);
@@ -373,7 +329,7 @@ for i = 1:numel(ctx.learnVars)
                     s.b = P.([p '_b']);
                 case 'diagnostic'
                     s.a = P.([p '_theta']);
-                    if anch && strcmp(ty.kind, 're') && isempty(gv.(k))
+                    if anch && strcmp(ty.kind, 're')
                         if strcmp(ty.info, 'lagged') && any(strcmp(degv, x))
                             s.ref = [x '_DEg_RE'];
                             s.reflag = 1;
@@ -387,15 +343,6 @@ for i = 1:numel(ctx.learnVars)
                         s.ref = [x '_REt2'];
                         s.reflag = 1;
                     end
-                case 'partial_adjustment'
-                    s.a = P.([p '_g']);
-                    s.state = sprintf('%s_pa%d_%s', x, q, k);
-                case 'wedge'
-                    s.a = P.([p '_mu']);
-                    if ~isempty(t.xi)
-                        s.b = P.([p '_lam__' x]);
-                        s.xi = t.xi;
-                    end
             end
             st(end+1) = s; %#ok<AGROW>
         end
@@ -407,9 +354,8 @@ end
 end
 
 
-function [f, pa] = apply_steps(st, f, x, k, getVal, model, S)
-% a type's forecast through the transforms of its term (score_steps); pa.<key> = partial-adjustment values
-pa = struct();
+function f = apply_steps(st, f, getVal, x)
+% a type's forecast through the transforms of its term (score_steps)
 for q = 1:numel(st)
     s = st(q);
     switch s.kind
@@ -424,19 +370,6 @@ for q = 1:numel(st)
             f = (1 + s.a) * f;
             if s.a ~= 0
                 f = f - s.a * getVal(s.ref, -s.reflag);
-            end
-        case 'partial_adjustment'
-            key = sprintf('%s__%s__%d', x, k, s.i);
-            if model
-                f = getVal(s.state, 0);
-            elseif isfield(S, 'pa') && isfield(S.pa, key) && isfinite(S.pa.(key))
-                f = s.a * f + (1 - s.a) * S.pa.(key);
-            end
-            pa.(key) = f;
-        case 'wedge'
-            f = f + s.a;
-            if s.b ~= 0
-                f = f + s.b * getVal(s.xi, 0);
             end
     end
 end
@@ -473,30 +406,17 @@ function [F, X] = forecasts(ctx, S, getVal, src, t)
 nt = ctx.nt;
 lv = ctx.learnVars;
 model = strcmp(src, 'model');
-re = nt.types(nt.re);
 F = struct();
 Fb = struct();
-Fp = struct();
 hasSc = isfield(nt, 'score') && ~isempty(fieldnames(nt.score));
 for i = 1:numel(lv)
     x = lv{i};
     b = nt.byvar.(x);
     for jj = 1:numel(b.types)
-        j = b.types(jj);
-        ty = nt.types(j);
+        ty = nt.types(b.types(jj));
         k = ty.name;
         fv = b.fvars{jj};
         switch ty.kind
-            case 'level'
-                f = hetlearn.engine.anchor_update('value', ctx, S, j, x, getVal);
-                if model
-                    fm = getVal(fv, 0);
-                    if ~(abs(f - fm) < 1e-9 * max(1, abs(fm)))
-                        error('hetlearn:engine:timing', ['Period %s: %s from the model (%.12g) differs from the ' ...
-                            'level-%d coefficients of type %s on the data (%.12g).'], char(dat2str(t)), fv, fm, ty.k, k, f);
-                    end
-                    f = fm;
-                end
             case 're_mean'
                 p = S.phi.([ty.zvar.(x) '__' k]);
                 f = getVal(b.fvars{b.re_pos}, 0) + p(1);
@@ -509,9 +429,6 @@ for i = 1:numel(lv)
                     f = fm;
                 end
             case 're'
-                if ~model && j ~= nt.re && strcmp(ty.variant, re.variant) && strcmp(ty.info, re.info)
-                    fv = b.fvars{b.re_pos};      % forecasts as the RE type (history databank of history_db)
-                end
                 f = getVal(fv, 0);
             case 'plm'
                 f = hetlearn.plm.forecast_value(ty.sys, type_phi(S.phi, ty), getVal, x);
@@ -525,7 +442,7 @@ for i = 1:numel(lv)
                     f = fm;
                 end
             case 'rule'
-                f = rule_value(ty, x, S, getVal, fv);
+                f = rule_value(ty, x, getVal);
                 if model
                     fm = getVal(fv, 0);
                     if ~(abs(f - fm) < 1e-9 * max(1, abs(fm)))
@@ -537,16 +454,12 @@ for i = 1:numel(lv)
         end
         Fb.(x).(k) = f;
         if hasSc && isfield(nt.score, x) && isfield(nt.score.(x), k)
-            [f, pa] = apply_steps(nt.score.(x).(k), f, x, k, getVal, model, S);
-            pf = fieldnames(pa);
-            for q = 1:numel(pf)
-                Fp.(pf{q}) = pa.(pf{q});
-            end
+            f = apply_steps(nt.score.(x).(k), f, getVal, x);
         end
         F.(x).(k) = f;
     end
 end
-X = struct('base', Fb, 'pa', Fp);
+X = struct('base', Fb);
 end
 
 
@@ -560,7 +473,8 @@ end
 end
 
 
-function f = rule_value(ty, x, S, getVal, fv)
+function f = rule_value(ty, x, getVal)
+% a rule type's forecast: its expression on the databank (terms 'var' and 'param', hetlearn.plm.rule_terms)
 R = ty.rule.(x);
 v = zeros(max(1, numel(R.terms)), 1);
 for j = 1:numel(R.terms)
@@ -568,32 +482,8 @@ for j = 1:numel(R.terms)
     switch tm.kind
         case 'var'
             v(j) = getVal(tm.name, -tm.lag);
-        case 'self'
-            h = [];
-            if isfield(S.fh, x) && isfield(S.fh.(x), ty.name)
-                h = S.fh.(x).(ty.name);
-            end
-            if numel(h) >= tm.lag && isfinite(h(tm.lag))
-                v(j) = h(tm.lag);
-            else
-                v(j) = getVal(fv, -tm.lag);          % before the first own forecast: the databank
-                if ~isfinite(v(j))
-                    v(j) = 0;
-                end
-            end
-        case 'mean'
-            p = S.phi.([x '__' ty.name]);
-            v(j) = p(1);
         case 'param'
             v(j) = R.param_values.(tm.name);
-        case 're1'
-            % anchored E_{t-1} of the term's expression (phase P4): its coefficients on the states dated t-1
-            e = R.re1(strcmp({R.re1.prefix}, tm.name)).value;
-            s = e.k;
-            for q = 1:numel(e.vars)
-                s = s + e.c(q) * getVal(e.vars{q}, -(e.lags(q) + 1));
-            end
-            v(j) = s;
     end
 end
 f = ty.fn.(x)(v);
@@ -601,33 +491,12 @@ end
 
 
 % =========================================================================
-function S = store(ctx, S, F, X)
-% S.f = F (the forecasts as they enter the aggregate); the own-forecast history of rule types and
-% S.fb hold the forecasts before the transforms (X.base, = F without transforms), S.pa the partial-
-% adjustment values of the history stage
-nt = ctx.nt;
-lv = ctx.learnVars;
+function S = store(~, S, F, X)
+% S.f = F (the forecasts as they enter the aggregate); S.fb = the forecasts before the transforms
+% (X.base, = F without transforms)
 Fb = F;
 if nargin >= 4 && isstruct(X) && isfield(X, 'base')
     Fb = X.base;
-    pf = fieldnames(X.pa);
-    for q = 1:numel(pf)
-        S.pa.(pf{q}) = X.pa.(pf{q});
-    end
-end
-for i = 1:numel(lv)
-    x = lv{i};
-    if ~isfield(S.fh, x)
-        continue
-    end
-    ks = fieldnames(S.fh.(x));
-    for q = 1:numel(ks)
-        k = ks{q};
-        j = find(strcmp(nt.names, k), 1);
-        L = nt.types(j).self_maxlag;
-        h = [Fb.(x).(k); S.fh.(x).(k)];
-        S.fh.(x).(k) = h(1:min(L, numel(h)));
-    end
 end
 S.f = F;
 S.fb = Fb;
@@ -646,22 +515,6 @@ for i = 1:numel(lv)
     if any(arrayfun(@(j) strcmp(nt.types(j).kind, 're_mean'), b.types)) && isfield(S, 'fb') ...
             && isfield(S.fb, x) && isfield(S.fb.(x), 'RE') && isfinite(S.fb.(x).RE)
         d.([x '_exp1_RE'])(t0) = S.fb.(x).RE;
-    end
-    if ~isfield(S.fh, x)
-        continue
-    end
-    b = nt.byvar.(x);
-    ks = fieldnames(S.fh.(x));
-    for q = 1:numel(ks)
-        k = ks{q};
-        jj = find(strcmp(b.names, k), 1);
-        fv = b.fvars{jj};
-        h = S.fh.(x).(k);
-        for lag = 1:numel(h)
-            if isfinite(h(lag))
-                d.(fv)(t0 - lag + 1) = h(lag);
-            end
-        end
     end
 end
 end
