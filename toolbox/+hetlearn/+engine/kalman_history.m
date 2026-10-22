@@ -51,25 +51,21 @@ function varargout = kalman_history(varargin)
 %   N agent types and forecast transforms (ctx.nt; docs/DESIGN_br_extensions.md
 %   1.1-1.5, phase P6): the ALM in force has the share vectors of
 %   hetlearn.engine.shares_for_mode (before beliefs.init.date share 1 on the
-%   RE type) and the level coefficients in force
-%   (hetlearn.engine.anchor_update 'params'). Every type's forecast made in t
-%   comes from hetlearn.engine.ntypes('forecasts', ..., 'history', t) on the
-%   agents' data, the real-time filtered values x_{s|s}, except that with
+%   RE type). Every type's forecast made in t comes from
+%   hetlearn.engine.ntypes('forecasts', ..., 'history', t) on the agents'
+%   data, the real-time filtered values x_{s|s}, except that with
 %   expectations.re_info = 'lagged' every <x>_exp1_RE and <x>_DEg_RE is the
 %   prediction x_{t|t-1} (as hetlearn.engine.history_db takes them from
 %   H.predicted under history.re_states = 'filtered'), and the target of a
 %   're_mean' type, <x>_feRE = x - <x>_exp1_RE{-1}, is rebuilt from x_{t|t}
 %   and the RE forecast of t-1 in that data, so it is the error of the RE
-%   forecast the agents used. PLM, rule, level and re_mean types are then
-%   evaluated as in the RE-smoother history (rule types' own lags from the
-%   engine's earlier forecasts; level types from their coefficients on the
-%   filtered states dated t-1), transforms as there. update_learning takes
-%   its N-type path. The forecast stage starts from the filtered state at the
-%   origin (D12), except for what hetlearn.engine.ntypes('seed') writes there:
-%   the rule types' own forecasts at the origin and, with a 're_mean' type,
-%   <x>_exp1_RE at the origin (the forecast the agents used).
-%   history.mode = 'kalman' with N types and transforms needs nothing else;
-%   wedge shocks enter the filter with the std the transform gives.
+%   forecast the agents used. PLM, rule and re_mean types are then evaluated
+%   as in the RE-smoother history, transforms as there. update_learning
+%   takes its N-type path. The forecast stage starts from the filtered state
+%   at the origin (D12), except for what hetlearn.engine.ntypes('seed')
+%   writes there: with a 're_mean' type, <x>_exp1_RE at the origin (the
+%   forecast the agents used). history.mode = 'kalman' with N types and
+%   transforms needs nothing else.
 %   Initial condition (history.kalman.init): 'stochastic' (default) the
 %   asymptotic mean and covariance of the ALM of the first quarter (the RE
 %   limit), as IRIS filter does; an error if it has a root on or outside the
@@ -111,8 +107,8 @@ function varargout = kalman_history(varargin)
 %              rounding for a PLM whose forecast uses data of one date only,
 %              such as AR(1); with N types the max over the 'plm' types),
 %              .ftypes_model_maxdiff (N types only: struct by type name of
-%              the same difference for every 'plm', 'rule', 'level' and
-%              're_mean' type, the type's forecast before the transforms
+%              the same difference for every 'plm', 'rule' and 're_mean'
+%              type, the type's forecast before the transforms
 %              against the model's <x>_exp1_<type>, predicted for a type with
 %              information up to t-1, filtered for period-t information; it
 %              is rounding when the forecast uses data of one date only, and
@@ -293,11 +289,7 @@ for k = 1:nT
     else
         n1m = n1RE;
     end
-    if isNT                               % with the level coefficients in force (phase P4)
-        P = hetlearn.engine.facility('params', sys, S.phi, lv, n1m, hetlearn.engine.anchor_update('params', ctx, S));
-    else
-        P = hetlearn.engine.facility('params', sys, S.phi, lv, n1m);
-    end
+    P = hetlearn.engine.facility('params', sys, S.phi, lv, n1m);
     pv = cell2mat(struct2cell(P));
     if ~solved || ~isequal(pv, lastP)
         [m, S, r, e] = hetlearn.engine.facility('solve', ctx, m, S, n1m, t, 'kalman');
@@ -716,7 +708,7 @@ end
 
 
 function [dP, dT] = model_gap(ctx, X, XF, XP, rowOf, kc, dP, dT)
-% |forecast of each 'plm', 'rule', 'level' and 're_mean' type before the transforms (X.base) - the
+% |forecast of each 'plm', 'rule' and 're_mean' type before the transforms (X.base) - the
 % model's <x>_exp1_<type>|, predicted (information up to t-1) or filtered (period t); dP over 'plm' types
 nt = ctx.nt;
 for i = 1:numel(ctx.learnVars)
@@ -724,7 +716,7 @@ for i = 1:numel(ctx.learnVars)
     b = nt.byvar.(x);
     for jj = 1:numel(b.types)
         ty = nt.types(b.types(jj));
-        if ~any(strcmp(ty.kind, {'plm', 'rule', 'level', 're_mean'})) || ~isfield(rowOf, b.fvars{jj})
+        if ~any(strcmp(ty.kind, {'plm', 'rule', 're_mean'})) || ~isfield(rowOf, b.fvars{jj})
             continue
         end
         r = rowOf.(b.fvars{jj});
