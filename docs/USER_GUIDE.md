@@ -12,7 +12,8 @@ Other documents: `docs/DESIGN.md` (algorithms, timing, file contracts), `docs/FE
 
 Checked against the code on 2026-10-19; the baseline (1.4) and the options it touches updated
 on 2026-10-20; report section 12 (ijcb3, as07) removed on 2026-10-21; section 9 (bounded-rationality
-expectation rules, the options of `docs/DESIGN_br_extensions.md`) added on 2026-10-21; run times measured on 2026-10-18. Line numbers are
+expectation rules, the options of `docs/DESIGN_br_extensions.md`) added on 2026-10-21 and cut to the
+seven kept portfolio variants on 2026-10-22 (9.10); run times measured on 2026-10-18. Line numbers are
 given as `file` line N. They move when a file is edited, so each one comes with the code it
 points to. All paths are relative to the project root
 `C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\iris_toolbox_learning`.
@@ -898,7 +899,7 @@ described in section 9.
 
 | Option | Values | Meaning |
 |---|---|---|
-| `beliefs.update` | `'rls'`, `'fixed'`, `'sac'`, `'kf'` | Beliefs learned by RLS, or held at their initial values; SAC and Kalman-filter learning (`beliefs.kf.gamma`, `.s2`) in 9.4 |
+| `beliefs.update` | `'rls'`, `'fixed'` | Beliefs learned by RLS, or held at their initial values. SAC (`'sac'`) and Kalman-filter learning (`'kf'`, `beliefs.kf`) were removed on 2026-10-22 (9.10) |
 | `beliefs.plm.default` | `'ar1'`, `'ar2'`, `'ar1_noconst'`, `'var1'` | PLM of every learning variable without its own entry; `'var1'` = one VAR(1) over the learning set |
 | `beliefs.plm.by_var.<x>` | text or struct | Per-variable PLM: a shorthand such as `'ar2'`, or `.regressors` (cellstr of lagged variables, lag 1 or more, e.g. `{'pinf{-1}', 'ygap{-1}', 'r{-1}'}`) and `.constant` (`true`). An entry for a variable that does not learn sets its auxiliary PLM |
 | `beliefs.plm.derived.<name>` | text | A regressor defined as a linear expression in model variables, e.g. `'y - yf'`; it becomes a model variable |
@@ -912,7 +913,7 @@ described in section 9.
 
 | Option | Values | Meaning |
 |---|---|---|
-| `gain.rule` | `'constant'`, `'koz'`, `'decreasing'` | Constant gain, or the endogenous gain of Kostyshyna, Özden and Zhang (2024), eq. (9) (DESIGN 18), or the decreasing gain of 9.4 (`gain.decreasing.n0`). The name must be a function in `toolbox/+hetlearn/+gain/` |
+| `gain.rule` | `'constant'`, `'koz'` | Constant gain, or the endogenous gain of Kostyshyna, Özden and Zhang (2024), eq. (9) (DESIGN 18). The name must be a function in `toolbox/+hetlearn/+gain/`. The decreasing gain (`'decreasing'`, `gain.decreasing`) was removed on 2026-10-22 (9.10) |
 | `gain.value` | `0.0585` | Constant gain (IJCB posterior mean); also the start of `'koz'`. In (0, 1]. SW07 baseline: 0.05 with `gain.rule = 'koz'` (`master_options.m`) |
 | `gain.by_var.<x>` | number | Gain of one variable (`'constant'`; with `'koz'` the start value under `'per_variable'`, ignored with a warning under `'common'`) |
 | `gain.koz.mu` | `0.001` | Step size of the gain process ("gain on the gain"); 0 gives the constant gain exactly |
@@ -936,8 +937,9 @@ RLS moment matrix: to use it, set `beliefs.init.method = 'user'` and only
 | `shares.init_n2` | `0.5` | Initial BR share at `beliefs.init.date` (also set in `master_options.m`) |
 | `shares.fixed_n2` | number, or struct by variable | Mode `'fixed_shares'` (required there, or `shares.fixed`): the BR share |
 
-`shares.init` and `shares.fixed` (by type name) and the switching options `inertia`, `costs`,
-`fitness` and `intensity = 'model:bma'` are in 9.2.
+`shares.init` and `shares.fixed` (by type name) are in 9.2. The N-type switching options
+`switching.inertia`, `.costs`, `.fitness` and `intensity = 'model:bma'` were removed on
+2026-10-22 (9.10).
 
 ### 5.6 Switching
 
@@ -1077,6 +1079,10 @@ that names the replacement:
 |---|---|
 | `projection.max_root`, `projection.method`, `projection.scope`, `projection.on_failure` | `projection.facility` |
 | `switching.error_scale`, `switching.error_scale_ref` | none: squared errors enter unscaled; the facility is the only stabilising device |
+
+Removed on 2026-10-22 with the bounded-rationality variants dropped after the BR audit: the
+options listed in 9.10. They also stop the run with `hetlearn:options:removed`; in a merged
+tree saved before the cut they are dropped when they hold their old off values.
 
 Other option errors: `hetlearn:options:unknown` (a name not in the defaults),
 `hetlearn:options:type` (wrong type, e.g. a struct where a value is expected),
@@ -1345,11 +1351,12 @@ themselves; anything else needs `setup_paths` first.
   and `test_re_info` T6b compare with `tests/reference/` exactly. The references were made at the
   default thread count; with `maxNumCompThreads(2)` the runs differ by about 1e-12 and those four
   checks fail. Run them at the default thread count (2026-10-20: all pass that way).
-- `run_tests` runs the 25 suites in `tests/run_tests.m` (403 checks on 2026-10-21, all pass; 296 checks in
-  19 suites on 2026-10-20, before the bounded-rationality extensions): more than 9 min in one
-  session. The six suites of the extensions are `test_kalman`, `test_ntypes`,
-  `test_learning_rules`, `test_transforms`, `test_anchor` and `test_br_regression` (exact, run it
-  at the default thread count).
+- `run_tests` runs the 24 suites in `tests/run_tests.m` (364 checks on 2026-10-22, all pass; 403 checks
+  in 25 suites on 2026-10-21, before the cut of the bounded-rationality portfolio; 296 checks in 19
+  suites on 2026-10-20, before the extensions): more than 9 min in one session. The suites of the extensions are `test_kalman`, `test_ntypes`, `test_transforms`,
+  `test_anchor` and `test_br_regression` (exact, run it at the default thread count).
+  `test_learning_rules` (SAC, Kalman-filter learning, decreasing gain) and the checks of the
+  other options removed on 2026-10-22 went with them (9.10).
 - A subset: `run_tests({'test_options', 'test_rls', 'test_switching'})`. `test_re_info` alone
   takes about 8 min; `test_re_info('toy')`, `('sw07_model')`, `('sw07_runs')`,
   `('sw07_stages')` run its parts. Its Dynare check reads stored IRFs
@@ -1395,78 +1402,80 @@ explaining the file.
 
 ## 9. Bounded-rationality expectation rules
 
-Added 2026-10-21. The options of this section let a scenario replace the two agent types (RE
-agents and AR(1) learners) by any population of forecasting rules, change how shares move, and
-transform the expectations the model uses. They cover the 18 mechanisms of
-`docs/lit_review/reports/Bounded rationality expectation rules.md` that the project builds.
-Every option is off by default, and a scenario that sets none of them runs the two-type code of
-2026-10-20 unchanged (`tests/test_br_regression.m` checks that its results are bit-identical).
+Added 2026-10-21; cut on 2026-10-22 to the seven portfolio variants kept after the BR audit
+(9.10). The options of this section let a scenario replace the two agent types (RE agents and
+AR(1) learners) by a population of forecasting types, set their initial or fixed shares, and
+transform the expectations the model uses. Every option is off by default, and a scenario that
+sets none of them runs the two-type code of 2026-10-20 unchanged (`tests/test_br_regression.m`
+checks that its results are bit-identical).
 
 The design, the formulas and the evidence for each parameter value are in
 `docs/DESIGN_br_extensions.md`: section 1 for the machinery (E1-E6 below), section 2 for the
 mechanisms, section 3 for the portfolio variants, section 5 for the Kalman history, section 6
 for what each phase built and tested, section 7 for the decisions behind proposed values.
+`docs/BR_audit.txt` scores the 21 variants built on 2026-10-21 and gives the reasons for the cut.
 
 | Extension | Options | Design |
 |---|---|---|
-| E1 N agent types | `expectations.types` | 1.1 |
-| E2 shares over N types | `shares.init`, `shares.fixed`, `switching.inertia`, `.costs`, `.fitness`, `switching.intensity = 'model:bma'` | 1.2 |
-| E3 forecast transforms | `expectations.transforms` | 1.3 |
-| E4 generalised anchor | type kinds `'level'` and `'re_mean'`, rule term `re1(...)` | 1.4 |
-| E5 learning rules | `beliefs.update = 'sac'`, `'kf'` (`beliefs.kf`), `gain.rule = 'decreasing'` (`gain.decreasing`), mean-only PLM | 1.5 |
+| E1 N agent types | `expectations.types`, kinds `'re'`, `'plm'`, `'rule'`, `'re_mean'` | 1.1 |
+| E2 shares over N types | `shares.init`, `shares.fixed` | 1.2 |
+| E3 forecast transforms | `expectations.transforms`, kinds `'multiplier'`, `'diagnostic'`, `'myopia_anchoring'` | 1.3 |
+| E4 generalised anchor | type kind `'re_mean'`; `hetlearn.anchor_coefficients` | 1.4 |
+| E5 learning rules | mean-only PLM (`beliefs.plm.by_var`); the constant and KOZ gains of 5.4 | 1.5 |
 | E6 Kalman history | `history.mode = 'kalman'`, `history.kalman.init` | 5 |
 
-The 21 portfolio scenarios are `scenarios/sw07/br_portfolio/br<NN><x>_<name>.m`. Each is
+The seven portfolio scenarios are `scenarios/sw07/br_portfolio/br<NN><x>_<name>.m`. Each is
 `cfg = a1_learn();` plus the lines of 9.7, so it inherits the project baseline (1.4).
 
 ### 9.1 Agent types: `expectations.types`
 
-A struct array, or a cell array of structs, one struct per type. `name` and `kind` are
-required; every other field left out (or `[]`) is inherited.
+A struct array, or a cell array of structs, one struct per type, with these fields:
 
 | Field | Values | Meaning |
 |---|---|---|
-| `name` | letters and digits, starting with a letter | Suffix of the type's forecast `<x>_exp1_<name>` and share `n_<name>_<x>`. A type named `RE` must be of kind `'re'` |
-| `kind` | `'re'`, `'plm'`, `'rule'`, `'level'`, `'re_mean'` | RE forecast; a learned PLM; a fixed linear rule; level k on another type; the RE forecast plus a learned mean of its own error |
-| `variant` | `'anchored'`, `'model_consistent'` | `'re'`, `'level'`, `'re_mean'`; `[]` = `expectations.re_variant` |
-| `info` | `'lagged'`, `'current'` | `[]` = `expectations.re_info` (`'re'`, `'level'`, `'re_mean'`) or `beliefs.info` (`'plm'`, `'rule'`) |
-| `plm` | shorthand (`'ar1'`, `'ar2'`, ...) or a partial `beliefs.plm` subtree | `'plm'` only; `[]` = `beliefs.plm` |
-| `update` | `'rls'`, `'fixed'`, `'sac'`, `'kf'` | `[]` = `beliefs.update` |
-| `gain` | partial `gain` subtree, e.g. `struct('rule', 'decreasing')` | merged over `gain` |
+| `name` | letters and digits, starting with a letter; required | Suffix of the type's forecast `<x>_exp1_<name>` and share `n_<name>_<x>` |
+| `kind` | `'re'`, `'plm'`, `'rule'`, `'re_mean'`; required | The RE forecast (only the type named `RE`); a learned PLM; a fixed linear rule (9.1.1); the RE forecast plus a learned mean of its own error (9.5) |
 | `rule` | text, or `struct('expr', <text>, 'params', struct(...))` | `'rule'` only, required (9.1.1) |
-| `base`, `k` | type name, integer >= 1 | `'level'` only, required |
-| `variables` | cellstr | Learning variables this type forecasts; `[]` = all. Types with different variables form different share groups (variant 18) |
-| `cost` | number >= 0 | Brock-Hommes cost in the logit (9.2); not also in `switching.costs` |
+
+Everything else comes from the global options, the same for every type of a kind:
+
+| Kind | Takes |
+|---|---|
+| `'re'` | `expectations.re_variant`, `expectations.re_info` |
+| `'plm'` | `beliefs.plm`, `beliefs.info`, `beliefs.update`, `gain` |
+| `'rule'` | `beliefs.info`; a rule has no beliefs |
+| `'re_mean'` | the RE type's variant and information; `beliefs.update` and `gain` for its learned mean |
 
 Rules of the population:
+- Every type forecasts every learning variable (`expectations.variables`). The share groups follow
+  `shares.structure` (5.5): one per learning variable, or one for all under `'universal'`.
 - The RE type is always generated. When the list does not name it, it has share 0 and stays
-  outside the logit, and it is still the RE limit that the RE filter and the history use. It
-  follows `expectations.re_variant` and `.re_info`; set those, not its fields.
-- A second `'re'` type must be model-consistent with period-t information (variant 18's
-  optimists and pessimists) or forecast exactly as the RE type.
+  outside the logit, and it is still the RE limit that the RE filter and the history use. Only
+  the type named `RE` can be of kind `'re'`.
 - Modes: `'rational'` puts share 1 on the RE type; `'learning'` share 1 on the single non-RE
-  type of each variable (an error when there are several); `'fixed_shares'` takes
-  `shares.fixed` (struct by type name) or the two-type shorthand `shares.fixed_n2`;
-  `'switching'` uses 9.2.
+  type (an error when there are several); `'fixed_shares'` takes `shares.fixed` (struct by type
+  name) or the two-type shorthand `shares.fixed_n2`; `'switching'` uses 9.2.
 - Writing the default pair out, `{struct('name', 'RE', 'kind', 're'), struct('name', 'BR',
   'kind', 'plm')}`, takes the N-type generator and engine and gives the two-type results
   exactly (`test_ntypes` R3, `test_kalman` K6).
 
 Generated file: `models/<name>/generated/<name>_ext_n<hash>.model` (generator version 6; 7 with
-transforms; 8 with level or `'re_mean'` types or `re1` terms).
+transforms; 8 with `'re_mean'` types).
 
 #### 9.1.1 Rule syntax
 
-A rule is a linear expression in these terms (`hetlearn.plm.rule_terms`):
+A rule is a fixed linear expression in these terms (`hetlearn.plm.rule_terms`):
 
 | Term | Meaning |
 |---|---|
-| `x{-k}` | the variable being forecast, k quarters back (k >= 1 under `'lagged'` information) |
-| `self{-k}` | this type's own forecast made k quarters earlier (adaptive expectations) |
-| `mean` | a learned mean of x (a mean-only PLM of the type, updated with the type's `update` and `gain`) |
-| `dn` | nominal growth `y - y{-1} + pinf` (SW07 names) |
-| `re1(e)` | the anchored E_{t-1} of a linear expression e, e.g. `re1(y{+1} - y)` (E4) |
-| other model variables, numbers, named constants of `params` | as written |
+| `x{-k}` | The variable being forecast, k quarters back (k >= 1 under `'lagged'` information). The same rule applies to every learning variable |
+| other transition variables, with lags (`y{-1}`) | As written, with the same lag rule |
+| numbers, `+ - * / ( )` | As written |
+| named constants | The fields of `params` in `struct('expr', <text>, 'params', struct(...))` |
+
+A rule type learns nothing: it has no PLM and no beliefs, and its forecast enters fitness like
+any other type's. The terms `self{-k}`, `mean`, `dn` and `re1(...)` were removed on 2026-10-22
+(9.10).
 
 Example, target believers beside the baseline pair (variant 19, Hommes and Lustenhouwer 2019):
 
@@ -1480,23 +1489,24 @@ cfg.shares.init = struct('RE', 1/3, 'BR', 1/3, 'TB', 1/3);
 
 ### 9.2 Shares over N types
 
-Per share group g with types k = 1..N (DESIGN_br_extensions 1.2):
+In each share group with types k = 1..N (DESIGN_br_extensions 1.2):
 
-    U_k,t = omega*U_k,t-1 - c*FE_k,t      c = 1 - omega ('normalized', IJCB) or 1 ('unnormalized', Anufriev-Hommes)
-    n_k,t = delta*n_k,t-1 + (1 - delta)*exp(chi*(U_k,t - C_k)) / sum_j exp(chi*(U_j,t - C_j))
+    U_k,t = omega*U_k,t-1 - (1 - omega)*FE_k,t
+    n_k,t = exp(chi*U_k,t) / sum_j exp(chi*U_j,t)
+
+chi is `switching.intensity` (a number >= 0) and omega `switching.memory` (in [0, 1)), as in
+5.6 and the same for every group: the baseline's normalized fitness (IJCB eqs. 14-15) over N
+types. FE_k,t is the squared error of type k's forecast as it enters the model (9.3).
 
 | Option | Values (default first) | Meaning |
 |---|---|---|
 | `shares.init` | `[]`, struct by type name | Initial shares, summing to 1 per group; `[]` = `shares.init_n2` for the default pair, equal shares otherwise. The initial fitness returns these shares through the logit |
 | `shares.fixed` | `[]`, struct by type name | Mode `'fixed_shares'`; not together with `shares.fixed_n2` |
-| `switching.inertia` | `0`, in [0, 1) | delta: the share keeps this fraction of its last value |
-| `switching.costs` | `[]`, struct by type name | C_k >= 0; or the type field `cost` |
-| `switching.fitness` | `'normalized'`, `'unnormalized'` | c above. `switching.memory = 1` is allowed only with `'unnormalized'` |
-| `switching.intensity` | number, or `'model:bma'` | `'model:bma'` = 1/(2 sigma^2), sigma^2 the forecast-error variance of x at the horizon of the RE type's forecast in the RE limit (Bayesian model averaging, variant 27; `res.meta.model_values.bma`) |
 
-A published unnormalized intensity beta converts to the toolbox's normalized chi as
-chi = beta/(1 - omega): Anufriev and Hommes' beta 0.4 at memory 0.7 is chi 1.33. Units still
-differ (their squared errors are in lab prices, SW07's in percent per quarter).
+With two types, RE first, the engine calls the two-type `hetlearn.switching.discrete_choice`;
+with more it calls `discrete_choice_n` and `init_fitness_n`. A published intensity beta of the
+unnormalized Brock-Hommes form (U = omega*U - FE) corresponds to chi = beta/(1 - omega) here.
+The units must match too: SW07's squared errors are in percent per quarter.
 
 ### 9.3 Forecast transforms: `expectations.transforms`
 
@@ -1506,78 +1516,67 @@ transformed forecast; `fb_<k>` records the forecast before the transforms.
 
 | `kind` | Expectation of a base forecast f | `value` (identity) |
 |---|---|---|
-| `'multiplier'` | D(h)*f with `profile` `'geometric'` m^h, `'flat'` lambda, `'hyperbolic'` 1/(1 + alpha*h); h = 2 for a forecast made with t-1 information, else 1 | m or lambda (1), alpha (0) |
+| `'multiplier'` | m^h*f, h = 2 for a forecast made with t-1 information, else 1 (cognitive discounting) | m (1) |
 | `'diagnostic'` | (1 + theta)*f - theta*f_ref, f_ref = the same forecast made one quarter earlier | theta (0) |
 | `'myopia_anchoring'` | omega_f*f + b*x{-1} | `[omega_f b]` (`[1 0]`) |
-| `'partial_adjustment'` | g*f + (1 - g)*(last quarter's expectation) | g (1) |
-| `'wedge'` | f + mu + lambda_x*xi_t, xi_t = rho*xi_t-1 + shock | `factor` struct (std 0, mean 0) |
 
 | Field | Values | Meaning |
 |---|---|---|
 | `types` | `'all'` or type names; `[]` = `'all'` | `'all'` also covers the model-consistent expectations of variables outside the learning set |
 | `scope` | `'learning'` (default), `'all'`, or a cellstr of variables and `'x@<label>'` entries | `'x@<label>'` acts in one equation only, given by its exact label in the model file (SW07: `'Phillips curve, price setting'`, `'Wage Phillips curve, wage setting'`, `'Consumption Euler equation'`, `'Arbitrage equation for the value of capital'`) |
-| `exclude` | cellstr | variables removed from the scope (the portfolio excludes the SW07 flex block) |
-| `profile` | `'geometric'` (default), `'flat'`, `'hyperbolic'` | multiplier only |
-| `factor` | struct: `rho`, `std` (number or `'model:acd51'`), `mean` (number or `'[-]model:sd_ygap_half'`), `loadings` (struct by variable or `'model:projection'`), `shock` (name of the new shock) | wedge only |
+| `exclude` | cellstr | Variables removed from the scope (the portfolio excludes the SW07 flex block) |
 
-`'model:<rule>'` values come from the variant's RE limit and are recorded in
-`res.meta.model_values`: `sd_ygap_half` = sd(y - yf)/2; `projection` = Cov(z, y)/Var(y); `acd51`
-= the shock std that gives the wedge 51% of the variance of y at 6-32 quarters. Anchored RE
-agents take their coefficients from the variant's own RE limit, with the wedges off (D11).
+The values are model parameters, so one generated file covers every value of a transform.
 Several transforms on one expectation apply in list order. Only one-step expectations are
-transformed.
+transformed. Anchored RE agents take their coefficients from the variant's own RE limit, so
+they know the transforms on the other expectations (D11).
 
-Example, cognitive discounting on every forward expectation (variant 05a):
+A diagnostic transform must come first on its expectation, and it acts on RE types and on the
+model-consistent expectations only: on a learned or rule type of a learning variable the run
+stops. On the anchored RE(t-1) type its reference is the anchored E_{t-2} forecast
+`<x>_DEg_RE`, with memory states such as `c_REt2` in the anchor economy (variant 10,
+`test_anchor` A5). With period-t RE information that anchored reference is not built: set
+`expectations.re_info = 'lagged'` or `re_variant = 'model_consistent'`.
+
+Example, cognitive discounting on the learning set (variant 5b, Meggiorini and Milani 2021):
 
 ```matlab
-cfg.expectations.transforms = struct('kind', 'multiplier', 'profile', 'geometric', 'types', 'all', ...
-    'value', 0.62, 'scope', 'all', 'exclude', {{'invef', 'pkf', 'rkf', 'cf', 'labf'}});
+FLEX = {'invef', 'pkf', 'rkf', 'cf', 'labf'};
+cfg.expectations.transforms = struct('kind', 'multiplier', 'types', 'all', 'value', 0.94, ...
+    'scope', 'learning', 'exclude', {FLEX});
 ```
 
 ### 9.4 Learning rules
 
-| Option | Values | Meaning |
+Learning types update with `beliefs.update` (`'rls'` or `'fixed'`, 5.3) and the gain rules of
+5.4 (`'constant'`, `'koz'`). Two portfolio variants change only these options:
+
+| Option | Lines | Meaning |
 |---|---|---|
-| `beliefs.update = 'sac'` | | Sample-autocorrelation learning of mean, first-order autocorrelation and variance (Hommes and Sorger 1998); needs an AR(1) PLM with constant; the autocorrelation is kept in [-1, 1] (event `sac_bound`) |
-| `beliefs.update = 'kf'` | | Kalman-filter learning: the coefficients follow a random walk, V = gamma^2/(1 - gamma)*s2*inv(R0) (the constant-gain equivalent, proposed in the design) |
-| `beliefs.kf.gamma` | `[]` = `gain.value`, in (0, 1) | the constant-gain equivalent of the KF |
-| `beliefs.kf.s2` | `'re_moments'`, number > 0 | PLM residual variance; it cancels from the beliefs |
-| `gain.rule = 'decreasing'` | | g = 1/(k - 1 + n0) at the k-th update: sample-mean learning |
-| `gain.decreasing.n0` | `1` | 1 gives the sample mean from `beliefs.init.date` |
-| mean-only PLM | `beliefs.plm.by_var.pinf = struct('regressors', {{}}, 'constant', true)` | the forecast is the learned mean (adaptive expectations, variant 24) |
+| mean-only PLM | `beliefs.plm.by_var.pinf = struct('regressors', {{}}, 'constant', true)` | The forecast is the learned mean: adaptive expectations by exponential smoothing (variant 24) |
+| constant gain | `gain.rule = 'constant'; gain.value = 0.018` | In place of the baseline's KOZ gain (variant 26) |
 
-The KF step does not use the gain rule's period gain; `res.learning.<x>.gain` still records the
-rule's gain, so the portfolio sets `gain.rule = 'constant'`, `gain.value` = gamma to show it.
+SAC learning, Kalman-filter learning and the decreasing gain were removed on 2026-10-22 (9.10).
 
-### 9.5 Level-k types and the generalised anchor
-
-A `'level'` type with `base` B and `k` forecasts with the two-step forecast (t-1 information)
-of the economy in which everyone uses level k-1, iterated from level 0 = type B. The
-coefficients are re-solved every quarter after the belief update
-(`hetlearn.engine.anchor_update`, K IRIS solves per chain and quarter). A level economy without a stable
-solution stops the run under facility `'none'` (`hetlearn:engine:levelNoSolution`); under
-`'alm'` and `'plm_alm'` the beliefs revert and the levels of the quarter before are kept (event
-`projection_level`).
+### 9.5 The intercept-only type and the generalised anchor
 
 A `'re_mean'` type forecasts the RE type's forecast plus a learned mean of its own error,
-abar: target `<x>_feRE = x - <x>_exp1_RE{-1}`, a mean-only PLM with the type's `update` and
-`gain` (intercept-only learning with RE slopes, variant 23).
-
-`re1(e)` in a rule is the anchored E_{t-1} of e in the model-consistent RE limit, with
-coefficients on the states dated t-1 (`res.meta.model_values.re1`).
+abar: target `<x>_feRE = x - <x>_exp1_RE{-1}`, a mean-only PLM (`alpha_<x>_feRE__<k>`) updated
+with `beliefs.update` and `gain`. This is intercept-only learning with RE slopes (variant 23).
+The type takes the RE type's variant and information. With abar held at 0 it forecasts exactly
+as the RE type (`test_anchor` A6).
 
 `hetlearn.anchor_coefficients(m, targets, states, 'lag', j, 'horizon', h, ...)` gives the
-coefficients of E_{t-j} z_{t+h} in any solved economy; `hetlearn.re_anchor_coefficients` is a
-wrapper of it.
+coefficients of E_{t-j} z_{t+h} in any solved economy, with chain states (own lagged forecasts)
+solved out; `hetlearn.re_anchor_coefficients` is a wrapper of it with unchanged outputs. The
+anchored RE agents of an economy with diagnostic memory states (variant 10) take their
+coefficients from it.
 
-Example, level 1 and level 2 replace the RE agents (variant 01a, Evans, Gibbs and McGough
-2025):
+Example, intercept-only learners in place of the AR(1) learners (variant 23, Gáti 2023;
+Carvalho, Eusepi, Moench and Preston 2023):
 
 ```matlab
-cfg.expectations.types = {struct('name', 'L0', 'kind', 'plm'), ...
-    struct('name', 'L1', 'kind', 'level', 'base', 'L0', 'k', 1), ...
-    struct('name', 'L2', 'kind', 'level', 'base', 'L0', 'k', 2)};
-cfg.shares.init = struct('L0', 1/3, 'L1', 1/3, 'L2', 1/3);
+cfg.expectations.types = {struct('name', 'RE', 'kind', 're'), struct('name', 'IO', 'kind', 're_mean')};
 ```
 
 ### 9.6 The Kalman history: `history.mode = 'kalman'`
@@ -1593,7 +1592,7 @@ predictions only), and the agents learn from the filtered values in real time. B
 | `history.mode` | `'kalman'` | needs `history.learn = true` and `history.re_states = 'smoothed'` (the baseline sets `'filtered'`, which applies to the RE smoother only, so Kalman scenarios set `'smoothed'` again) |
 | `history.kalman.init` | `'stochastic'`, `'smoothed'` | start from the asymptotic distribution of the first quarter's ALM (as IRIS `filter`), or at `beliefs.init.date` from the RE-smoothed state with P = 0 |
 
-Agents' information: forecasts made in t with data to t-1 (the RE(t-1) and level types) are the
+Agents' information: forecasts made in t with data to t-1 (the RE(t-1) type) are the
 predictions x_{t|t-1}; forecasts with period-t data use x_{t|t}; realised values and PLM
 regressors are the filtered values stored when each quarter was filtered, not revised later.
 With N types (phase P6) every type's forecast comes from these data; the target of a
@@ -1616,74 +1615,86 @@ T = hetlearn.engine.kalman_history('rmse', res);    % T.table: RMSE by observabl
 ```
 
 `res.kalman.ftypes_model_maxdiff` compares each type's forecast with the model's prediction of
-`<x>_exp1_<k>`. It is rounding for a forecast that uses data of one date only (AR(1) PLMs,
-level types, `'re_mean'`, rules such as `x{-1}`). A forecast that also uses an earlier date
-(AR(2), `x{-1} - x{-2}`, `dn{-1}`) or the type's own lagged forecast (`self{-1}`) differs,
-because the model's lagged states are the filter's revised values and the agents' data the
-real-time ones. On 2026-10-21 the largest gaps
-of the portfolio were 13 (25a, AR(2) on seven variables), 5.6 (33), 5.3 (25b's AR(2) model) and
-0.2-0.9 (17's rules).
+`<x>_exp1_<k>`. It is rounding for a forecast that uses data of one date only: AR(1) and
+mean-only PLMs, `'re_mean'` types, rules such as `x{-1}` or `0`, so every kept portfolio
+variant. A forecast that also uses an earlier date (an AR(2) PLM, a rule in `x{-1} - x{-2}`)
+differs, because the model's lagged states are the filter's revised values and the agents'
+data the real-time ones; its RMSE and log likelihood are then not the variant's own.
 
 ### 9.7 The mechanisms, one example each
 
 Each row is a scenario file in `scenarios/sw07/br_portfolio/`: `cfg = a1_learn();` plus the
 lines shown (abbreviated: `T(...)` = `struct(...)`, `FLEX = {'invef', 'pkf', 'rkf', 'cf',
-'labf'}`, `ST7 = {'inve', 'pk', 'rk', 'c', 'lab', 'pinf', 'w'}`). "Proposed" marks a value with no
-published counterpart, chosen in the design and approved with D8 (DESIGN_br_extensions 7).
-DESIGN_br_extensions 2 gives the formula, scope, information timing and units of each.
+'labf'}`). "Proposed" marks a value with no published counterpart, chosen in the design and
+approved with D8 (DESIGN_br_extensions 7). DESIGN_br_extensions 2 gives the formula, scope,
+information timing and units of each. The last column is the audit's score (4-5 = keep) and
+the caveat to state with the results (`docs/BR_audit.txt`, section 3).
 
-| Variant | Mechanism (source) | Lines on `a1_learn` | Values and their source |
-|---|---|---|---|
-| `br01a_levelk_egm` | Level-k on a learned level 0 (Evans, Gibbs and McGough 2025) | `types = {T('name','L0','kind','plm'), T('name','L1','kind','level','base','L0','k',1), T('name','L2',...,'k',2)}`; `shares.init` 1/3 each | levels 1 and 2 replace RE; equal initial shares proposed |
-| `br01b_levelk_bcl` | Level-2 reasoning on the learned seed (Beaudry, Carter and Lahiri 2023) | types L0 and L2 as 01a; `mode = 'fixed_shares'`; `shares.fixed = struct('L0',0,'L2',1)` | K = 2, BCL's calibration |
-| `br04_shallow` | Shallow reasoning (Angeletos and Sastry 2021) | three flat multipliers on the RE type: 0.76 on c, lab, inve, pk, rk; 0.86 on w and inflation in the two Phillips curves; 0.08 on inflation in the Euler and value-of-capital equations | GHL posterior means (Gust, Herbst and López-Salido 2020, US 1966Q1-2007Q4); the mapping to SW07 equations by agent role is proposed |
-| `br05a_cd` | Cognitive discounting (Gabaix 2020) | geometric multiplier 0.62, types `'all'`, scope `'all'`, exclude FLEX | m = 0.62, Meggiorini (2023), behavioral SW07, US 1982-2004 |
-| `br05b_cd_learn` | Cognitive discounting on the learning set | as 05a with 0.94 and scope `'learning'` | m = 0.94, Meggiorini and Milani (2021), US 1960-2007 |
-| `br06_hyperbolic` | As-if hyperbolic discounting (Gabaix and Laibson, NBER WP 23254) | as 05a with profile `'hyperbolic'`, value 0.25 | alpha = 0.25 proposed (half-life one year) |
-| `br07_myopia_anchoring` | Myopia and anchoring (Angeletos and Huo 2021) | `T('kind','myopia_anchoring','types','all','value',[0.52 0.434],'scope',{{'pinf@Phillips curve, price setting'}})` | (omega_f, omega_b) = (0.52, 0.43), AH Table 1; b = 0.43/0.99 |
-| `br10_diagnostic` | Diagnostic expectations, one-period memory (L'Huillier, Singh and Yoo 2024) | `T('kind','diagnostic','types',{{'RE'}},'value',0.44,'scope','all','exclude',{FLEX})` | theta = 0.44, LSY in SW07 with Rotemberg pricing |
-| `br17_heuristics` | Heuristic switching, four rules (Anufriev and Hommes 2012) | rules ADA `0.65*x{-1} + 0.35*self{-1}`, WTR `x{-1} + 0.4*(x{-1} - x{-2})`, STR `x{-1} + 1.3*(x{-1} - x{-2})`, LAA `0.5*(mean + x{-1}) + (x{-1} - x{-2})` with `gain.rule = 'decreasing'`; intensity 0.4, memory 0.7, inertia 0.9, fitness `'unnormalized'`, shares 0.25 | AH's benchmark values; their beta is in squared lab-price units, used as is |
-| `br18_degrauwe` | Targeters and extrapolators, optimists and pessimists (De Grauwe 2011) | `variables = {'pinf','c'}`; TAR `0` and EXT `x{-1}` on pinf; OPT and PES model-consistent, period-t `'re'` types on c with wedge means +g and -g; intensity 0.5, memory 0.125 | g = 0.25; De Grauwe's values converted to percent and quarters are g 0.5, intensity 1, memory 0.125; the setting used is the closest one that passed the 2026-10-21 search (`run_br_app1('calib18')`) |
-| `br19_target_believers` | Target believers (Hommes and Lustenhouwer 2019) | 9.1.1 | shares 1/3 each, proposed |
-| `br20_sac` | SAC learning (Hommes and Sorger 1998; HMOZ 2023) | `variables = ST7`; `mode = 'learning'`; `beliefs.update = 'sac'`; constant gain 0.006 | gain 0.006, HMOZ Table 1, SAC column |
-| `br23_intercept_only` | Intercept-only learning (Gáti 2023; Carvalho, Eusepi, Moench and Preston 2023) | `types = {T('name','RE','kind','re'), T('name','IO','kind','re_mean')}` | baseline KOZ gain from 0.05 |
-| `br24_mean_only` | Mean-only learning, adaptive expectations | `beliefs.plm.by_var.pinf = struct('regressors', {{}}, 'constant', true)` | baseline KOZ gain |
-| `br25a_kf_ar2` | Kalman-filter learning (Slobodyan and Wouters 2012a) | `variables = ST7`; `mode = 'learning'`; `plm.default = 'ar2'`; `update = 'kf'`; `beliefs.kf.gamma = 0.031`; constant gain 0.031 | gamma = 0.031, SW 2008 draft; the mapping to V is proposed |
-| `br25b_kf_average` | Small-model averaging (Slobodyan and Wouters 2012a) | five `'plm'` types on ST7 (AR(1); AR(1) + r, pinf; AR(2); AR(1) + pinf; AR(1) + r, pinf, y), `update 'kf'`; `mode = 'fixed_shares'`, 0.2 each | as 25a |
-| `br26_experience` | Experience-based learning, aggregate (Malmendier and Nagel 2016; Nagel and Xu 2022) | `gain.rule = 'constant'; gain.value = 0.018` | 0.018 per quarter (Nagel and Xu; Malmendier and Nagel's 0.0175) |
-| `br27_bma` | Bayesian model averaging (Evans, Honkapohja, Sargent and Williams 2013; Cho and Kasa 2017) | `switching.fitness = 'unnormalized'; .memory = 1; .intensity = 'model:bma'` | chi = 1/(2 sigma^2) from the RE(t-1) limit, proposed |
-| `br29_wedge` | Survey belief wedge, reduced form (Bhandari, Borovička and Ho 2025; Milani 2011, 2017) | `T('kind','wedge','types','all','scope',{{'pinf'}},'factor',struct('rho',0.714,'std',0.182,'mean',0,'shock','e_wpinf'))` | rho 0.714 (BBH's first principal component); shock std 0.182 gives an unconditional std of 0.26% per quarter, BBH's 1.03 pp annualised wedge volatility / 4 (mapping proposed); mean 0 |
-| `br31_confidence` | Confidence shocks, approximate (Angeletos, Collard and Dellas 2018) | wedge on c, inve, lab: `rho` 0.833, `std` `'model:acd51'`, `loadings` `'model:projection'`, shock `e_xi` | rho 0.833, ACD sticky-price posterior; std and loadings proposed |
-| `br33_farmer` | Naive nominal-growth belief function (Farmer and Nicolò 2018) | `types = {T('name','RE','kind','re'), T('name','FN','kind','rule','rule','dn{-1} - re1(y{+1} - y)')}` | none to calibrate |
+| Variant | Mechanism (source) | Lines on `a1_learn` | Values and their source | Audit |
+|---|---|---|---|---|
+| `br05b_cd_learn` | Cognitive discounting on the learning set (Gabaix 2020) | `T('kind','multiplier','types','all','value',0.94,'scope','learning','exclude',{FLEX})` | m = 0.94, Meggiorini and Milani (2021), US 1960-2007 | 4; m comes from their model, not from SW07 |
+| `br07_myopia_anchoring` | Myopia and anchoring (Angeletos and Huo 2021) | `T('kind','myopia_anchoring','types','all','value',[0.52 0.434],'scope',{{'pinf@Phillips curve, price setting'}})` | (omega_f, omega_b) = (0.52, 0.43), AH Table 1; b = 0.43/0.99 | 4; SW07 keeps its own indexation and habit, so the backward weight comes on top |
+| `br10_diagnostic` | Diagnostic expectations, one-period memory (L'Huillier, Singh and Yoo 2024) | `T('kind','diagnostic','types',{{'RE'}},'value',0.44,'scope','all','exclude',{FLEX})` | theta = 0.44, LSY in SW07 with Rotemberg pricing | 4; no LSY current-variable terms, learners not diagnostic |
+| `br19_target_believers` | Target believers (Hommes and Lustenhouwer 2019) | 9.1.1 | shares 1/3 each, proposed; switching as the baseline | 4; {RE, BR, TB} nests the baseline, HL use {TB, naive} |
+| `br23_intercept_only` | Intercept-only learning (Gáti 2023; Carvalho, Eusepi, Moench and Preston 2023) | `types = {T('name','RE','kind','re'), T('name','IO','kind','re_mean')}` | baseline KOZ gain from 0.05 | 4; Gáti's anchoring function left out, so the paths stay close to RE |
+| `br24_mean_only` | Mean-only learning, adaptive expectations | `beliefs.plm.by_var.pinf = struct('regressors', {{}}, 'constant', true)` | baseline KOZ gain | 5 |
+| `br26_experience` | Experience-based learning, aggregate (Malmendier and Nagel 2016; Nagel and Xu 2022) | `gain.rule = 'constant'; gain.value = 0.018` | 0.018 per quarter (Nagel and Xu; Malmendier and Nagel's 0.0175) | 4; no cohorts: a constant gain of 0.018, MN-calibrated |
 
-The two references are `a1_re` (RE(t-1), the RE limit of the baseline) and `a1_learn`. Variants
-18, 20 and 25 have a learning set other than `{pinf}`, so their own RE limit (the same file in
-mode `'rational'`) is their RE reference.
+The two references are `a1_re` (RE(t-1), the RE limit of the baseline) and `a1_learn`. All
+seven variants learn on `{pinf}` as the baseline does, so `a1_re` is the RE reference of each.
 
 ### 9.8 Which stages take N types and transforms
 
-| Stage | Status (2026-10-21) |
+| Stage | Status (2026-10-22) |
 |---|---|
 | History, `history.mode = 're_smoother'` | supported |
-| History, `history.mode = 'kalman'` | supported (phase P6); all 21 portfolio variants run through it |
+| History, `history.mode = 'kalman'` | supported (phase P6); the seven portfolio variants run through it |
 | History, `history.mode = 'inversion'` | not supported: `hetlearn:options:unsupported` |
 | Forecast and scenario stage | supported |
 | Density forecasts (`density.enabled`) | supported on the general path (a draw re-runs the forecast stage); the fast path stays two-type. Summarised: `n_model_<k>_<x>` per type and the beliefs of each learning type (`alpha_pinf__BR`, ...) |
 | `hetlearn.evaluate` | supported; a variant with N types or transforms gets the RE filter of its own RE limit |
-| `hetlearn.decompose` | supported; method `'tv'` with level types and any result of `history.mode = 'kalman'` stop with `hetlearn:options:unsupported` |
+| `hetlearn.decompose` | supported; a result of `history.mode = 'kalman'` stops with `hetlearn:options:unsupported` |
 | Ramsey policy (`policy.mode = 'ramsey'`) | not supported: `hetlearn:options:unsupported` |
 
-"N types" here means any run on the N-type path: `expectations.types`, `expectations.transforms`,
-or a switching option of 9.2 with the default pair.
+"N types" here means any run on the N-type path: `expectations.types`,
+`expectations.transforms`, `shares.init` or `shares.fixed`. The refusals name the options that
+put the run there.
 
 ### 9.9 Outputs of N-type runs
 
 | Output | Content |
 |---|---|
 | `res.learning.<x>` | per type k: `n_<k>` (discrete-choice share at the end of t; 0 outside the population), `n_model_<k>` (share in the model in t), `U_<k>` (fitness), `FE_<k>` (squared error), `f_<k>` (forecast as it enters the aggregate), `fb_<k>` (before the transforms, only with transforms); `.types` |
-| `res.learning.<target>__<k>` | belief series of each learning type (`alpha_pinf__BR`, `R_...`, `gain`, the gain rule's series) |
+| `res.learning.<target>__<k>` | belief series of each learning type (`alpha_pinf__BR`, `alpha_pinf_feRE__IO`, `R_...`, `gain`, the gain rule's series) |
 | `res.paths.<x>_exp1_<k>` | the type's forecasts over the record dates (as `<x>_exp1_BR` in two-type runs) |
-| `res.meta.types`, `res.meta.model_values` | the resolved types; every `'model:<rule>'` value and transform factor |
-| events | also `projection_level` (level economy without a solution, levels kept), `sac_bound` (SAC autocorrelation clipped) |
+| `res.meta.types`, `res.meta.model_values` | the resolved types; the transform values (with transforms only) |
+| events | the types of 6.2; the N-type path adds none |
 
 `learning.csv` carries the same series in long form.
+
+### 9.10 Removed on 2026-10-22
+
+The user kept the seven variants that the BR audit scored 4 or 5 (`docs/BR_audit.txt`,
+sections 0, 2 and 3) and dropped the other 14, including the four the audit marked "fix"
+(score 3). The options that only the dropped variants used went with them. Setting one stops
+the run with `hetlearn:options:removed`, naming the removal. A merged option tree saved before
+the cut (`res.cfg`) still loads: removed fields that hold their old off values are dropped. The
+old scenario files, results, code and tests are in `archive/2026-10-22_br_cleanup/`.
+
+| Variant | Mechanism | Options removed with it | Audit reason (score) |
+|---|---|---|---|
+| 1a, 1b | Level-k on a learned level 0 (Evans, Gibbs and McGough 2025; Beaudry, Carter and Lahiri 2023) | type kind `'level'` (fields `base`, `k`), `hetlearn.engine.anchor_update`, event `projection_level`, error `levelNoSolution` | the learned level-0 seed is explosive at the 2022Q2 origin: an inflation cycle of about 25 pp and five facility events (2) |
+| 4 | Shallow reasoning (Angeletos and Sastry 2021) | multiplier profile `'flat'` | monetary policy barely moves inflation, dLL -1960; the mapping of GHL's values to SW07 equations is ours (2) |
+| 5a | Cognitive discounting on every expectation (Gabaix 2020) | none: 5b and 10 use its machinery | m = 0.62 comes from a re-estimated SW07 and sits on the published RE mode, dLL -4053 (3) |
+| 6 | As-if hyperbolic discounting (Gabaix and Laibson) | multiplier profile `'hyperbolic'`, and with it the field `profile` | alpha unsourced; with h = 1 and 2 only it cannot be told apart from 5a (2) |
+| 17 | Four heuristics (Anufriev and Hommes 2012) | rule terms `self{-k}` and `mean`, the per-type `gain`, `gain.rule = 'decreasing'`, `switching.inertia`, `switching.fitness = 'unnormalized'` | the intensity is in lab-price units, so the shares stay in 0.16-0.33 and the switching does nothing (3) |
+| 18 | Targeters and extrapolators, optimists and pessimists (De Grauwe 2011) | the per-type `variables`, `variant` and `info`, a second `'re'` type, constant wedges | explosive IRF cycles; parameters picked by an outcome screen (1) |
+| 20 | SAC learning (Hommes and Sorger 1998; HMOZ 2023) | `beliefs.update = 'sac'`, event `sac_bound` | gain column unconfirmed, HMOZ's structural estimates not used, dLL -1852 (3) |
+| 25a, 25b | Kalman-filter learning (Slobodyan and Wouters 2012a) | `beliefs.update = 'kf'`, `beliefs.kf`, the per-type `plm` and `update` | inflation keeps falling at the end, 7-8 facility events, explosive IRFs (1) |
+| 27 | Bayesian model averaging (Evans, Honkapohja, Sargent and Williams 2013) | `switching.intensity = 'model:bma'`, `switching.memory = 1` | the learners' share sits at 1.000 and inflation rises to 22.7% (1) |
+| 29 | Survey belief wedge (Bhandari, Borovička and Ho 2025) | transform kind `'wedge'`: field `factor`, its shock and `xi_` state | no survey data to identify the wedge; the learners' share goes above 0.98 (2) |
+| 31 | Confidence shocks (Angeletos, Collard and Dellas 2018) | wedge values `'model:acd51'` and `'model:projection'` | sigma and loadings calibrated by us, not ACD's (3) |
+| 33 | Nominal-growth belief function (Farmer and Nicolò 2018) | rule terms `dn` and `re1(...)` | the path is RE's (FN share 0 in 2021Q2-2022Q4) and the inflation RMSE the worst, 1.39x (2) |
+| none | | `switching.costs` and the type field `cost`, transform kind `'partial_adjustment'`, `'model:sd_ygap_half'` | no portfolio scenario used them |
+
+To bring a dropped variant back, `docs/BR_audit.txt` section 4 lists the work it would need.
