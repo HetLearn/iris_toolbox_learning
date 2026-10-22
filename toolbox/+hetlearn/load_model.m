@@ -86,54 +86,44 @@ function [m, info] = load_model(spec, opts)
 %   hetlearn.extend_model(spec, plm, 'types', ...) (<name>_ext_n<hash>.model),
 %   loaded at its RE limit (n_RE_<x> = 1, every other share 0, beliefs 0,
 %   rule constants at their values, anchored coefficients as above for the RE
-%   type's information set). Each learning type k (kind 'plm', or 'rule'
-%   with a mean term) gets its PLM system hetlearn.plm.build_system(...,
-%   info_k, k) on its learning variables, checked against the generated
-%   equations. info.sys is then the combined system of every learning type
-%   with keyed targets <target>__<k> (fields .type, .var, .reg_vars added;
-%   .nt.share_names for hetlearn.engine.facility), and info.nt the engine's
-%   description of the types (hetlearn.engine.ntypes). The default pair
-%   RE/BR on the N-type engine path (switching options of DESIGN_br_extensions
-%   1.2 without expectations.types) keeps the two-type file; info.nt and the
-%   keyed info.sys are then built on it (info.nt.sys_two holds the two-type
-%   system). 'model:<rule>' values (switching.intensity = 'model:bma') are
-%   computed from the solved RE limit m: info.nt.model_values.bma.sigma2.<x>
-%   = the forecast-error variance of x at the horizon of the RE type's
-%   forecast (2 under re_info 'lagged', 1 under 'current'). N types with
-%   policy.mode = 'ramsey' are not supported (hetlearn:load_model:types).
+%   type's information set). Each learning type k (kind 'plm', and the
+%   're_mean' type's mean of x_feRE) gets its PLM system
+%   hetlearn.plm.build_system(..., info_k, k) on the learning variables,
+%   checked against the generated equations. info.sys is then the combined
+%   system of every learning type with keyed targets <target>__<k> (fields
+%   .type, .var, .reg_vars added; .nt.share_names for hetlearn.engine.facility),
+%   and info.nt the engine's description of the types (hetlearn.engine.ntypes).
+%   The default pair RE/BR on the N-type engine path (shares.init or
+%   shares.fixed without expectations.types) keeps the two-type file; info.nt
+%   and the keyed info.sys are then built on it (info.nt.sys_two holds the
+%   two-type system). N types with policy.mode = 'ramsey' are not supported
+%   (hetlearn:load_model:types).
 %
 %   Forecast transforms (expectations.transforms, DESIGN_br_extensions 1.3,
 %   phase P3) take the N-type path (the default pair spelled out when no types
 %   are given; generator version 7). Their factors are parameters set here from
-%   the options: multipliers D(h) per type, h = 2 for a type with t-1
-%   information and 1 otherwise (m^h, lambda, 1/(1 + alpha*h)), theta, omega_f
-%   and b, g, the wedge mean, AR(1) coefficient and loadings, and std_<shock>.
-%   'model:<rule>' values: model:sd_ygap_half (mean, sd(y - yf)/2) and
-%   model:projection (loadings, Cov(x, y)/Var(y)) from the wedge-free RE limit,
-%   model:acd51 (std: a 51% share of y's variance at periodicities 6-32
-%   quarters, IRIS acf with a band filter) from the RE limit with the
-%   loadings; recorded in info.nt.model_values (res.meta.model_values) with
-%   every factor (.transforms). Anchored RE coefficients (D11) come from the
-%   variant's own RE limit, model-consistent with the wedge processes off
-%   (loadings 0): hetlearn.re_anchor_coefficients ('lagged') or, with period-t
-%   information, the RE limit's state space over the original states; the IRFs
-%   of the anchored and model-consistent RE limits must agree on the shocks
-%   other than the wedge shocks (1e-10). The factor values enter info.params,
-%   so the RE filter's cache key separates them. Errors
-%   (hetlearn:load_model:transforms): a diagnostic transform on the anchored RE
-%   type of a learning variable, anchored agents whose forecast loads on
-%   states that transforms add (both need the generalised anchor of phase P4),
-%   and a transform the generator left out of a learning variable's type
+%   the options: multipliers D(h) = m^h per type, h = 2 for a type with t-1
+%   information and 1 otherwise, theta, omega_f and b; recorded in
+%   info.nt.model_values.transforms (res.meta.model_values). Anchored RE
+%   coefficients (D11) come from the variant's own RE limit, model-consistent:
+%   hetlearn.re_anchor_coefficients ('lagged') or, with period-t information,
+%   the RE limit's state space over the original states; the IRFs of the
+%   anchored and model-consistent RE limits must agree (1e-10). The factor
+%   values enter info.params, so the RE filter's cache key separates them.
+%   Errors (hetlearn:load_model:transforms): a diagnostic transform on the
+%   anchored RE type of a learning variable under period-t information, and a
+%   transform the generator left out of a learning variable's type
 %   (meta.transforms.blocked).
 %
 %   Generalised anchor (DESIGN_br_extensions 1.4, phase P4): with extra anchored
-%   terms (transforms that add states, the anchored diagnostic reference) the
-%   RE type's coefficients come from hetlearn.anchor_coefficients in the anchor
-%   economy (anchor_general); re1(...) terms of rule types get their
-%   coefficients from the model-consistent RE limit (info.nt.model_values.re1);
-%   level types get their chain descriptors (info.nt.levels), the coefficients
-%   come per quarter from hetlearn.engine.anchor_update; 're_mean' types get a
-%   mean-only PLM of x_feRE.
+%   terms (the memory states of diagnostic expectations, the anchored
+%   diagnostic reference) the RE type's coefficients come from
+%   hetlearn.anchor_coefficients in the anchor economy (anchor_general);
+%   're_mean' types get a mean-only PLM of x_feRE. The level types, the rule
+%   term re1(...), the wedge and partial-adjustment transforms, the multiplier
+%   profiles other than m^h and the model values model:bma, model:sd_ygap_half,
+%   model:projection and model:acd51 were removed on 2026-10-22
+%   (docs/BR_audit.txt).
 %
 %   See also hetlearn.extend_model, hetlearn.re_filter, hetlearn.run,
 %   hetlearn.re_anchor_coefficients, hetlearn.anchor_coefficients.
@@ -384,11 +374,10 @@ info.policy = pol;
 if AT.engine
     % the default pair RE/BR on the N-type engine path (DESIGN_br_extensions 1.2), two-type file
     if ~isempty(pol) && pol.ramsey
-        error('hetlearn:load_model:types', ['The switching options of DESIGN_br_extensions 1.2 (inertia, ' ...
-            'costs, fitness, model:<rule> intensity, shares.init/.fixed) are not supported with ' ...
-            'policy.mode = ''ramsey'' yet.']);
+        error('hetlearn:load_model:types', ['shares.init and shares.fixed (the N-type engine path) are not ' ...
+            'supported with policy.mode = ''ramsey'' yet.']);
     end
-    info.nt = nt_descriptor(AT, meta, learnVars, xList, opts, sys, m, spec);
+    info.nt = nt_descriptor(AT, meta, learnVars, xList, opts, sys);
     info.sys = nt_system(info.nt, meta, opts);
 end
 end
@@ -400,18 +389,14 @@ end
 function [m, info] = load_ntype(spec, opts, AT)
 v = opts.expectations.variables;
 gen = AT.gen;
-% a VAR over the learning set: each type's own learning variables first (as the two-type path)
+% a VAR over the learning set: the learning variables first (as the two-type path)
 needLv = any(arrayfun(@(g) strcmp(g.kind, 'plm') && uses_learning_set(g.plm), gen));
 if needLv
     meta0 = hetlearn.extend_model(spec, 'ar1', 'validate', false);
     lv0 = learning_vars(v, meta0.forward_vars, spec);
     for i = 1:numel(gen)
         if strcmp(gen(i).kind, 'plm') && uses_learning_set(gen(i).plm)
-            tv = lv0;
-            if ~isempty(gen(i).variables)
-                tv = lv0(ismember(lv0, gen(i).variables));
-            end
-            gen(i).plm = resolve_learning_set(gen(i).plm, tv);
+            gen(i).plm = resolve_learning_set(gen(i).plm, lv0);
             AT.types(i).plm = gen(i).plm;
         end
     end
@@ -424,13 +409,6 @@ else
 end
 hasTF = isfield(meta, 'transforms') && ~isempty(meta.transforms);
 learnVars = learning_vars(v, meta.forward_vars, spec);
-for i = 2:numel(AT.types)
-    bad = setdiff(AT.types(i).variables, learnVars);
-    if ~isempty(bad)
-        error('hetlearn:load_model:types', 'Type %s forecasts %s, which are not learning variables (%s).', ...
-            AT.types(i).name, strjoin(bad, ', '), strjoin(learnVars, ', '));
-    end
-end
 lagged = strcmp(meta.re_info, 'lagged');
 if lagged
     long = learnVars(cellfun(@(x) meta.max_lead.(x) > 1, learnVars));
@@ -441,7 +419,7 @@ if lagged
     end
 end
 anchTog = strcmp(opts.expectations.re_variant, 'anchored');
-anchored = anchTog || any(arrayfun(@(t) strcmp(t.kind, 're') && strcmp(t.variant, 'anchored'), AT.types));
+anchored = anchTog;                       % the RE type follows expectations.re_variant
 if anchored && ~(isfield(meta, 'anchor_ok') && meta.anchor_ok && logical(spec.linear))
     error('hetlearn:load_model:anchored', ...
         ['expectations.re_variant = ''anchored'' needs a linear model whose IRIS state ' ...
@@ -519,7 +497,7 @@ reCheck = [];
 mMC = [];
 TFI = [];
 if hasTF
-    % forecast transforms: factors, 'model:<rule>' values and the anchor economy (D11)
+    % forecast transforms: factors and the anchor economy (D11)
     [m, TFI, anchorInfo, mMC] = tf_prepare(spec, meta, opts, AT, A, Pm, Z, P, m, anchored, lagged, learnVars);
 elseif anchored && ~lagged
     [Aa, anchorInfo] = hetlearn.re_anchor_coefficients(spec, P, 'vars', meta.forward_vars, ...
@@ -551,8 +529,8 @@ if logical(spec.linear)
     m = sstate(m);
 end
 if hasTF
-    % wedge std calibrated on the solved RE limit; anchored = model-consistent at n_RE = 1 (D11)
-    [m, TFI, reCheck] = tf_finish(m, meta, TFI, mMC, anchored, learnVars);
+    % anchored = model-consistent at n_RE = 1 (D11)
+    reCheck = tf_finish(m, mMC, anchored, learnVars);
 end
 if ~hasTF && anchored && lagged
     common = intersect(cellstr(get(m, 'xList')), cellstr(get(mMC, 'xList')), 'stable');
@@ -573,40 +551,7 @@ end
 
 % ---- PLM systems of the learning types, checked against the generated equations -----------
 xList = cellstr(get(m, 'xList'));
-nt = nt_descriptor(AT, meta, learnVars, xList, opts, [], m, spec);
-if has_re1(meta)
-    % re1(...) terms (phase P4, mechanism 33): anchored E_{t-1} in the variant's RE limit, model-consistent
-    mR = mMC;                          % the anchor economy of the anchored RE type, when it was built
-    if isempty(mR)
-        if anchored
-            mR = mc_limit(spec, meta, A, Pm, Z);
-        else
-            mR = m;                    % the RE limit is model-consistent already
-        end
-    end
-    [Ar, V1] = re1_values(mR, meta, learnVars, A, nt);
-    m = assign(m, Ar);
-    [m, ok, msg] = hetlearn.engine.solve_model(m, spec);
-    if ~ok
-        error('hetlearn:load_model:solveFailed', 'solve failed for %s (RE limit with the re1 coefficients): %s', ...
-            meta.ext_file, msg);
-    end
-    if logical(spec.linear)
-        m = sstate(m);
-    end
-    for j = 1:numel(nt.types)
-        if ~strcmp(nt.types(j).kind, 'rule')
-            continue
-        end
-        for i = 1:numel(nt.types(j).vars)
-            x = nt.types(j).vars{i};
-            for q = 1:numel(nt.types(j).rule.(x).re1)
-                nt.types(j).rule.(x).re1(q).value = V1.(nt.types(j).rule.(x).re1(q).prefix);
-            end
-        end
-    end
-    nt.model_values.re1 = V1;
-end
+nt = nt_descriptor(AT, meta, learnVars, xList, opts, []);
 for j = 1:numel(nt.types)
     t = nt.types(j);
     if isempty(t.sys) || ~strcmp(t.kind, 'plm')
@@ -656,20 +601,12 @@ info.model_hash = hetlearn.util.md5(hetlearn.util.file_bytes(meta.ext_file));
 info.policy = pol;
 if hasTF
     % the factors are parameters, not text: in info.params they enter the RE filter's cache key
-    fv = [fieldnames(TFI.values); fieldnames(TFI.std)];
+    fv = fieldnames(TFI.values);
     for i = 1:numel(fv)
-        if isfield(TFI.values, fv{i})
-            info.params.(fv{i}) = TFI.values.(fv{i});
-        else
-            info.params.(fv{i}) = TFI.std.(fv{i});
-        end
+        info.params.(fv{i}) = TFI.values.(fv{i});
     end
     info.transforms = TFI;
-    nt.model_values.transforms = struct('values', TFI.values, 'std', TFI.std);
-    mf = fieldnames(TFI.model_values);
-    for i = 1:numel(mf)
-        nt.model_values.(mf{i}) = TFI.model_values.(mf{i});
-    end
+    nt.model_values.transforms = struct('values', TFI.values);
     if ~lagged && anchored
         info.re_transform_check = reCheck;   % anchored = model-consistent at n_RE = 1 (period-t information)
     end
@@ -682,40 +619,25 @@ end
 % Forecast transforms (DESIGN_br_extensions 1.3 and D11, phase P3)
 % =========================================================================
 function [m, TFI, anchorInfo, mA] = tf_prepare(spec, meta, opts, AT, A, Pm, Z, P, m, anchored, lagged, learnVars)
-% Factors of the transforms (from the options: the generated file holds their structure only),
-% 'model:<rule>' values of the wedge-free RE limit and the anchored coefficients. The anchor economy
-% (D11) is the variant's own RE limit: this file at n_RE = 1, model-consistent (re_anchored = false),
-% the wedge processes off (every loading 0; the means stay). It is also the economy of the
-% 'model:sd_ygap_half' and 'model:projection' values.
+% Factors of the transforms (from the options: the generated file holds their structure only) and
+% the anchored coefficients. The anchor economy (D11) is the variant's own RE limit: this file at
+% n_RE = 1, model-consistent (re_anchored = false).
 Tm = meta.transforms;
-[V, Sd, pend] = tf_values(Tm, opts.expectations.transforms, AT);
+V = tf_values(Tm, opts.expectations.transforms, AT);
 m = assign(m, V);
-m = assign(m, Sd);
 anchorInfo = [];
 mA = [];
-mv = struct();
-offRules = {'sd_ygap_half', 'projection'};
-needA = anchored || any(ismember({pend.rule}, offRules)) || has_re1(meta);
-if needA
+if anchored
     Amc = A;
     Amc.(meta.anchor_toggle) = false;
     mA = Model.fromFile(meta.ext_file, 'linear', logical(spec.linear), 'assign', Amc);
     mA = assign(mA, Pm);
     mA = assign(mA, Z);
-    mA = assign(mA, tf_wedges_off(V, Tm));
-    mA = assign(mA, Sd);
+    mA = assign(mA, V);
     mA = tf_solve(mA, spec, meta);
-    [V, mv, muChanged] = tf_model_values_off(mA, V, pend);
-    if muChanged
-        mA = assign(mA, tf_wedges_off(V, Tm));
-        mA = tf_solve(mA, spec, meta);
-    end
-    m = assign(m, V);
-end
-if anchored
     if has_extra(meta, learnVars)
-        % phase P4: the anchored expression has terms on states that the transforms add (memory and
-        % partial-adjustment states, the anchored diagnostic reference): the generalised anchor
+        % phase P4: the anchored expression has terms on states that the transforms add (memory states
+        % of diagnostic expectations, the anchored diagnostic reference): the generalised anchor
         [Aa, anchorInfo] = anchor_general(mA, meta, learnVars, lagged, A);
     elseif lagged
         try
@@ -734,7 +656,7 @@ if anchored
     end
     m = assign(m, Aa);
 end
-TFI = struct('values', V, 'std', Sd, 'pending', pend, 'model_values', mv);
+TFI = struct('values', V);
 end
 
 
@@ -742,7 +664,7 @@ function m = tf_solve(m, spec, meta)
 [m, ok, msg] = hetlearn.engine.solve_model(m, spec);
 if ~ok
     error('hetlearn:load_model:solveFailed', ['solve failed for %s (the RE limit with the forecast transforms, ' ...
-        'model-consistent, wedge processes off): %s'], meta.ext_file, msg);
+        'model-consistent): %s'], meta.ext_file, msg);
 end
 if logical(spec.linear)
     m = sstate(m);
@@ -750,8 +672,8 @@ end
 end
 
 
-function [V, Sd, pend] = tf_values(Tm, X, AT)
-% parameter values of the transforms; 'model:<rule>' entries provisional (0; std 1) and listed in pend
+function V = tf_values(Tm, X, AT)
+% parameter values of the transforms
 ID = 'hetlearn:load_model:transforms';
 X = reshape(X, 1, []);
 if numel(X) ~= Tm.n || ~isequal({X.kind}, Tm.kinds)
@@ -759,158 +681,28 @@ if numel(X) ~= Tm.n || ~isequal({X.kind}, Tm.kinds)
         'hetlearn.extend_model(..., ''force'', true).'], numel(X), Tm.n);
 end
 V = struct();
-Sd = struct();
-pend = struct('name', {}, 'rule', {}, 'sign', {}, 'role', {}, 'var', {}, 'i', {}, 'shock', {});
 for q = 1:numel(Tm.params)
     p = Tm.params(q);
     x = X(p.i);
     switch p.role
         case 'D'
-            h = 1;                                        % model-consistent E_t x_{t+1}
+            % multiplier D(h) = m^h (DESIGN_br_extensions 1.3): h = 1 for the model-consistent E_t x_{t+1},
+            % h = 2 for a type with t-1 information (E_{t-1} x_{t+1})
+            h = 1;
             if ~isempty(p.type)
                 j = find(strcmp(AT.names, p.type), 1);
-                h = 1 + strcmp(AT.types(j).info_resolved, 'lagged');    % t-1 information: E_{t-1} x_{t+1}
+                h = 1 + strcmp(AT.types(j).info_resolved, 'lagged');
             end
-            V.(p.name) = tf_factor(x.profile, x.value, h);
+            V.(p.name) = x.value^h;
         case 'theta'
             V.(p.name) = x.value;
         case 'omega'
             V.(p.name) = x.value(1);
         case 'b'
             V.(p.name) = x.value(2);
-        case 'g'
-            V.(p.name) = x.value;
-        case 'mu'
-            mu = x.factor.mean;
-            if ischar(mu)
-                [rule, sg] = tf_rule(mu);
-                pend(end+1) = struct('name', p.name, 'rule', rule, 'sign', sg, 'role', 'mu', 'var', '', ...
-                    'i', p.i, 'shock', ''); %#ok<AGROW>
-                V.(p.name) = 0;
-            else
-                V.(p.name) = mu;
-            end
-        case 'rho'
-            V.(p.name) = x.factor.rho;
-        case 'lam'
-            Ld = x.factor.loadings;
-            if isempty(Ld)
-                V.(p.name) = 1;
-            elseif ischar(Ld)
-                [rule, sg] = tf_rule(Ld);
-                pend(end+1) = struct('name', p.name, 'rule', rule, 'sign', sg, 'role', 'lam', 'var', p.var, ...
-                    'i', p.i, 'shock', ''); %#ok<AGROW>
-                V.(p.name) = 0;
-            else
-                if ~isfield(Ld, p.var)
-                    error(ID, ['expectations.transforms(%d).factor.loadings gives no loading for %s, which the ' ...
-                        'wedge reaches (scope).'], p.i, p.var);
-                end
-                V.(p.name) = Ld.(p.var);
-            end
-    end
-end
-for i = 1:Tm.n
-    s = Tm.list(i).shock;
-    if isempty(s)
-        continue
-    end
-    sd = X(i).factor.std;
-    if ischar(sd)
-        [rule, sg] = tf_rule(sd);
-        pend(end+1) = struct('name', ['std_' s], 'rule', rule, 'sign', sg, 'role', 'std', 'var', '', ...
-            'i', i, 'shock', s); %#ok<AGROW>
-        Sd.(['std_' s]) = 1;
-    else
-        Sd.(['std_' s]) = sd;
-    end
-end
-bad = setdiff({pend.rule}, {'sd_ygap_half', 'projection', 'acd51'});
-if ~isempty(bad)
-    error('hetlearn:load_model:modelValue', ['expectations.transforms: unknown model rule(s) ''model:%s'' ' ...
-        '(built: model:sd_ygap_half for a mean, model:projection for loadings, model:acd51 for a std).'], ...
-        strjoin(bad, ''', ''model:'));
-end
-okRole = struct('sd_ygap_half', 'mu', 'projection', 'lam', 'acd51', 'std');
-for q = 1:numel(pend)
-    if ~strcmp(okRole.(pend(q).rule), pend(q).role)
-        error('hetlearn:load_model:modelValue', 'expectations.transforms(%d): model:%s is not a value for the %s.', ...
-            pend(q).i, pend(q).rule, pend(q).role);
-    end
-end
-end
-
-
-function D = tf_factor(profile, v, h)
-% multiplier at horizon h (DESIGN_br_extensions 1.3): m^h, lambda, 1/(1 + alpha*h)
-switch profile
-    case 'geometric'
-        D = v^h;
-    case 'flat'
-        D = v;
-    case 'hyperbolic'
-        D = 1 / (1 + v * h);
-    otherwise
-        error('hetlearn:load_model:transforms', 'Unknown multiplier profile ''%s''.', profile);
-end
-end
-
-
-function [rule, sg] = tf_rule(s)
-sg = 1;
-if strncmp(s, '-', 1)
-    sg = -1;
-    s = s(2:end);
-end
-rule = regexprep(s, '^model:', '');
-end
-
-
-function V = tf_wedges_off(V, Tm)
-% every wedge loading 0: the wedge processes do not reach the expectations (the means stay)
-for q = 1:numel(Tm.params)
-    if strcmp(Tm.params(q).role, 'lam')
-        V.(Tm.params(q).name) = 0;
-    end
-end
-end
-
-
-function [V, mv, muChanged] = tf_model_values_off(mA, V, pend)
-% 'model:sd_ygap_half' (g = sd(y - yf)/2, De Grauwe's bias) and 'model:projection' (Cov(x, y)/Var(y),
-% the ACD loading) from the unconditional covariances of the wedge-free RE limit mA
-mv = struct();
-muChanged = false;
-q0 = find(ismember({pend.rule}, {'sd_ygap_half', 'projection'}));
-if isempty(q0)
-    return
-end
-[C, ~, list] = acf(mA, 'MatrixFormat', 'plain');
-C = C(:, :, 1);
-list = cellstr(list);
-iy = find(strcmp(list, 'y'), 1);
-if isempty(iy)
-    error('hetlearn:load_model:modelValue', 'model:sd_ygap_half and model:projection need a transition variable y (output).');
-end
-for q = q0
-    p = pend(q);
-    switch p.rule
-        case 'sd_ygap_half'
-            iyf = find(strcmp(list, 'yf'), 1);
-            if isempty(iyf)
-                error('hetlearn:load_model:modelValue', 'model:sd_ygap_half needs y and yf (flexible-price output).');
-            end
-            vg = C(iy, iy) + C(iyf, iyf) - 2 * C(iy, iyf);
-            g = sqrt(vg) / 2;
-            V.(p.name) = p.sign * g;
-            mv.sd_ygap_half = struct('value', g, 'sd_ygap', sqrt(vg), ...
-                'economy', 'RE limit of the variant, wedge processes off');
-            muChanged = true;
-        case 'projection'
-            iz = find(strcmp(list, p.var), 1);
-            V.(p.name) = p.sign * C(iz, iy) / C(iy, iy);
-            mv.projection.(p.var) = V.(p.name);
-            mv.projection.economy = 'RE limit of the variant, wedge processes off';
+        otherwise
+            error(ID, 'Parameter %s of the generated file has the role ''%s'', which no transform kind has now.', ...
+                p.name, p.role);
     end
 end
 end
@@ -962,57 +754,24 @@ end
 end
 
 
-function [m, TFI, reCheck] = tf_finish(m, meta, TFI, mA, anchored, learnVars)
-% 'model:acd51': the std of a wedge shock so that it explains 51% of the variance of output y at
-% periodicities 6-32 quarters in the variant's RE limit m (ACD 2018, Table 2; IRIS acf with a band
-% filter, contributions by shock; the share is sigma^2 V / (sigma^2 V + V_other)). Then, with
-% anchored RE agents, the check that the anchored RE limit equals the model-consistent one (the
-% anchor economy mA) in the IRFs to every shock other than the wedge shocks (1e-10).
+function reCheck = tf_finish(m, mA, anchored, learnVars)
+% With anchored RE agents, the check that the anchored RE limit m equals the model-consistent one (the
+% anchor economy mA) in the IRFs to every shock (1e-10)
 reCheck = [];
-Tm = meta.transforms;
-q0 = find(strcmp({TFI.pending.rule}, 'acd51'));
-for q = q0
-    p = TFI.pending(q);
-    m = assign(m, struct(p.name, 1));
-    [C, ~, list] = acf(m, 'Filter', 'per>=6 & per<=32', 'Contributions', true, 'MatrixFormat', 'plain', ...
-        'NFreq', 2048);
-    list = cellstr(list);
-    el = cellstr(get(m, 'eList'));
-    iy = find(strcmp(list, 'y'), 1);
-    if isempty(iy)
-        error('hetlearn:load_model:modelValue', 'model:acd51 needs a transition variable y (output).');
-    end
-    cy = reshape(C(iy, iy, 1, :), 1, []);
-    k = find(strcmp(el, p.shock), 1);
-    if numel(cy) ~= numel(el) || isempty(k)
-        error('hetlearn:load_model:modelValue', 'model:acd51: %d shock contributions for %d shocks.', numel(cy), numel(el));
-    end
-    vOther = sum(cy) - cy(k);
-    s2 = 0.51 / 0.49 * vOther / cy(k);
-    sd = sqrt(s2);
-    m = assign(m, struct(p.name, sd));
-    TFI.std.(p.name) = sd;
-    TFI.model_values.acd51 = struct('std', sd, 'share', 0.51, 'periodicities', [6 32], 'variable', 'y', ...
-        'band_variance_unit_shock', cy(k), 'band_variance_other', vOther, 'shock', p.shock, ...
-        'economy', 'RE limit of the variant with the wedge loadings');
-end
 if anchored
-    el = reshape(cellstr(get(m, 'eList')), 1, []);
-    sh = el(~ismember(el, Tm.shocks));
     common = intersect(cellstr(get(m, 'xList')), cellstr(get(mA, 'xList')), 'stable');
-    sA = srf(m, 1:40, 'select', sh);
-    sM = srf(mA, 1:40, 'select', sh);
+    sA = srf(m, 1:40);
+    sM = srf(mA, 1:40);
     dd = 0;
     for i = 1:numel(common)
         e = abs(sA.(common{i})(1:40, :) - sM.(common{i})(1:40, :));
         e(isnan(e)) = Inf;
         dd = max([dd; e(:)]);
     end
-    reCheck = struct('anchored_vs_mc_maxdiff', dd, 'variables', {common}, 'shocks', {sh});
+    reCheck = struct('anchored_vs_mc_maxdiff', dd, 'variables', {common});
     if ~(dd < 1e-10)
         error('hetlearn:load_model:reInfo', ['With the forecast transforms the anchored RE limit (n_RE = 1) differs ' ...
-            'from the model-consistent one by %.3g (IRFs to the shocks other than the wedge shocks, learning ' ...
-            '{%s}).'], dd, strjoin(learnVars, ', '));
+            'from the model-consistent one by %.3g (IRFs, learning {%s}).'], dd, strjoin(learnVars, ', '));
     end
 end
 end
@@ -1041,7 +800,7 @@ for f = reshape(fieldnames(meta.anchor_params), 1, [])
         Z.(pn{j}) = 0;
     end
 end
-if isfield(meta, 'anchor_extra')          % phase P4: anchored reference, level and re1 coefficients
+if isfield(meta, 'anchor_extra')          % phase P4: the anchored diagnostic reference
     for f = reshape(fieldnames(meta.anchor_extra), 1, [])
         pn = meta.anchor_extra.(f{1});
         for j = 1:numel(pn)
@@ -1072,11 +831,6 @@ for i = 1:numel(learnVars)
         return
     end
 end
-end
-
-
-function tf = has_re1(meta)
-tf = isfield(meta, 're1') && isstruct(meta.re1) && ~isempty(fieldnames(meta.re1));
 end
 
 
@@ -1206,70 +960,6 @@ info.deg_rows = degRows;
 end
 
 
-function [Ar, V] = re1_values(mR, meta, learnVars, A, nt)
-% Coefficients of the re1(...) terms of rule types (phase P4, mechanism 33): E_{t-1} of their linear
-% expressions in the variant's RE limit mR (model-consistent), on the original states dated t-1, the
-% lagged RE chains solved out (anchor_targets). Ar: parameter values; V.<prefix>: .k, .c, .vars, .lags
-ID = 'hetlearn:load_model:re1';
-[tg0, ch0] = anchor_targets(meta, learnVars, true, mR);
-st = active_states(meta, learnVars, A);
-n0 = numel(meta.re_states);
-[~, sv, sl] = hetlearn.plm.anchor_names('x', meta.re_states);
-Ar = struct();
-V = struct();
-for j = 1:numel(nt.types)
-    t = nt.types(j);
-    if ~strcmp(t.kind, 'rule')
-        continue
-    end
-    for i = 1:numel(t.vars)
-        Rx = t.rule.(t.vars{i});
-        for q = 1:numel(Rx.re1)
-            E = Rx.re1(q);
-            tg = [tg0, E.targets];
-            [R, ic] = hetlearn.anchor_coefficients(mR, tg, st, 'lag', 1, 'chain', ch0, 'check', true, ...
-                'error_id', ID, 'what', sprintf('re1(%s) of type %s', E.expr, t.name));
-            rows = numel(tg0) + (1:numel(E.targets));
-            w = reshape(E.weights, 1, []);
-            k = E.const + w * R.k(rows);
-            c = w * R.C(rows, :);
-            big = max([0, abs(c(n0 + 1:end))]);
-            for a = 1:numel(R.L)
-                big = max([big, max(abs(w * R.L{a}(rows, :)))]);
-            end
-            if big >= 1e-12
-                error(ID, ['re1(%s) of type %s loads on a state that the forecast transforms add (%.3g); re1 terms ' ...
-                    'run over the original states only.'], E.expr, t.name, big);
-            end
-            pn = meta.re1.(E.prefix);
-            Ar.(pn{1}) = k;
-            for s = 1:n0
-                Ar.(pn{1 + s}) = c(s);
-            end
-            V.(E.prefix) = struct('k', k, 'c', c(1:n0)', 'vars', {sv}, 'lags', sl, 'check_maxdiff', ic.check_maxdiff);
-        end
-    end
-end
-end
-
-
-function mR = mc_limit(spec, meta, A, Pm, Z)
-% the RE limit of the variant, model-consistent (re_anchored = false), solved
-Amc = A;
-Amc.(meta.anchor_toggle) = false;
-mR = Model.fromFile(meta.ext_file, 'linear', logical(spec.linear), 'assign', Amc);
-mR = assign(mR, Pm);
-mR = assign(mR, Z);
-[mR, ok, msg] = hetlearn.engine.solve_model(mR, spec);
-if ~ok
-    error('hetlearn:load_model:solveFailed', 'solve failed for %s (model-consistent RE limit): %s', meta.ext_file, msg);
-end
-if logical(spec.linear)
-    mR = sstate(mR);
-end
-end
-
-
 function v = ternary(c, a, b)
 if c
     v = a;
@@ -1279,32 +969,22 @@ end
 end
 
 
-function nt = nt_descriptor(AT, meta, learnVars, xList, opts, sysTwo, m, spec)
-% The engine's description of the agent types (hetlearn.engine.ntypes).
+function nt = nt_descriptor(AT, meta, learnVars, xList, ~, sysTwo)
+% The engine's description of the agent types (hetlearn.engine.ntypes). Every type forecasts every
+% learning variable.
 legacy = AT.legacy_file;
-maxS = 0;                                  % largest lag among the original states (level, re1 terms)
-if isfield(meta, 'anchor_ok') && meta.anchor_ok && ~isempty(meta.re_states)
-    [~, ~, slS] = hetlearn.plm.anchor_names('x', meta.re_states);
-    maxS = max([0, slS]);
-end
 nt = struct();
 nt.legacy_file = legacy;
 nt.names = AT.names;
 nt.re = 1;
 nt.default_pair = AT.default_pair;
-T = struct('name', {}, 'kind', {}, 'variant', {}, 'info', {}, 'inpop', {}, 'cost', {}, 'update', {}, ...
-    'gain', {}, 'vars', {}, 'sys', {}, 'rule', {}, 'self_maxlag', {}, 'data_maxlag', {}, 'base', {}, 'k', {}, ...
-    'lev', {}, 'zvar', {});
+T = struct('name', {}, 'kind', {}, 'variant', {}, 'info', {}, 'inpop', {}, 'update', {}, 'gain', {}, ...
+    'vars', {}, 'sys', {}, 'rule', {}, 'data_maxlag', {}, 'zvar', {});
 for j = 1:numel(AT.types)
     a = AT.types(j);
     t = struct('name', a.name, 'kind', a.kind, 'variant', a.variant_resolved, 'info', a.info_resolved, ...
-        'inpop', a.inpop, 'cost', a.cost, 'update', a.update, 'gain', a.gain, 'vars', {{}}, 'sys', [], ...
-        'rule', struct(), 'self_maxlag', 0, 'data_maxlag', 0, 'base', 0, 'k', 0, 'lev', struct(), 'zvar', struct());
-    if j == 1 || isempty(a.variables)
-        t.vars = learnVars;
-    else
-        t.vars = learnVars(ismember(learnVars, a.variables));
-    end
+        'inpop', a.inpop, 'update', a.update, 'gain', a.gain, 'vars', {learnVars}, 'sys', [], ...
+        'rule', struct(), 'data_maxlag', 0, 'zvar', struct());
     switch a.kind
         case 'plm'
             if legacy
@@ -1314,43 +994,12 @@ for j = 1:numel(AT.types)
             end
             t.data_maxlag = t.sys.maxlag;
         case 'rule'
-            meanVars = {};
             for i = 1:numel(t.vars)
                 x = t.vars{i};
                 R = meta.rules.(a.name).(x);
-                if ~isfield(R, 're1')            % a rule parsed before phase P4 (meta of a cached file)
-                    R.re1 = struct('prefix', {}, 'placeholder', {}, 'expr', {}, 'targets', {}, 'weights', {}, 'const', {});
-                end
                 t.rule.(x) = R;
-                t.self_maxlag = max(t.self_maxlag, R.self_maxlag);
                 t.data_maxlag = max(t.data_maxlag, R.maxlag);
-                if R.uses_mean
-                    meanVars{end+1} = x; %#ok<AGROW>
-                end
             end
-            if ~isempty(meanVars)
-                bv = struct();
-                for i = 1:numel(meanVars)
-                    bv.(meanVars{i}) = struct('regressors', {{}}, 'constant', true);
-                end
-                pl = struct('default', 'ar1', 'by_var', bv, 'derived', struct(), ...
-                    'var', struct('variables', {{}}, 'lags', 1, 'constant', true));
-                t.sys = hetlearn.plm.build_system(pl, meanVars, xList, t.info, a.name);
-            end
-            for i = 1:numel(t.vars)
-                if ~isempty(t.rule.(t.vars{i}).re1)
-                    t.data_maxlag = max(t.data_maxlag, maxS + 1);    % re1 runs over the states dated t-1
-                end
-            end
-        case 'level'
-            % level k on a level-0 type (phase P4): coefficients set each quarter by
-            % hetlearn.engine.anchor_update, over the original states dated t-1 ('lagged') or t
-            t.base = find(strcmp(AT.names, a.base), 1);
-            t.k = a.k;
-            for i = 1:numel(t.vars)
-                t.lev.(t.vars{i}) = meta.levels.(a.name).(t.vars{i});
-            end
-            t.data_maxlag = maxS + strcmp(t.info, 'lagged');
         case 're_mean'
             % RE forecast plus a learned mean of its error (phase P4, mechanism 23): a mean-only PLM of the
             % generated target <x>_feRE = x - x_exp1_RE{-1}
@@ -1364,7 +1013,7 @@ for j = 1:numel(AT.types)
                 'var', struct('variables', {{}}, 'lags', 1, 'constant', true));
             t.sys = hetlearn.plm.build_system(pl, zv, xList, 'lagged', a.name);
     end
-    T(j) = t; %#ok<AGROW>
+    T(j) = t;
 end
 nt.types = T;
 nt.byvar = struct();
@@ -1384,38 +1033,11 @@ for i = 1:numel(learnVars)
             error('hetlearn:load_model:types', 'Type order of %s differs from the generated file.', x);
         end
     end
-    b.inpop = arrayfun(@(j) T(j).inpop && (j ~= 1 || isempty(AT.types(1).variables) ...
-        || any(strcmp(AT.types(1).variables, x))), ix);
+    b.inpop = arrayfun(@(j) T(j).inpop, ix);
     b.re_pos = find(ix == 1, 1);
     nt.byvar.(x) = b;
 end
-% level types (phase P4, DESIGN_br_extensions 1.4): one chain per level-0 type, whose levels
-% hetlearn.engine.anchor_update computes each quarter (levels 1 .. K from the level-j economies; the
-% level type with the largest k is the slot of the economies j >= 1)
-nt.levels = struct('base', {}, 'types', {}, 'K', {}, 'slot', {}, 'vars', {}, 'lag', {}, 'states', {}, 'chain', {});
-lt = find(strcmp({T.kind}, 'level'));
-for bse = reshape(unique([T(lt).base], 'stable'), 1, [])
-    ix = lt([T(lt).base] == bse);
-    [K, w] = max([T(ix).k]);
-    slot = ix(w);
-    vars = T(slot).vars;
-    for q = ix
-        if ~isequal(T(q).vars, vars) || ~strcmp(T(q).info, T(slot).info)
-            error('hetlearn:load_model:types', ['The level types on %s (%s) must forecast the same variables with ' ...
-                'the same information.'], T(bse).name, strjoin({T(ix).name}, ', '));
-        end
-    end
-    ch = struct('state', {}, 'target', {}, 'lag', {});
-    bt = T(bse);
-    if strcmp(bt.kind, 're') && strcmp(bt.variant, 'model_consistent') && strcmp(bt.info, 'lagged')
-        for i = 1:numel(vars)
-            ch(end+1) = struct('state', meta.re_chain.(vars{i}){2}, 'target', i, 'lag', 0); %#ok<AGROW>
-        end
-    end
-    nt.levels(end+1) = struct('base', bse, 'types', ix, 'K', K, 'slot', slot, 'vars', {vars}, ...
-        'lag', double(strcmp(T(slot).info, 'lagged')), 'states', {reshape(cellstr(meta.re_states), 1, [])}, 'chain', ch);
-end
-nt.model_values = model_values(opts, m, learnVars, opts.expectations.re_info);
+nt.model_values = struct();      % transform factors added by load_ntype (.transforms)
 if legacy
     nt.sys_two = sysTwo;
 end
@@ -1457,51 +1079,6 @@ sysN.nt = struct('share_names', struct());
 f = fieldnames(nt.byvar);
 for i = 1:numel(f)
     sysN.nt.share_names.(f{i}) = nt.byvar.(f{i}).share_names;
-end
-end
-
-
-function mv = model_values(opts, m, learnVars, reInfo)
-% 'model:<rule>' values from the solved RE limit m (DESIGN_br_extensions 3)
-mv = struct();
-s = opts.switching.intensity;
-if ~ischar(s)
-    return
-end
-rule = regexprep(s, '^model:', '');
-switch rule
-    case 'bma'
-        % EHSW/Cho-Kasa model averaging: chi = 1/(2 sigma^2), sigma^2 the Gaussian predictive
-        % variance of the approximating (RE) model at the horizon of the RE type's forecast error
-        h = 1 + strcmp(reInfo, 'lagged');
-        [T, R, ~, ~, ~, ~, ~, Omg] = sspace(m, 'triangular', false);
-        T = T(:, :, 1);
-        Omg = Omg(:, :, 1);
-        ne = size(Omg, 1);
-        R = R(:, 1:ne, 1);
-        xv = cellstr(get(m, 'xVector'));
-        nb = size(T, 2);
-        nf = size(T, 1) - nb;
-        Tb = T(nf+1:end, :);
-        Rb = R(nf+1:end, :);
-        sig = struct();
-        for i = 1:numel(learnVars)
-            x = learnVars{i};
-            p = find(strcmp(xv, x), 1);
-            psi = R(p, :);                       % impact
-            v = psi * Omg * psi';
-            Ti = T(p, :);
-            for j = 1:h-1                        % Psi_j = T_x Tb^(j-1) Rb
-                psi = Ti * Rb;
-                v = v + psi * Omg * psi';
-                Ti = Ti * Tb;
-            end
-            sig.(x) = v;
-        end
-        mv.bma = struct('horizon', h, 'sigma2', sig, 'rule', s);
-    otherwise
-        error('hetlearn:load_model:modelValue', ['switching.intensity = ''%s'': unknown model rule ''%s'' ' ...
-            '(built: model:bma).'], s, rule);
 end
 end
 
