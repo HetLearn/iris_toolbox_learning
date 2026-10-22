@@ -1,33 +1,27 @@
-function U0 = init_fitness_n(n0, chi, C)
+function U0 = init_fitness_n(n0, chi)
 %INIT_FITNESS_N  Initial fitness over N types so that the logit returns the initial shares (DESIGN_br_extensions 1.2).
 %
 %   U0 = hetlearn.switching.init_fitness_n(n0, chi)
-%   U0 = hetlearn.switching.init_fitness_n(n0, chi, C)
 %
 %   Inputs
 %     n0   G x N initial shares (rows sum to 1), one row per share group
 %     chi  intensity >= 0, scalar or G x 1
-%     C    costs, 1 x N or G x N (default 0)
 %
 %   Output
-%     U0   G x N fitness with exp(chi*(U0 - C)) / sum_j exp(chi*(U0_j - C_j)) = n0:
-%          U0_k = (log n0_k - log n0_r)/chi + C_k - C_r, r = the first type of
-%          the row with a positive share (U0_r = 0). A share of 0 gives -Inf.
-%          For two types (RE first) and no costs this is
-%          hetlearn.switching.init_fitness: U0 = [0, log(n2/(1 - n2))/chi].
+%     U0   G x N fitness with exp(chi*U0) / sum_j exp(chi*U0_j) = n0:
+%          U0_k = (log n0_k - log n0_r)/chi, r = the first type of the row
+%          with a positive share (U0_r = 0). A share of 0 gives -Inf.
+%          For two types (RE first) this is hetlearn.switching.init_fitness:
+%          U0 = [0, log(n2/(1 - n2))/chi].
 %          chi = 0: zeros, and a warning if the shares are not equal (the
 %          logit then returns equal shares after the first period).
 %
 %   See also hetlearn.switching.discrete_choice_n, hetlearn.switching.init_fitness.
 
-if nargin < 3 || isempty(C)
-    C = 0;
-end
 [G, N] = size(n0);
 if any(n0(:) < 0 | n0(:) > 1) || any(abs(sum(n0, 2) - 1) > 1e-10)
     error('hetlearn:switching:range', 'Initial shares must lie in [0, 1] and sum to 1 in each group.');
 end
-C = C .* ones(G, N);
 chi = chi(:);
 if isscalar(chi)
     chi = repmat(chi, G, 1);
@@ -42,7 +36,7 @@ for g = 1:G
         continue
     end
     r = find(n0(g, :) > 0, 1);
-    U0(g, :) = (log(n0(g, :)) - log(n0(g, r))) ./ chi(g) + (C(g, :) - C(g, r));
+    U0(g, :) = (log(n0(g, :)) - log(n0(g, r))) ./ chi(g);
     U0(g, r) = 0;
 end
 end
