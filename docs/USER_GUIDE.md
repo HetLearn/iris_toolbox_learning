@@ -50,7 +50,7 @@ points to. All paths are relative to the project root
 | `archive/2026-10-18_rounds1-2/` | Round 1-2 scenarios, results, runners (`run_scenarios*.m`), report and code backups; `README.txt`. Not on the path | Nobody |
 | `archive/2026-10-20_swX1_baseline/` | The previous SW07 baseline (swX1, to 2026-10-19): `results/summary_v3/`, the 40 `results/<id>/` folders, `results/eval_sw07_v3/`, the run log, the report, and the files changed on 2026-10-20 at their previous version (`code_pre_2026-10-20/`); `README.txt`. Not on the path | Nobody |
 | `docs/` | This guide, `DESIGN.md`, `FEATURES.md` | |
-| `.git/` | Repository https://github.com/tolgaozden/iris_toolbox_learning (private, branch `main`) | You (8.8) |
+| `.git/` | Repository https://github.com/tolgaozden/iris_toolbox_learning (public, MIT licence, branch `main`) | You (8.8) |
 
 The rule: you write model packages, scenario files and the master options; the toolbox writes
 `results/` and `generated/`. No scenario or model change needs a toolbox edit.
@@ -1432,7 +1432,7 @@ themselves; anything else needs `setup_paths` first.
 
 ### 8.8 The git repository
 
-https://github.com/tolgaozden/iris_toolbox_learning (private, branch `main`). Not versioned
+https://github.com/tolgaozden/iris_toolbox_learning (public, MIT licence, branch `main`). Not versioned
 (`.gitignore`): `results/` except `results/summary_v3/*.m` and `FINDINGS_v3.md`, every
 `generated/` folder, `tests/output/`, `reports/*.html` and `archive/`. Everything else (code,
 scenarios, model packages with their data, docs) is versioned once committed, and a clone
