@@ -1,5 +1,9 @@
 # hetlearn: heterogeneous expectations for IRIS models
 
+> **Disclaimer.** This is a Claude-assisted project. The code, tests and documentation were
+> developed with Anthropic's Claude, in particular Claude Opus 5.5, under the author's direction
+> and review.
+
 `hetlearn` is a MATLAB toolbox, built on the [IRIS Toolbox](https://github.com/IRIS-Solutions-Team/IRIS-Toolbox)
 (release 20230622), for forecasts and policy scenarios in DSGE models where not everyone has
 rational expectations. The expectations of chosen forward-looking variables are a mix of
