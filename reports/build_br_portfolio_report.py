@@ -11,7 +11,8 @@ and sources, written by run_br_app1.m). Every number in the text, the tables and
 from them at build time; none is typed. The CSS, the theme tokens (light/dark) and the JS chart engine are
 those of build_report_v3.py, read with ast (nothing in that file is executed), as in
 build_br_app1_report.py, whose variant colours this page repeats. Writes one page (content only, no
-<html>/<head>/<body>: the claude.ai artifact publisher wraps it).
+<html>/<head>/<body>: the claude.ai artifact publisher wraps it). Since 2026-10-22 the portfolio has the
+seven variants that docs/BR_audit.txt keeps; the page says so in a dated note.
 """
 import argparse
 import ast
@@ -19,7 +20,6 @@ import html
 import json
 import math
 import pathlib
-import re
 
 import pandas as pd
 
@@ -30,7 +30,10 @@ _AP.add_argument("--out", default=str(ROOT / "reports" / "sw07_br_portfolio_repo
 _ARGS = _AP.parse_args()
 INP = pathlib.Path(_ARGS.inputs)
 OUT = pathlib.Path(_ARGS.out)
-REPORT_DATE = "2026-10-21"
+REPORT_DATE = "2026-10-22"
+CUT_NOTE = ("<b>Note, 2026-10-22.</b> After an audit of the 21 variants built so far, the portfolio was cut to "
+            "seven. Variants 1a, 1b, 4, 5a, 6, 17, 18, 20, 25a, 25b, 27, 29, 31 and 33 were dropped; "
+            "docs/BR_audit.txt gives the reasons.")
 esc = html.escape
 MINUS = "−"
 
@@ -125,9 +128,9 @@ IRR = rd("irf_runs.csv", dtype={"no": str, "stop_date": str, "facility_first": s
                                 "facility_types": str, "error_id": str, "message": str, "hist_facility_types": str,
                                 "hist_facility_first": str, "hist_facility_last": str})
 STA = rd("states_2019Q4.csv", dtype={"no": str})
-RML = rd("rmse_long.csv", dtype={"no": str, "extra_shock": str})
-RMR = rd("rmse_runs.csv", dtype={"no": str, "extra_shock": str, "facility_types": str, "facility_first": str,
-                                 "facility_last": str, "model_gap_by_type": str, "error_id": str, "message": str})
+RML = rd("rmse_long.csv", dtype={"no": str})
+RMR = rd("rmse_runs.csv", dtype={"no": str, "facility_types": str, "facility_first": str, "facility_last": str,
+                                 "model_gap_by_type": str, "error_id": str, "message": str})
 CHK = rd("irf_check.csv", required=False)
 
 
@@ -166,10 +169,6 @@ def ids_of(*nos):
     return [NO[n] for n in nos if n in NO]
 
 
-DISC_ALL = ids_of("4", "5a", "6")          # every forward expectation scaled down (design section 3)
-ST7 = ids_of("20", "25a", "25b")           # every agent learns the seven sticky expectations
-
-
 # ----------------------------------------------------------------------------- formatting
 def f(x, d=2, sign=False):
     if x is None or (isinstance(x, float) and (math.isnan(x) or math.isinf(x))):
@@ -180,12 +179,6 @@ def f(x, d=2, sign=False):
     if x < 0:
         return MINUS + s
     return ("+" + s) if sign else s
-
-
-def g3(x):
-    if x is None or (isinstance(x, float) and math.isnan(x)):
-        return "n/a"
-    return re.sub(r"^-", MINUS, f"{x:.3g}")
 
 
 def sci(x):
@@ -237,17 +230,15 @@ def chip(t, cls=""):
 
 
 # ============================================================================= IRF data
-SHOCK_ORDER = ["em", "epinf", "ew", "ea", "eb", "eg", "eqs", "e_wpinf", "e_xi"]
+SHOCK_ORDER = ["em", "epinf", "ew", "ea", "eb", "eg", "eqs"]
 SHOCK_WORDS = {"em": "monetary policy", "epinf": "price mark-up", "ew": "wage mark-up", "ea": "technology",
-               "eb": "risk premium", "eg": "government spending", "eqs": "investment",
-               "e_wpinf": "inflation-expectation wedge", "e_xi": "confidence"}
+               "eb": "risk premium", "eg": "government spending", "eqs": "investment"}
 SHOCK_TAB = {"em": "Monetary", "epinf": "Price mark-up", "ew": "Wage mark-up", "ea": "Technology", "eb": "Risk premium",
-             "eg": "Government spending", "eqs": "Investment", "e_wpinf": "Wedge (29)", "e_xi": "Confidence (31)"}
+             "eg": "Government spending", "eqs": "Investment"}
 VAR5 = ["pinfobs", "dy", "robs", "dc", "pinf_exp1"]
 VLAB = {"pinfobs": "Inflation", "dy": "Output growth", "robs": "Policy rate", "dc": "Consumption growth",
         "pinf_exp1": "Aggregate inflation expectation"}
 SHOCKS = [s for s in SHOCK_ORDER if s in set(IRF.shock)]
-SW7 = [s for s in SHOCKS if s not in ("e_wpinf", "e_xi")]
 HMAX = int(IRF.h.max())
 NH = HMAX + 1
 XH = [str(h) for h in range(NH)]
@@ -255,11 +246,9 @@ DATE0 = IRF[IRF.h == 0].date.iloc[0]
 DATE_END = IRF[IRF.h == HMAX].date.iloc[0]
 
 G = {}            # (variant, shock, sign, variable) -> list of value_report (None for NaN)
-GST = {}          # (variant, shock, sign) -> status of the rows (shock_not_in_model for the zero rows)
 for (v, s, sg, var), d in IRF.groupby(["variant", "shock", "sign", "variable"], sort=False):
     d = d.sort_values("h")
     G[(v, s, int(sg), var)] = [None if (isinstance(x, float) and math.isnan(x)) else float(x) for x in d.value_report]
-    GST[(v, s, int(sg))] = str(d.status.iloc[0])
 
 RUNROW = {(r.variant, r.shock, int(r.sign)): r._asdict() for r in IRR.itertuples()}
 SD = {}
@@ -271,11 +260,6 @@ MODE = {i: str(RUN[i]["mode"]) for i in IDS}
 
 def girf(i, s, var, sign=1):
     return G.get((i, s, sign, var))
-
-
-def has_shock(i, s):
-    st = GST.get((i, s, 1))
-    return st is not None and st != "shock_not_in_model"
 
 
 def peak(vals):
@@ -354,25 +338,8 @@ def lld(i, s="full"):
     return rm(i, s, "pinfobs", "loglik_minus_baseline")
 
 
-WEDGE = [i for i in IDS if nz(RR[i].get("extra_shock"))]
-GAP = [i for i in IDS if (fl(RR[i].get("model_gap_max")) or 0) > 1e-8]
 FACR = [i for i in IDS if (fl(RR[i].get("facility_events")) or 0) > 0]
 RSTOP = [i for i in IDS if not rok(i)]
-
-
-def gaps_of(i):
-    """[(type, gap)] above rounding, from model_gap_by_type ('RE 0; ADA 0.205; ...')."""
-    out = []
-    for part in str(RR[i].get("model_gap_by_type") or "").split(";"):
-        bits = part.strip().split(" ")
-        if len(bits) == 2:
-            try:
-                g = float(bits[1])
-            except ValueError:
-                continue
-            if g > 1e-8:
-                out.append((bits[0], g))
-    return sorted(out, key=lambda t: -t[1])
 
 
 def irf_fac(i):
@@ -398,30 +365,12 @@ ISTOP = sorted({(r.variant, r.shock, int(r.sign)) for r in IRR.itertuples() if s
 ENT = {"a1_re": dict(name="RE(t-1) benchmark", short="RE(t-1)", color="s1"),
        "a1_learn": dict(name="Baseline (RE agents and AR(1) learners)", short="Baseline", color="s2")}
 SLOTS = ["s3", "s4", "s5", "s6", "s7", "s8"]
-HUE_LEAD = {"1b": "1a", "5b": "5a", "25a": "20", "25b": "20", "24": "23", "33": "19", "31": "29"}
-HUE_WHY = {"1a": "level-k reasoning", "5a": "cognitive discounting", "20": "every agent learns the seven sticky expectations",
-           "23": "learners of a mean", "19": "a fixed forecasting rule beside the RE agents", "29": "an AR(1) wedge on expectations"}
-STYLES = ["solid", "dashed", "dotted"]
 DASHES = ["solid", "dashed", "dotted", "dashdot"]
-HUE_GROUPS = {}
 for fam, _ in FAMS:
-    k = -1
-    seen = {}
-    for i in FAMIDS[fam]:
-        no = RUN[i]["no"]
-        lead = HUE_LEAD.get(no, no)
-        if lead in seen:
-            col = seen[lead][0]
-            sty = STYLES[len(seen[lead][1])]
-            seen[lead][1].append(i)
-        else:
-            k += 1
-            if k >= len(SLOTS):
-                raise SystemExit(f"family {fam}: more than {len(SLOTS)} hues needed")
-            col, sty = SLOTS[k], "solid"
-            seen[lead] = (col, [i])
-        ENT[i] = dict(name=label(i), short=no, color=col, style=sty)
-    HUE_GROUPS[fam] = {lead: ids for lead, (_, ids) in seen.items() if len(ids) > 1}
+    if len(FAMIDS[fam]) > len(SLOTS):
+        raise SystemExit(f"family {fam}: more than {len(SLOTS)} hues needed")
+    for k, i in enumerate(FAMIDS[fam]):
+        ENT[i] = dict(name=label(i), short=RUN[i]["no"], color=SLOTS[k], style="solid")
 
 CHARTS, LEGENDS = {}, {}
 FIGN = [0]
@@ -526,8 +475,6 @@ def main_panel(gid, s, fam, var, ids):
         cap += (f"; largest among these variants {pk_txt(hi, girf(hi, s, var))}, smallest "
                 f"{pk_txt(lo, girf(lo, s, var))}")
     cap += "."
-    if s in ("e_wpinf", "e_xi"):
-        cap += " The references have no such shock, so their lines are 0."
     if off:
         kw["yr"] = yr
         for nm in off:
@@ -555,8 +502,6 @@ def share_panel(gid, s, fam, ids):
     cap = ("Change in the end-of-quarter share of the type beside the RE agents (the AR(1) learners"
            + (f"; {joinand(who)}" if who else "") + "), the share in force in the next quarter. Largest change: "
            + "; ".join(pieces) + ". RE(t-1) has no learners.")
-    if s in ("e_wpinf", "e_xi"):
-        cap += " The baseline has no such shock (0)."
     others = [i for i in ids if MODE.get(i) != "switching"]
     if others:
         cap += f" No share line for {joinand(lab_s(i) for i in others)}: shares fixed, or every agent learns."
@@ -578,7 +523,7 @@ def multi_panels(gid, s, fam, ids):
                    for k, t in enumerate(ts) if girf(i, s, f"n_{t}_{lv}") is not None]
             if not ser:
                 continue
-            what = "inflation expectations" if lv == "pinf" else "the consumption expectation"
+            what = "inflation expectations" if lv == "pinf" else f"the expectation of {code(lv)}"
             parts = []
             for t in ts:
                 p = peak(girf(i, s, f"n_{t}_{lv}"))
@@ -586,7 +531,7 @@ def multi_panels(gid, s, fam, ids):
                     parts.append(f"{t} {f(p[1], 2, sign=True)} (h = {p[0]})")
             cap = (f"Change in the end-of-quarter share of each of the {len(ts)} types in {what}; one line style per type. "
                    f"Largest change: " + "; ".join(parts) + ".")
-            nm = "inflation" if lv == "pinf" else ("consumption" if lv == "c" else lv)
+            nm = "inflation" if lv == "pinf" else lv
             out.append(chart(f"{gid}-{fam}-sh-{RUN[i]['no']}-{lv}", gid,
                              f"{lab_s(i)}: type shares, {nm}, response in pp of the population", cap, XH, ser, dec=3))
     return out
@@ -601,62 +546,34 @@ def family_block(gid, s, fam, title, ids):
     if sp:
         panels.append(sp)
     panels += multi_panels(gid, s, fam, ids)
-    grp = {lead: g for lead, g in HUE_GROUPS.get(fam, {}).items() if all(k in ids for k in g)}
-    note = ""
-    if grp:
-        note = ('<p class="cap">Variants drawn in one hue share a mechanism and differ by line style: ' + esc("; ".join(
-            f"{joinand(lab_s(i) for i in g)} ({HUE_WHY.get(lead, 'same mechanism')})" for lead, g in grp.items())) + ".</p>")
     return (f'<h3 class="fam">{esc(title)}<span class="ids">{esc(", ".join(lab_s(i) for i in ids))}</span></h3>\n'
-            f'{legend(f"lg-{s}-{fam}", items)}\n{note}<div class="grid g-3">{"".join(panels)}</div>\n')
+            f'{legend(f"lg-{s}-{fam}", items)}\n<div class="grid g-3">{"".join(panels)}</div>\n')
 
 
 def shock_figure(s, first):
     gid = f"irf-{s}"
     sd = SD.get(s)
-    who = ""
-    if s in ("e_wpinf", "e_xi"):
-        own = [i for i in VARIANTS if has_shock(i, s)]
-        who = f"; the shock exists only in {joinand(label(i) for i in own)}"
-    t = (f"Responses to a one-standard-deviation {SHOCK_WORDS.get(s, s)} shock ({code(s)}, {f(sd, 3)} in model units"
-         f"{who}) in {DATE0}, from each variant's own 2019Q4 state: shocked minus unshocked path, h = 0 ({DATE0}) to "
+    t = (f"Responses to a one-standard-deviation {SHOCK_WORDS.get(s, s)} shock ({code(s)}, {f(sd, 3)} in model units) "
+         f"in {DATE0}, from each variant's own 2019Q4 state: shocked minus unshocked path, h = 0 ({DATE0}) to "
          f"h = {HMAX} ({DATE_END}). Inflation, growth rates, the policy rate and the inflation expectation in pp of "
          f"annualised rates; shares in percentage points of the population.")
-    blocks = []
-    if s in ("e_wpinf", "e_xi"):
-        blocks.append(family_block(gid, s, "dist", dict(FAMS)["dist"], [i for i in FAMIDS["dist"] if has_shock(i, s)]))
-    else:
-        for fam, title in FAMS:
-            blocks.append(family_block(gid, s, fam, title, FAMIDS[fam]))
+    blocks = [family_block(gid, s, fam, title, FAMIDS[fam]) for fam, title in FAMS]
     hid = "" if first else " hidden"
     return f'<div class="shockfig" data-shockfig="{s}"{hid}>\n{fig_title(t)}\n{"".join(blocks)}\n{tables(gid)}\n</div>\n'
 
 
 # ============================================================================= IRF metrics for the prose
-def cum(i, s, var):
-    v = girf(i, s, var)
-    if v is None or any(x is None for x in v):
-        return None
-    return sum(v)
-
-
 def imp(i, s, var):
     v = girf(i, s, var)
     return None if v is None or v[0] is None else v[0]
 
 
-def rcum(i, s, var):
-    a, b = cum(i, s, var), cum("a1_learn", s, var)
-    if a is None or b is None or abs(b) < 1e-9:
-        return None
-    return a / b
-
-
-def departure(i):
-    """Mean over the 7 SW07 shocks and the 4 observables of sum_h |GIRF_i - GIRF_baseline| / sum_h |GIRF_baseline|."""
+def departure(i, ref="a1_learn"):
+    """Mean over the 7 SW07 shocks and the 4 observables of sum_h |GIRF_i - GIRF_ref| / sum_h |GIRF_ref|."""
     vals = []
-    for s in SW7:
+    for s in SHOCKS:
         for var in ("pinfobs", "dy", "robs", "dc"):
-            a, b = girf(i, s, var), girf("a1_learn", s, var)
+            a, b = girf(i, s, var), girf(ref, s, var)
             if a is None or b is None or any(x is None for x in a + b):
                 continue
             den = sum(abs(x) for x in b)
@@ -667,31 +584,59 @@ def departure(i):
 
 DEP = {i: departure(i) for i in VARIANTS + ["a1_re"]}
 DEP_RANK = sorted([i for i in VARIANTS if DEP[i] is not None], key=lambda i: -DEP[i])
+DEPRE = {i: departure(i, "a1_re") for i in VARIANTS + ["a1_learn"]}
+NEAR_RE = min([i for i in VARIANTS if DEPRE[i] is not None], key=lambda i: DEPRE[i], default=None)
+
+
+def peak_groups(s, var, ref="a1_learn"):
+    """Variants whose largest response of var to s is below 0.9 or above 1.1 times the reference's in size, and
+    those whose peak comes at least two quarters later or earlier: lists of (variant, value, h)."""
+    pr = peak(girf(ref, s, var))
+    out = dict(smaller=[], larger=[], later=[], earlier=[])
+    if pr is None or abs(pr[1]) < 1e-12:
+        return pr, out
+    for i in VARIANTS:
+        p = peak(girf(i, s, var))
+        if p is None:
+            continue
+        r = abs(p[1]) / abs(pr[1])
+        if r < 0.9:
+            out["smaller"].append((i, p[1], p[0]))
+        elif r > 1.1:
+            out["larger"].append((i, p[1], p[0]))
+        if p[0] >= pr[0] + 2:
+            out["later"].append((i, p[1], p[0]))
+        elif p[0] <= pr[0] - 2:
+            out["earlier"].append((i, p[1], p[0]))
+    return pr, out
 
 
 def irf_findings():
     out = []
     bl = "a1_learn"
-    if "em" in SHOCKS and DISC_ALL:
-        r = [rcum(i, "em", "pinfobs") for i in DISC_ALL]
-        word = ("barely move inflation" if max(r) < 0.1 else
-                "move inflation much less than the baseline" if max(r) < 0.5 else "move inflation")
-        out.append(f"After a monetary policy shock, the variants that scale down every forward expectation "
-                   f"({joinand(lab_s(i) for i in DISC_ALL)}) {word}: summed over the {NH} quarters, the inflation response "
-                   f"is {span(r)} times the baseline's ({f(cum(bl, 'em', 'pinfobs'))} pp). The impact response of output "
-                   f"growth is {span([imp(i, 'em', 'dy') for i in DISC_ALL])} pp, against {f(imp(bl, 'em', 'dy'))} pp in the "
-                   f"baseline, and the policy rate stays up longer: its response sums to "
-                   f"{span([cum(i, 'em', 'robs') for i in DISC_ALL], 1)} pp, against {f(cum(bl, 'em', 'robs'), 1)} pp.")
-    if "em" in SHOCKS and "epinf" in SHOCKS and ST7:
-        r = [rcum(i, "epinf", "pinfobs") for i in ST7]
-        h17 = ids_of("17")
-        tail = (f" The four heuristics of 17 give {f(rcum(h17[0], 'epinf', 'pinfobs'))} times."
-                if h17 and rcum(h17[0], "epinf", "pinfobs") is not None else "")
-        out.append(f"When every agent learns all seven sticky-price expectations ({joinand(lab_s(i) for i in ST7)}), output "
-                   f"reacts less on impact and inflation reacts more to cost shocks. The impact response of output growth to "
-                   f"the monetary shock is {span([imp(i, 'em', 'dy') for i in ST7])} pp (baseline "
-                   f"{f(imp(bl, 'em', 'dy'))}), and the inflation response to a price mark-up shock sums to {span(r)} times "
-                   f"the baseline's.{tail}")
+    if "em" in SHOCKS:
+        pb, grp = peak_groups("em", "pinfobs")
+        pr = peak(girf("a1_re", "em", "pinfobs"))
+        if pb and pr:
+            def vals(k):
+                return joinand(f"{lab_s(i)} ({f(v, 3, sign=True)})" for i, v, _ in grp[k])
+
+            def hs(k):
+                return joinand(f"{lab_s(i)} (h = {h})" for i, _, h in grp[k])
+
+            size = [w for w in (f"smaller in {vals('smaller')}" if grp["smaller"] else "",
+                                f"larger in {vals('larger')}" if grp["larger"] else "") if w]
+            when = [w for w in (f"later in {hs('later')}" if grp["later"] else "",
+                                f"earlier in {hs('earlier')}" if grp["earlier"] else "") if w]
+            txt = (f"After a monetary policy shock the largest inflation response is {f(pb[1], 3, sign=True)} pp at "
+                   f"h = {pb[0]} in the baseline and {f(pr[1], 3, sign=True)} pp at h = {pr[0]} in RE(t-1).")
+            if size:
+                txt += f" By more than 10% it is {' and '.join(size)}."
+            if when:
+                txt += f" By two quarters or more it comes {' and '.join(when)}."
+            if not size and not when:
+                txt += " Every variant's peak is within 10% of the baseline's and within a quarter of its timing."
+            out.append(txt)
     de = ids_of("10")
     if de and "em" in SHOCKS and "eb" in SHOCKS:
         i = de[0]
@@ -700,35 +645,20 @@ def irf_findings():
         out.append(f"Diagnostic expectations (10) amplify the impact of demand shocks on output: output growth moves by "
                    f"{f(a)} pp on impact after the monetary shock and by {f(b, sign=True)} pp after the risk premium shock, "
                    f"{f(a / a0)} and {f(b / b0)} times the baseline's ({f(a0)} and {f(b0, sign=True)}).")
-    rev = []
-    k25 = ids_of("25b")
-    if k25 and "em" in SHOCKS:
-        i = k25[0]
-        pe, pi = peak(girf(i, "em", "pinf_exp1")), peak(girf(i, "em", "pinfobs"))
-        pb = peak(girf(bl, "em", "pinf_exp1"))
-        if pe and pi and pb and pe[1] > 0 > pb[1]:
-            rev.append(f"in 25b, where two of the five averaged models have the lagged policy rate as a regressor, a "
-                       f"contractionary monetary shock raises the inflation expectation ({f(pe[1], 3, sign=True)} pp at "
-                       f"h = {pe[0]}) and inflation ({f(pi[1], 3, sign=True)} pp at h = {pi[0]})")
-    k18 = ids_of("18")
-    if k18 and "eb" in SHOCKS:
-        i = k18[0]
-        p0, pk_ = imp(i, "eb", "dy"), peak(girf(i, "eb", "dy"))
-        sh = peak(girf(i, "eb", "n_PES_c"))
-        if pk_ and p0 is not None and pk_[1] * p0 < 0:
-            rev.append(f"in 18, the output response to a risk premium shock turns around late in the horizon "
-                       f"({f(p0, 2, sign=True)} pp on impact, {f(pk_[1], 2, sign=True)} pp at h = {pk_[0]})"
-                       + (f", while the pessimists' share of the consumption expectation moves by "
-                          f"{f(sh[1], 1, sign=True)} pp (h = {sh[0]})" if sh else ""))
-    if rev:
-        out.append("Two responses change sign: " + "; ".join(rev) + ".")
-    zero = [i for i in IDS if all(imp(i, s, "pinf_exp1") is not None and abs(imp(i, s, "pinf_exp1")) < 1e-9 for s in SW7)]
+    if NEAR_RE is not None and DEPRE.get("a1_learn") is not None:
+        out.append(f"The responses of {lab_s(NEAR_RE)} are the closest to those of RE(t-1): their mean relative distance "
+                   f"from them is {f(DEPRE[NEAR_RE], 3)}, against {f(DEPRE['a1_learn'], 3)} for the baseline (the measure "
+                   f"of the notes, with RE(t-1) in place of the baseline).")
+    zero = [i for i in IDS if all(imp(i, s, "pinf_exp1") is not None and abs(imp(i, s, "pinf_exp1")) < 1e-9 for s in SHOCKS)]
     ep = [imp(i, "epinf", "pinfobs") for i in IDS if imp(i, "epinf", "pinfobs") is not None] if "epinf" in SHOCKS else []
-    blsh = [(abs(peak(girf(bl, s, "n_BR_pinf"))[1]), s, peak(girf(bl, s, "n_BR_pinf"))) for s in SW7
+    blsh = [(abs(peak(girf(bl, s, "n_BR_pinf"))[1]), s, peak(girf(bl, s, "n_BR_pinf"))) for s in SHOCKS
             if peak(girf(bl, s, "n_BR_pinf"))]
-    txt = (f"No inflation expectation moves on impact: the aggregate expectation's impact response is 0 in "
-           f"{len(zero)} of the {len(IDS)} runs for every shock, because every inflation forecast in the portfolio uses "
-           f"data up to t-1.")
+    if len(zero) == len(IDS):
+        txt = (f"No inflation expectation moves on impact: the aggregate expectation's impact response is 0 in all "
+               f"{len(IDS)} runs for every shock, because every inflation forecast in the portfolio uses data up to t-1.")
+    else:
+        txt = (f"The aggregate inflation expectation's impact response is 0 for every shock in {len(zero)} of the "
+               f"{len(IDS)} runs.")
     if ep:
         txt += f" On impact, a price mark-up shock moves inflation by {span(ep, 3)} pp across the {len(ep)} runs."
     if blsh:
@@ -768,20 +698,14 @@ def rmse_sentence(var, smp="full"):
 
 def rmse_findings():
     out = [rmse_sentence("pinfobs"), rmse_sentence("dy"), rmse_sentence("robs")]
-    if DISC_ALL:
-        out.append(f"Smaller inflation errors can come with larger errors elsewhere: {joinand(lab_s(i) for i in DISC_ALL)} "
-                   f"have inflation RMSEs of {span([rm(i, 'full', 'pinfobs', 'rel_baseline') for i in DISC_ALL], 3)} times "
-                   f"the baseline's, but output-growth RMSEs of {span([rm(i, 'full', 'dy', 'rel_baseline') for i in DISC_ALL], 3)} "
-                   f"times and log likelihoods {span([-lld(i) for i in DISC_ALL], 0)} below it.")
-    better = sorted([i for i in VARIANTS if rok(i) and i not in WEDGE and (lld(i) or -1) > 0], key=lambda i: -lld(i))
+    better = sorted([i for i in VARIANTS if rok(i) and (lld(i) or -1) > 0], key=lambda i: -lld(i))
+    worse = sorted([i for i in VARIANTS if rok(i) and lld(i) is not None and lld(i) <= 0], key=lambda i: lld(i))
     b = ll("a1_learn")
-    txt = (f"Log likelihood, {SLAB['full']}: baseline {f(b, 1)}, RE(t-1) {f(ll('a1_re'), 1)}. Without an extra shock, "
-           f"{len(better)} variants fit better than the baseline by this measure: "
-           + joinand(f"{lab_s(i)} ({f(lld(i), 1, sign=True)})" for i in better) + ".")
-    if ST7:
-        txt += (f" The variants with the smallest output-growth errors, {joinand(lab_s(i) for i in ST7)} "
-                f"({span([rm(i, 'full', 'dy', 'rel_baseline') for i in ST7], 3)} of the baseline), have log likelihoods "
-                f"{span([-lld(i) for i in ST7], 0)} below it.")
+    txt = (f"Log likelihood, {SLAB['full']}: baseline {f(b, 1)}, RE(t-1) {f(ll('a1_re'), 1)}. {len(better)} of the "
+           f"{len(VARIANTS)} variants fit better than the baseline by this measure"
+           + (": " + joinand(f"{lab_s(i)} ({f(lld(i), 1, sign=True)})" for i in better) if better else "") + ".")
+    if worse:
+        txt += " Below it: " + joinand(f"{lab_s(i)} ({f(lld(i), 1, sign=True)})" for i in worse) + "."
     out.append(txt)
     c = count_better("pinfobs", "y2020Q4_2026Q2")
     nq = int(rm("a1_learn", "y2020Q4_2026Q2", "pinfobs", "n") or 0)
@@ -796,34 +720,6 @@ def rmse_findings():
 # ============================================================================= flags
 def flag_items(short=False):
     out = []
-    if WEDGE:
-        w = []
-        for i in WEDGE:
-            xs = str(RR[i]["extra_shock"]).split(" ")[0]
-            w.append(f"{esc(lab_s(i) if short else label(i))} ({code(xs)}, std {f(fl(RR[i]['extra_shock_std']), 3)}: log "
-                     f"likelihood {f(lld(i), 1, sign=True)} against the baseline, inflation RMSE "
-                     f"{f(rm(i, 'full', 'pinfobs', 'rel_baseline'), 3)} of the baseline's)")
-        if short:
-            out.append(f"<b>Extra shock ({joinand(lab_s(i) for i in WEDGE)}).</b> One more source of variance in the "
-                       f"filter, so their rows are not like-for-like; read them with the log likelihood.")
-        else:
-            out.append(f"<b>Extra shock, not like-for-like.</b> {joinand(w)}. The filter can attribute part of each "
-                       f"prediction error to the belief shock, so these rows do not compare like for like with the others. "
-                       f"The log likelihood accounts for the larger predicted variance; the RMSE does not.")
-    if GAP:
-        g = [f"{esc(lab_s(i))}: " + ", ".join(f"{t} {g3(v)}" for t, v in gaps_of(i)) for i in GAP]
-        rest = max(fl(RR[i]['model_gap_max']) or 0 for i in IDS if i not in GAP)
-        if short:
-            out.append(f"<b>Model gap ({joinand(lab_s(i) for i in GAP)}).</b> In their Kalman histories the forecasts in the "
-                       f"model differ from the ones the agents score, by up to "
-                       f"{g3(max(fl(RR[i]['model_gap_max']) for i in GAP))} percentage points (model units, % per quarter).")
-        else:
-            out.append(f"<b>Model gap ({joinand(lab_s(i) for i in GAP)}).</b> These types forecast with data of two dates "
-                       f"(for example x(t-1) and x(t-2), or their own last forecast). In the Kalman history the model's "
-                       f"lagged states are the filter's revised estimates while the agents use the real-time values, so the "
-                       f"forecasts in the model the filter runs differ from the forecasts the agents record and score. "
-                       f"Largest gap by type, in percentage points of model units (% per quarter): {'; '.join(g)}. In every other run the gap is rounding (at most "
-                       f"{sci(rest)}).")
     if FACR:
         fac = [f"{esc(lab_s(i))} {int(fl(RR[i]['facility_events']))} ({esc(str(RR[i]['facility_types']))}, "
                f"{RR[i]['facility_first']} to {RR[i]['facility_last']})" for i in FACR]
@@ -836,10 +732,20 @@ def flag_items(short=False):
                    "Impulse-response forecasts: " + ", ".join(f"{esc(lab_s(i))} {irf_fac(i)}" for i in FACI) + "."))
         else:
             out.append(f"<b>Facility events in the Kalman histories</b> (baseline facility {code('alm')}): {joinand(fac)}. "
-                       f"In each of those quarters the model with the updated beliefs, or for {code('projection_level')} one "
-                       f"of the level economies, had no stable solution, and the facility returned the beliefs to their "
-                       f"values before the update.")
-    elif not short:
+                       f"In each of those quarters the model with the updated beliefs had no stable solution, and the "
+                       f"facility returned the beliefs to their values before the update.")
+    elif short:
+        if FACH or FACI:
+            out.append("<b>Facility events.</b> "
+                       + ("Impulse-response starting states: " + ", ".join(f"{esc(lab_s(i))} {irf_hfac(i)[0]}" for i in FACH)
+                          + ". " if FACH else "")
+                       + ("Impulse-response forecasts: " + ", ".join(f"{esc(lab_s(i))} {irf_fac(i)}" for i in FACI) + "."
+                          if FACI else "")
+                       + " None in the Kalman histories.")
+        else:
+            out.append("<b>No facility event.</b> The facility never acts in the Kalman histories or in the "
+                       "impulse-response runs.")
+    else:
         out.append("<b>Facility.</b> No facility event in the Kalman history of any run.")
     if not short:
         if FACH:
@@ -902,10 +808,6 @@ def fullcell(i, smp, var):
 
 def flag_chips(i):
     c = []
-    if i in WEDGE:
-        c.append(chip("extra shock"))
-    if i in GAP:
-        c.append(chip(f"model gap {g3(fl(RR[i]['model_gap_max']))}"))
     if i in FACR:
         c.append(chip(f"facility {int(fl(RR[i]['facility_events']))}"))
     if i in RSTOP:
@@ -955,8 +857,8 @@ def main_rmse_table():
     cap = ("One-step-ahead RMSE in pp of annualised rates (first line); below it the ratio to the baseline's RMSE with the "
            "Diebold-Mariano p-value against the baseline in brackets, * p &lt; 0.10. A ratio below 1 means smaller errors "
            "than the baseline. Log likelihood: the sum of the one-step log densities of all seven observables over the "
-           "sample; below it the difference to the baseline. Chips: extra shock (not like-for-like), model gap (largest, "
-           "% per quarter), facility (quarters in which the facility acts in the Kalman history).")
+           "sample; below it the difference to the baseline. Chips: facility (quarters in which the facility acts in "
+           "the Kalman history), stops.")
     return (f'<div class="tw"><table class="rm"><caption>{cap}</caption>{head}<tbody>{grouped_rows(cells, ncols)}'
             f'</tbody></table></div>')
 
@@ -978,18 +880,19 @@ def full_rmse_table(smp):
 
 def sec_summary(no):
     cp, cd, cr = count_better("pinfobs"), count_better("dy"), count_better("robs")
-    better = [i for i in VARIANTS if rok(i) and i not in WEDGE and (lld(i) or -1) > 0]
-    top = DEP_RANK[:7]
+    better = [i for i in VARIANTS if rok(i) and (lld(i) or -1) > 0]
+    top = DEP_RANK[:3]
     ans1 = (f"In sample, {SLAB['full']}, with the original SW07 parameters, {len(cp['lower'])} of the {len(VARIANTS)} "
             f"variants predict inflation better than the baseline ({len(cp['sig_lower'])} with a DM p-value below 0.10), "
-            f"but only {len(cd['lower'])} predict output growth better and {len(cr['lower'])} the policy rate. Without an "
-            f"extra shock, {len(better)} have a higher log likelihood than the baseline; the largest gain is "
-            f"{label(max(better, key=lld))} ({f(lld(max(better, key=lld)), 1, sign=True)})." if better else "")
-    ans2 = (f"The impulse responses from 2019Q4 depart most from the baseline's in {joinand(lab_s(i) for i in top)}: the "
-            f"variants that scale down every forward expectation or let every agent learn all seven sticky expectations, "
-            f"plus diagnostic expectations." if set(top) >= set(DISC_ALL + ST7 + ids_of("10"))
-            else f"The impulse responses from 2019Q4 depart most from the baseline's in {joinand(lab_s(i) for i in top)}"
-            + (" (18 mainly through late swings of output growth, after its consumption shares move)" if top and RUN[top[0]]["no"] == "18" else "") + ".")
+            f"{len(cd['lower'])} predict output growth better and {len(cr['lower'])} the policy rate. {len(better)} have a "
+            f"higher log likelihood than the baseline"
+            + (f"; the largest gain is {label(max(better, key=lld))} ({f(lld(max(better, key=lld)), 1, sign=True)})."
+               if better else "."))
+    ans2 = (f"The impulse responses from 2019Q4 depart most from the baseline's in {joinand(lab_s(i) for i in top)} "
+            f"(mean relative distance {joinand(f(DEP[i]) for i in top)}, defined in the notes)."
+            + (f" Those of {lab_s(NEAR_RE)} stay closest to RE(t-1)'s (distance {f(DEPRE[NEAR_RE], 3)}, against "
+               f"{f(DEPRE['a1_learn'], 3)} for the baseline)." if NEAR_RE is not None and DEPRE.get("a1_learn") is not None
+               else ""))
     fl_ = "".join(f"<li>{x}</li>" for x in flag_items(short=True))
     body = (f'<p class="answer">{ans1} {ans2}</p>\n'
             f'<p class="intro">Details: <a href="#rmse">section 2</a> (tables), <a href="#irf">section 3</a> (one figure '
@@ -1065,6 +968,9 @@ def gates_table():
     ck = RMR.rmse_check_maxdiff.dropna()
     rows.append(["RMSE from the error table (evaluate_tables) = each run's kalman_history('rmse') table",
                  sci(float(ck.max())) if len(ck) else "n/a"])
+    mg = RMR.model_gap_max.dropna()
+    rows.append(["Kalman history: forecasts in the model = the forecasts the agents record and score (largest model "
+                 "gap over the types, every run)", sci(float(mg.max())) if len(mg) else "n/a"])
     return ('<div class="tw"><table class="gates"><thead><tr><th>Check</th><th>Max abs difference</th></tr></thead><tbody>'
             + "".join(f'<tr><td>{esc(a)}</td><td class="n">{b}</td></tr>' for a, b in rows) + "</tbody></table></div>")
 
@@ -1075,13 +981,14 @@ def sec_notes(no):
     meth_irf = (f"Impulse responses ({code('run_br_portfolio irf')}). Each scenario with origin 2019Q4 and horizon {NH}: "
                 f"the steps of {code('hetlearn.run')} up to the engine core run once (the history and a zero-shock "
                 f"forecast); the forecast stage then reruns from the same state with the shock added in {DATE0}, as the "
-                f"density forecasts do. Nothing is saved in {code('results/<id>/')}. The SW07 shocks have the standard "
-                f"deviations of the published mode; the wedge shocks of 29 and 31 the ones their transforms set. The "
-                f"responses of inflation, output growth, consumption growth and the policy rate are those of the "
-                f"observables ({code('pinfobs')}, {code('dy')}, {code('dc')}, {code('robs')}) times 4. The inflation "
-                f"expectation is {code('pinf_exp1')}, the aggregate forecast of next quarter's inflation that enters the "
-                f"model, times 4; in variant 4 the Phillips curves use their own copies, so its {code('pinf_exp1')} is the "
-                f"untransformed aggregate. Shares: the discrete-choice share at the end of the quarter, for the types in "
+                f"density forecasts do. Nothing is saved in {code('results/<id>/')}. The seven SW07 shocks have the "
+                f"standard deviations of the published mode. The responses of inflation, output growth, consumption "
+                f"growth and the policy rate are those of the observables ({code('pinfobs')}, {code('dy')}, {code('dc')}, "
+                f"{code('robs')}) times 4. The inflation expectation is {code('pinf_exp1')}, the aggregate forecast of next "
+                f"quarter's inflation that enters the model, times 4"
+                + (f"; in variant 7 the price Phillips curve uses its own copy, so its {code('pinf_exp1')} is the "
+                   f"untransformed aggregate" if ids_of("7") else "")
+                + f". Shares: the discrete-choice share at the end of the quarter, for the types in "
                 f"the switching population. {asym_txt()}")
     meth_rm = (f"In-sample RMSE ({code('run_br_portfolio rmse')}). {code('history.mode')} = {code('kalman')} with "
                f"{code('history.re_states')} = {code('smoothed')} (required with the Kalman history, which is one-sided "
@@ -1093,11 +1000,11 @@ def sec_notes(no):
                f"Gaussian one-step log densities of all seven observables, so it also charges for the predicted variance. "
                f"Original SW07 parameters (the published mode); nothing is re-estimated.")
     dep = (f"Departure from the baseline (summary): for each of the 7 SW07 shocks and the four observables, "
-           f"sum_h |response - baseline response| / sum_h |baseline response|, averaged; largest: "
-           + ", ".join(f"{lab_s(i)} {f(DEP[i])}" for i in DEP_RANK[:7]) + f"; RE(t-1) {f(DEP['a1_re'])}.")
+           f"sum_h |response - baseline response| / sum_h |baseline response|, averaged; by variant, largest first: "
+           + ", ".join(f"{lab_s(i)} {f(DEP[i])}" for i in DEP_RANK) + f"; RE(t-1) {f(DEP['a1_re'])}.")
     units = ("Units: pp = percentage points of annualised rates (model units of % per quarter times 4); share responses in "
              "percentage points of the population (share x 100); hours worked in 100 x log. h = 0 is the quarter of the shock.")
-    lines = ["% MATLAB, from the project root (four sessions at most; help run_br_portfolio)",
+    lines = ["% MATLAB, from the project root (one session is enough; help run_br_portfolio)",
              "run_br_portfolio('irf', ids)     % one compact file per scenario in results/br_portfolio/irf_runs/",
              "run_br_portfolio('rmse', ids)    % results/br_portfolio/rmse_runs/",
              "run_br_portfolio('check')        % gate: reruns = full hetlearn.run calls, irf_check.csv",
@@ -1134,6 +1041,7 @@ body = f"""
   <h1>{len(VARIANTS)} expectation rules: impulse responses and in-sample fit</h1>
   <p class="lede">{lede1}</p>
   <p class="lede">{lede2}</p>
+  <aside class="box" role="note"><p>{CUT_NOTE}</p></aside>
   <p class="meta"><span>{REPORT_DATE}</span><span>{len(IDS)} scenarios</span><span>{n_irf} shocked forecasts</span>
   <span>{len(IDS)} Kalman histories</span><span>Inputs: results/br_portfolio/</span></p>
   <nav class="toc" aria-label="Sections">{toc}</nav>
