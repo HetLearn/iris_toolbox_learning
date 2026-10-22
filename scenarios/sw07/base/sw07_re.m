@@ -16,7 +16,7 @@ function cfg = sw07_re()
 %   Baseline since 2026-10-20 (user decision, config/master_options.m): the
 %   published SW07 (2007) parameters, RE agents and learners on t-1
 %   information, RE states of the history from the one-sided filter, KOZ gain
-%   from 0.05, chi 2, memory 0.8, no projection facility.
+%   from 0.05, chi 2, memory 0.8, facility 'alm' (since 2026-10-21; 'none' before).
 %
 %   Inflation is in the heterogeneous block (expectations.variables =
 %   {'pinf'}), but with mode 'rational' every agent is RE (n1_pinf = 1), so the
@@ -84,7 +84,7 @@ cfg.expectations.variables = {'pinf'};        % forward-looking variables in the
 % cfg.switching.memory = 0.8;                 % master (default 0.6): omega
 
 % ---- projection facility (the only stabilising device; USER_GUIDE 5.7) ---------------------
-% cfg.projection.facility = 'none';           % master (default 'plm_alm'): 'plm_alm' (PLM blocks, then the ALM) | 'alm' (ALM only) | 'none'
+% cfg.projection.facility = 'alm';            % master since 2026-10-21 (default 'plm_alm'): 'plm_alm' (PLM blocks, then the ALM) | 'alm' (ALM only) | 'none'
 
 % ---- history stage ---------------------------------------------------------------------------
 % cfg.history.learn = true;                   % false: the initial beliefs apply at the origin
