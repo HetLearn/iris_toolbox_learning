@@ -45,7 +45,7 @@ points to. All paths are relative to the project root
 | `toolbox/+hetlearn/` | The toolbox | Nobody, for a scenario or model change |
 | `toolbox/iris_patches/+model/Insertable.m` | Shadow copy of one IRIS file so that IRIS 20230622 optimal policy runs on R2025a; the IRIS installation is untouched | Nobody |
 | `models/<name>/generated/` | Extended model files and RE filter caches | The toolbox (delete a file to force a rebuild) |
-| `tests/` | `run_tests.m` (19 suites), toy NK package `tests/toy_nk/`, test scenarios `tests/scenarios/tsw07_*.m` and the test master options `tests/scenarios/master_options.m` (8.6), reference `tests/reference/`, test models of `test_re_info` `tests/models/` (hand-written SW07 RE(t-1) model, Dynare cross-check, closed-form Phillips curve) | Only when the toolbox changes |
+| `tests/` | `run_tests.m` (24 suites), toy NK package `tests/toy_nk/`, test scenarios `tests/scenarios/tsw07_*.m` and the test master options `tests/scenarios/master_options.m` (8.6), reference `tests/reference/`, test models of `test_re_info` `tests/models/` (hand-written SW07 RE(t-1) model, Dynare cross-check, closed-form Phillips curve) | Only when the toolbox changes |
 | `tests/output/` | Test runs | Disposable |
 | `archive/2026-10-18_rounds1-2/` | Round 1-2 scenarios, results, runners (`run_scenarios*.m`), report and code backups; `README.txt`. Not on the path | Nobody |
 | `archive/2026-10-20_swX1_baseline/` | The previous SW07 baseline (swX1, to 2026-10-19): `results/summary_v3/`, the 40 `results/<id>/` folders, `results/eval_sw07_v3/`, the run log, the report, and the files changed on 2026-10-20 at their previous version (`code_pre_2026-10-20/`); `README.txt`. Not on the path | Nobody |
@@ -142,10 +142,13 @@ Where the baseline does not apply:
 
 Consequences to know:
 
-- With no facility a run can stop. Such a run is logged as `error` with the message, has no
-  `results/<id>/` folder, and the summary lists it (check C8 accepts a `noSolution` stop under
-  `'none'` as the result). On 2026-10-20 `v1_mc_learn` (model-consistent RE agents) stops in
-  2022Q3, and five evaluation origins stop (e03, e04).
+- Under the baseline's `'alm'` every project run completes (40 of 40 on 2026-10-21): where the
+  model loses its solution the facility reverts the beliefs (and, if needed, keeps last
+  quarter's shares). Under `'none'`
+  (the baseline on 2026-10-20) a run can stop. Such a run is logged as `error` with the message,
+  has no `results/<id>/` folder, and the summary lists it (check C8 accepts a `noSolution` stop
+  only for a run whose own facility is `'none'`). On 2026-10-20 `v1_mc_learn` (model-consistent
+  RE agents) stopped in 2022Q3, and five evaluation origins stopped (e03, e04).
 - Under `'lagged'` the RE benchmark of an application is the RE model with t-1 information for
   inflation, not `models/sw07/sw07.model`; the summary checks the RE runs against the
   hand-written RE(t-1) model `tests/models/sw07_re_lagged_pinf.model` (C2, C3b).
@@ -235,11 +238,11 @@ baseline box and sections 1-11.
 | 4 Application 4: Ramsey policy | `app4_ramsey/` (14 files): `a4_rule_re`, `a4_rule_learn`, `a4_ramsey_{balanced,hawk,dove,smooth}_{re,re_mc,learn}`; `_re_mc` = the RE Ramsey benchmark | `run_applications('app4')` | `results/a4_*/` (with `loss.csv`) | `app4_losses.csv` (its `RE_model_consistent` rows come from the `_re_mc` runs); `sec_app4` |
 | 5 Application 5: density forecasts | `app5_density/`: `a5_markup_re`, `a5_demand_re`, `a5_markup_learn`, `a5_demand_learn` | `run_applications('app5')` | `results/a5_*/` (with `density.mat`, `density_quantiles.csv`, `density_events.csv`) | `app5_density.csv`, `app5_widths.csv`; `sec_app5` |
 | 6 Application 6: history with the shocks backed out under learning | `app6_history/`: `a6_smooth_re`, `a6_smooth_learn`, `a6_inv_learn` | `run_applications('app6')` (runs the decompositions too; `run_applications('decompose')` runs only them) | `results/a6_*/` (with `decomposition.csv`, `decomposition_check.csv`) | `app6_decomp_long.csv`, `app6_shocks_long.csv`; `sec_app6` |
-| 7 Model variant 1: anchored vs model-consistent RE | `var1_re_variant/`: `v1_mc_learn` | `run_applications('var1')` | `results/v1_mc_learn/` (none on 2026-10-20: the run stops, 1.4) | `scenarios.csv` (its error), `events_long.csv`, `eval_relative.csv`; `sec_var1` (`sec_var1_stopped` when the run stopped) |
+| 7 Model variant 1: anchored vs model-consistent RE | `var1_re_variant/`: `v1_mc_learn` | `run_applications('var1')` | `results/v1_mc_learn/` (the run completes under `'alm'`; on 2026-10-20, under `'none'`, it stopped, 1.4) | `scenarios.csv` (its error), `events_long.csv`, `eval_relative.csv`; `sec_var1` (`sec_var1_stopped` when the run stopped) |
 | 8 Model variant 2: perceived laws of motion | `var2_plm/`: `v2_ar2`, `v2_ar1nc`, `v2_reg`, `v2_var3`, `v2_var12` | `run_applications('var2')` | `results/v2_*/` | `sec_var2` |
-| 9 Model variant 3: learning on inflation only vs on all 12 variables | `var3_allvars/`: `v3_all` (no facility, the baseline), `v3_all_plm_alm`, `v3_all_alm` | `run_applications('var3')` | `results/v3_*/` | `v3_facility.csv`; `sec_var3` |
+| 9 Model variant 3: learning on inflation only vs on all 12 variables | `var3_allvars/`: `v3_all` (facility `'alm'`, the baseline; the same run as `v3_all_alm`), `v3_all_plm_alm`, `v3_all_alm` | `run_applications('var3')` | `results/v3_*/` | `v3_facility.csv`; `sec_var3` |
 | 10 Model variant 4: endogenous gain (baseline) vs a constant gain | `var4_gain/`: `v4_const`, `v4_const_full` (gain held at 0.05); the endogenous-gain side is `a1_learn` and `a6_smooth_learn` | `run_applications('var4')` | `results/v4_const/`, `results/v4_const_full/` | `sec_var4` |
-| 11 Forecast evaluation | `eval/`: `e01_re` ... `e10_allvars`; settings in `run_applications.m` lines 156-170 | `run_applications('eval')`; in parallel: `run_applications('eval_part', variants, parts)`, then `run_applications('eval_merge')` | `results/eval_sw07_v3/` | `eval_metrics.csv`, `eval_relative.csv`, `eval_dm.csv`; `sec_eval` |
+| 11 Forecast evaluation | `eval/`: `e01_re` ... `e10_allvars`; settings in `run_applications.m` lines 164-178 | `run_applications('eval')`; in parallel: `run_applications('eval_part', variants, parts)`, then `run_applications('eval_merge')` | `results/eval_sw07_v3/` | `eval_metrics.csv`, `eval_relative.csv`, `eval_dm.csv`; `sec_eval` |
 | 12 Caveats | | | | the Notes section of `FINDINGS_v3.md`; `sec_caveats` |
 | 13 How to reproduce | | | | `scenarios.csv`, `run_applications.m`; `sec_reproduce` |
 | 14 Validation | | | | `checks_v3.txt` (C1-C12); `sec_validation` |
@@ -336,7 +339,7 @@ sw07_re                          base: every option listed, commented at its def
                 e08_var3
             v2_var12
                 e09_var12
-            v3_all               no facility (the baseline)
+            v3_all               the baseline facility 'alm' (= v3_all_alm)
                 v3_all_plm_alm, v3_all_alm, e10_allvars
             v4_const             constant gain 0.05 (the baseline gain is endogenous)
                 v4_const_full
@@ -366,13 +369,13 @@ shocks, conditions, density and comparisons (4.4.13).
 | Endogenous gain | baseline `gain.rule = 'koz'` (`master_options.m` line 87); the constant-gain variant `v4_const.m` lines 17-18 | `v4_const_full` | var4 (4.4.8) |
 | Policy deviation: size, dates | `a3_loose_re.m` lines 17-19; sign: `a3_tight_re.m` line 12, `a3_tight_learn.m` line 12 | all four app3 files | app3 (4.4.9) |
 | Ramsey loss weights | `a4_ramsey_balanced_re.m` line 18; `a4_ramsey_{hawk,dove,smooth}_re.m` line 12; `build_summary_v3.m` line 291 | the matching `_re_mc` and `_learn` files | app4 (4.4.10) |
-| Loss horizon (80 quarters) | `a4_rule_re.m` line 16, `a4_rule_learn.m` line 13 | every app4 file | app4 |
+| Loss horizon (80 quarters) | `a4_rule_re.m` line 24, `a4_rule_learn.m` line 18 | every app4 file | app4 |
 | Density: shocks, draws, sigma, seed | `a5_markup_re.m` lines 16-21; `a5_demand_re.m` line 14 | the matching `_learn` file | app5 (4.4.11) |
 | Shock replay | `a2_re.m` line 14, `a2_learn.m` line 15 | | app2 |
-| History backed out with the learning model | `a6_inv_learn.m` line 15 | | app6 |
-| Decomposition: groups, scenarios, range, variables | `run_applications.m` lines 196-199 and 204 | | `run_applications('decompose')` (4.4.12) |
-| Evaluation: variants, benchmark, origins, horizon, parts, subsamples | `run_applications.m` lines 159-169 | | eval (4.4.13) |
-| Run groups | `run_applications.m` lines 137-152 | | |
+| History backed out with the learning model | `a6_inv_learn.m` line 20 | | app6 |
+| Decomposition: groups, scenarios, range, variables | `run_applications.m` lines 204-207 and 212 | | `run_applications('decompose')` (4.4.12) |
+| Evaluation: variants, benchmark, origins, horizon, parts, subsamples | `run_applications.m` lines 167-177 | | eval (4.4.13) |
+| Run groups | `run_applications.m` lines 143-160 | | |
 | Model parameters, data | `models/<name>/<name>_params.m` (`spec.params`), or another parameter file of the package named by `model_params` (SW07 baseline: `sw07_params_original.m`, `master_options.m` line 86); `models/<name>/data/build_database.m` | every scenario of that model | all; the RE filter cache key includes both, so the next run refilters |
 
 ### 4.4 Worked examples
@@ -455,7 +458,7 @@ cfg.forecast.horizon = 16;                    % quarters: 2022Q3-2026Q2
 
 ```matlab
 cfg.expectations.variables = {'pinf', 'w'};   % a subset (baseline: sw07_re.m line 48, {'pinf'})
-cfg.expectations.variables = 'all';           % all 12 forward-looking variables (v3_all.m line 15)
+cfg.expectations.variables = 'all';           % all 12 forward-looking variables (v3_all.m line 19)
 ```
 
 - Each learning variable gets its own AR(1) learners and its own switching share
@@ -666,14 +669,14 @@ cfg.density.seed = 0;
 #### 4.4.12 Shock decomposition groups
 
 ```matlab
-% run_applications.m, lines 196-199 (function decompose_app6)
+% run_applications.m, lines 204-207 (function decompose_app6)
 groups = struct('demand', {{'eb', 'eg', 'eqs'}}, 'monetary', {{'em'}}, 'supply', {{'ea'}}, ...
     'price_markup', {{'epinf'}}, 'wage_markup', {{'ew'}});
 ids = {'a6_smooth_re', 'a6_smooth_learn', 'a6_inv_learn'};
 rng = [qq(1966, 1), qq(2026, 2)];
 ```
 
-- The variables are on line 204 (`{'pinfobs', 'dy'}`). Shocks in no group stay single.
+- The variables are on line 212 (`{'pinfobs', 'dy'}`). Shocks in no group stay single.
 - Rerun: `run_applications('decompose')` (about 15 s; the app6 results must exist).
 - The group names are also listed in `build_summary_v3.m` line 798 (`compsD`) and in
   `build_report_v3.py` line 910 (`GROUPS`, with colours). Edit them together.
@@ -687,7 +690,7 @@ rng = [qq(1966, 1), qq(2026, 2)];
 #### 4.4.13 Forecast evaluation: origins, horizon, variants, subsamples
 
 ```matlab
-% run_applications.m, lines 159-169 (function eval_settings)
+% run_applications.m, lines 167-177 (function eval_settings)
 E.name = 'sw07_v3';                                   % results/eval_sw07_v3/
 E.variants = {'e01_re', 'e02_learn', 'e03_learn_mc', 'e04_learn_all_learners', 'e05_ar2', ...
     'e06_ar1nc', 'e07_reg', 'e08_var3', 'e09_var12', 'e10_allvars'};
@@ -737,7 +740,7 @@ It writes `results/eval_my_eval/`. `hetlearn.evaluate_tables` rebuilds the table
    it again after you create a new folder in an open session).
 2. **Run it:** `run_applications('my_id')` (logged under its group, or under `single` while it
    is in none) or `res = hetlearn.run(my_id());`.
-3. **Put it in a group:** `group_table` in `run_applications.m`, lines 137-152. Add the id to a
+3. **Put it in a group:** `group_table` in `run_applications.m`, lines 143-160. Add the id to a
    group's list after its parents and comparison targets, or add a row such as
    `'app7', {'a7_re', 'a7_learn'}`. A new row is part of `'all'` automatically.
 4. **Index:** `python scenarios/build_index.py` rewrites `scenarios/sw07/INDEX.csv` (it covers
@@ -909,6 +912,15 @@ described in section 9.
 | `beliefs.init.values.<x>` | `.alpha`, `.beta` (or `.phi`), optional `.R` | Your initial beliefs; anything missing comes from the RE moments |
 | `beliefs.init.training_range` | `[start, end]` | Required for `'training_ols'` |
 
+**PLM consistency check (`hetlearn:load_model:plmMismatch`).** The generated model file gives
+every forward-looking variable the default PLM as its own equation; a run gives a forward-looking
+variable outside the learning set, used as a regressor in a learning variable's PLM, an auxiliary
+AR(1). With `beliefs.plm.default = 'ar1'` the two agree. With a non-AR(1) default (`'ar2'`,
+`'ar1_noconst'`, `'var1'`) and such a regressor they differ, and `hetlearn.load_model` stops with
+`hetlearn:load_model:plmMismatch`. Fix: set `beliefs.plm.by_var.<u>` for that regressor `u`, so
+that the generated file and the run use the same PLM for it. The same error is raised when a PLM
+parameter is not declared in the generated file.
+
 ### 5.4 Gain
 
 | Option | Values | Meaning |
@@ -921,8 +933,13 @@ described in section 9.
 | `gain.koz.error_scale` | `1` | Factor on the error; 1 = model units (percent per quarter), the units of the SW07 data and of chi (user decision 2026-10-19; the first SW07 runs used 4, annualised). mu is scale dependent, effectively with the square of the factor |
 | `gain.koz.bounds` | `[0.001 0.25]` | The gain stays inside, with 0 < lower <= upper <= 1; a `gain_bound` event each quarter a bound binds. The start gain must lie inside |
 | `gain.koz.structure` | `'common'`, `'per_variable'` | One gain process for all PLM equations, driven by `gain.koz.master`, or one per equation driven by its own error |
-| `gain.koz.master` | `''` | `'common'` only: `''` = the first learning variable; a list = the mean of their scaled errors |
+| `gain.koz.master` | `''` | `'common'` only: `''` = the first learning variable; a list = the mean of their scaled errors. With a list, a quarter in which any driver's error is missing skips the gain update (gamma and Rg kept) |
 | `gain.koz.gamma0`, `gain.koz.Rg0` | `[]`, `0` | Start values; `[]` = `gain.value` |
+
+A missing error (NaN: missing data, or the first learning quarter under `gain.koz.error =
+'forecast'`) leaves gamma and Rg unchanged that quarter. With `gain.koz.master` a list, FE_t is
+the mean of the drivers' errors, so one missing driver is enough to skip the update for the
+whole common process.
 
 With `'koz'`, `res.learning.<x>` also holds `gain_R`. KOZ's Table 1 "R0 = 0.001" is the initial
 RLS moment matrix: to use it, set `beliefs.init.method = 'user'` and only
@@ -989,7 +1006,7 @@ current beliefs and shares in it.
 | `history.re_states` | `'smoothed'`, `'filtered'` | `'re_smoother'` only. Source of the RE agents' forecasts, the learners' data and the realised values in the fitness errors: the two-sided Kalman smoother, or the one-sided filter (x_{t|t}, data up to t). With `'inversion'` and `'kalman'` it is an error. SW07 baseline since 2026-10-20: `'filtered'` (`a6_inv_learn` and the Kalman scenarios set `'smoothed'`) |
 | `history.inversion.start` | `[]` | First inversion quarter; `[]` = `beliefs.init.date` |
 | `history.inversion.shocks` | `{}` | Shocks backed out; `{}` = every transition shock (at least as many as observables) |
-| `history.realtime` | `false`, `true` | RE filter on data up to the origin only (no look-ahead) |
+| `history.realtime` | `false`, `true` | RE filter on data up to the origin only (no look-ahead). Takes effect only under `history.mode = 're_smoother'`; ignored under `'kalman'` and `'inversion'`, whose histories are one-sided by construction (the full-sample RE filter only supplies their starting state) |
 
 **RE states.** Under `'smoothed'` the RE agents' forecast made in t comes from states estimated
 with data after t, which helps them in the fitness race. `'filtered'` removes that hindsight. For
@@ -998,6 +1015,12 @@ moves the RE forecasts and, in the 2020Q1-Q3 gap, the learners' data, where the 
 the RE prediction and the RE error is 0. The forecast still starts from the smoothed state;
 `history.realtime = true` makes that state real time too, so `'filtered'` with `realtime = true`
 is the fully real-time setup.
+
+**Inversion accuracy.** The SW07 figures in DESIGN 15 (the RE inversion reproduces the
+RE-smoothed shocks to 2.1e-13 over 1966Q1-2026Q2) were measured on 2026-10-18, before the covid
+quarters 2020Q1-Q3 were set to NaN (1.2). The inversion has nothing to exogenise in those
+quarters and backs out zero shocks, so it now equals the RE smoother only up to 2019Q4;
+`test_inversion` S1 checks it there (below 1e-8).
 
 ### 5.9 Shocks over the horizon
 
@@ -1092,7 +1115,8 @@ Other option errors: `hetlearn:options:unknown` (a name not in the defaults),
 
 Free-form subtrees, merged without name checks: `beliefs.init.values`, `beliefs.plm.by_var`,
 `beliefs.plm.derived` (must hold strings), `gain.by_var`, `shares.fixed_n2` (as a struct),
-`shocks.add`, `report`.
+`shocks.add`, `report`. Replaced as a whole, not merged: `conditions`, `policy.loss`,
+`expectations.types`, `expectations.transforms`, `shares.init`, `shares.fixed`.
 
 ---
 
@@ -1265,6 +1289,24 @@ Toolbox (`help hetlearn.<name>` gives the full text):
 | `A = hetlearn.agent_types(opts)` | The agent types of a run, resolved against the other options (9.1) |
 | `T = hetlearn.engine.kalman_history('rmse', res, subsamples)` | One-step RMSE by observable and subsample, and the log likelihood, of a `history.mode = 'kalman'` result (9.6) |
 | `t = hetlearn.find_peak(db, name, from, to)` | Date of a series' maximum in a window (first if tied) |
+
+Options of `hetlearn.evaluate_tables(errors, opts)`. Every field is optional; an unknown field is
+an error (`hetlearn:evaluate:option`). Unset fields come from `settings.mat` next to the errors
+file when there is one, else from the defaults below.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `variants` | `settings.ids`, else the order of appearance | Variant ids, in output order |
+| `variables` | `settings.observables`, else the order of appearance | Observables, in output order |
+| `horizon` | `settings.horizon`, else the largest `h` | Horizon H |
+| `origins` | `settings.origins`, else the distinct origins of the table | Origin dates |
+| `benchmark` | `settings.benchmark`, else the first variant | Benchmark of the relative RMSE and DM tables |
+| `subsamples` | `settings.subsamples`, else none | Struct of `[start, end]` target-date ranges |
+| `dm`, `dm_hln`, `dm_kernel` | `true`, `true`, `''` | DM tests; HLN correction with t(n-1) p-values; long-run variance kernel (`''` = `'uniform'` with HLN, else `'bartlett'`) |
+| `settings` | `[]` | A settings struct used instead of `settings.mat` (`[]` = read the file if there is one) |
+| `save` | `false` | Write `metrics.csv`, `relative_rmse.csv`, `dm.csv` |
+| `folder` | the folder of the errors file | Output folder for `save` |
+| `write_errors` | `false` | Also write `errors_long.csv` (used by `hetlearn.evaluate` and `run_applications('eval_merge')`) |
 
 ---
 
