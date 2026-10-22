@@ -55,7 +55,7 @@ function [R, info] = anchor_coefficients(m, targets, states, varargin)
 %   hetlearn:anchor:check otherwise). hetlearn.re_anchor_coefficients is the
 %   wrapper of DESIGN 11 (j = 0) and DESIGN 19 (j = 1, chain x_REt2).
 %
-%   See also hetlearn.re_anchor_coefficients, hetlearn.engine.anchor_update.
+%   See also hetlearn.re_anchor_coefficients.
 
 ip = inputParser;
 ip.addParameter('lag', 0);
