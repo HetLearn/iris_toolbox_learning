@@ -4,7 +4,7 @@
 
 | Message or identifier | Cause | Fix |
 |---|---|---|
-| `setup_paths:noIris` | `setup_paths.m` line 12 points to a folder that does not exist | Set `irisDir` to your IRIS 20230622 folder |
+| `setup_paths:noIris` | IRIS is not in the folder of the environment variable `HETLEARN_IRIS_DIR`, nor in `IRIS-Toolbox-Release-20230622` next to the project folder | Set `HETLEARN_IRIS_DIR` to your IRIS 20230622 folder ([Installation](../getting-started/installation.md), step 3) |
 | `Undefined function 'a1_learn'` (or any scenario) | `setup_paths` not run, or a new scenario folder created after it ran | Run `setup_paths` again |
 | `hetlearn:options:unknown` | A misspelt option; the message gives the full path, e.g. `beliefs.plm.defualt` | Correct the name; see [Options reference](../reference/options.md) |
 | `hetlearn:options:value` | A value outside its list or range, e.g. `switching.memory = 1` | Use an allowed value |
