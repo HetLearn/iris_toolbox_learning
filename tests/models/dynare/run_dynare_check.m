@@ -15,11 +15,13 @@ function run_dynare_check()
 %     steady     struct of steady-state values by variable
 %     dynare_version, created
 %   Run once (2026-10-19); test_re_info T2 compares the toolbox against the file.
+%   Dynare's matlab/ folder: the environment variable HETLEARN_DYNARE_DIR, else
+%   dynare-4.6.1/matlab next to the project folder, else an error.
 
 here = fileparts(mfilename('fullpath'));
 root = fileparts(fileparts(fileparts(here)));
 work = 'C:\dynare_work\re_info_check';
-dyn = 'C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\dynare-4.6.1\matlab';
+dyn = dynare_folder(root);
 if exist(work, 'dir') ~= 7
     mkdir(work);
 end
@@ -77,4 +79,23 @@ out = fullfile(root, 'tests', 'reference', 're_info_dynare_irfs.mat');
 save(out, 'irfs', 'endo', 'shocks', 'steady', 'dynare_version', 'created', 'aux_nbr');
 fprintf('DYNARE_CHECK saved %s: %d variables x %d shocks, %d Dynare auxiliary variables\n', out, numel(endo), ...
     numel(shk), M.endo_nbr - M.orig_endo_nbr);
+end
+
+
+function d = dynare_folder(root)
+% Dynare matlab/ folder: HETLEARN_DYNARE_DIR, else the sibling dynare-4.6.1/matlab.
+d = getenv('HETLEARN_DYNARE_DIR');
+if ~isempty(d)
+    if exist(d, 'dir') ~= 7
+        error('run_dynare_check:noDynare', ...
+            'HETLEARN_DYNARE_DIR is set to %s, which is not a folder. Point it to Dynare 4.6.1''s matlab folder.', d);
+    end
+    return
+end
+d = fullfile(fileparts(root), 'dynare-4.6.1', 'matlab');
+if exist(d, 'dir') ~= 7
+    error('run_dynare_check:noDynare', ['Dynare 4.6.1 not found. Either set the environment variable ' ...
+        'HETLEARN_DYNARE_DIR to its matlab folder, e.g. setenv(''HETLEARN_DYNARE_DIR'', ''D:\\dynare-4.6.1\\matlab''), ' ...
+        'or put dynare-4.6.1 next to the project folder (looked in %s).'], d);
+end
 end
