@@ -2,8 +2,7 @@
 
 This is the main tutorial. It takes one question through the whole toolbox: the scenario
 files, the run, what happens inside it, the output files, and the results with the figures
-and numbers of the project's baseline (results of 2026-10-21, `results/summary_v3/` and
-`paper/figures/`).
+and numbers of the project's baseline (results of 2026-10-21, `results/summary_v3/`).
 
 **The question.** US inflation (GDP deflator) peaked in 2022Q2 at 8.9% annualised. Suppose
 that from that quarter on no further shocks hit the economy. How fast does inflation come
@@ -316,8 +315,8 @@ inflation surprised the learners more than the RE agents, and rose to 0.591 at t
 
 ## 10. Step 6: draw it yourself
 
-The figures above are made by `paper/figures/make_figures.py` from the summary tables. For
-your own runs, plot straight from `res`:
+The figures above are drawn from the summary tables. For your own runs, plot straight from
+`res`:
 
 ```matlab
 spec = hetlearn.load_spec('sw07');
@@ -406,7 +405,7 @@ The summary script `results/summary_v3/build_summary_v3.m` checks the Applicatio
   computed at the end of the quarter before, \(n_{2,model}(t) = n_2(t-1)\): no kept shares.
 - **C8.** Every run completed; the facility acted in no Application 1 run.
 
-## 13. Reproduce the project figures
+## 13. Reproduce the project results
 
 ```matlab
 run_applications('all')                         % every group; about 3 hours, mostly the evaluation
@@ -414,7 +413,6 @@ run('results/summary_v3/build_summary_v3.m')    % summary tables and checks, abo
 ```
 
 ```powershell
-python paper/figures/make_figures.py            # figures and LaTeX tables, about 8 seconds
 python reports/build_report_v3.py               # HTML report, about 10 seconds
 ```
 
