@@ -1,0 +1,122 @@
+# MkDocs configuration for the hetlearn user documentation.
+# Build locally:  pip install -r docs_site/requirements.txt   then   mkdocs serve   (or mkdocs build)
+# Published by .github/workflows/docs.yml on every push to main that touches the site.
+
+site_name: hetlearn
+site_description: >-
+  MATLAB toolbox on IRIS for forecasts and scenarios with heterogeneous expectations:
+  rational agents and adaptive learners whose shares switch on forecast performance.
+site_author: Tolga Özden
+repo_url: https://github.com/tolgaozden/iris_toolbox_learning
+repo_name: tolgaozden/iris_toolbox_learning
+edit_uri: edit/main/docs_site/
+docs_dir: docs_site
+exclude_docs: |
+  requirements.txt
+
+# Report broken links and anchors; with `mkdocs build --strict` (as in the workflow) they fail the build.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: material
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - def_list
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quick start: getting-started/quick-start.md
+  - Tutorial:
+      - "Application 1: the 2022Q2 peak": tutorial/application-1.md
+  - Applications:
+      - applications/index.md
+      - "Application 2: shock replay": applications/app2-replay.md
+      - "Application 3: policy deviations": applications/app3-policy.md
+      - "Application 4: Ramsey policy": applications/app4-ramsey.md
+      - "Application 5: density forecasts": applications/app5-density.md
+      - "Application 6: history and decompositions": applications/app6-history.md
+  - Options:
+      - options/index.md
+      - Expectations: options/expectations.md
+      - RE agents: options/re-agents.md
+      - Timing and information: options/timing.md
+      - Perceived laws of motion: options/plm.md
+      - Gains: options/gains.md
+      - Initial beliefs: options/initial-beliefs.md
+      - Shares and switching: options/switching.md
+      - Projection facility: options/projection-facility.md
+      - History modes: options/history-modes.md
+      - Forecasts, shocks and conditions: options/forecasts-conditions.md
+      - Monetary policy: options/policy.md
+      - Density forecasts: options/densities.md
+      - Shock decompositions: options/decompositions.md
+      - Forecast evaluation: options/evaluation.md
+      - Further expectation rules: options/further-expectation-rules.md
+  - Your own model: your-own-model.md
+  - Reference:
+      - Options reference: reference/options.md
+      - Functions and outputs: reference/functions-outputs.md
+      - Technical appendix: reference/technical-appendix.md
+  - Help:
+      - FAQ and troubleshooting: help/faq.md
