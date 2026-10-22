@@ -8,7 +8,7 @@ the agents learn from.
 | `beliefs.info` | `'lagged'`, `'current'` | Learners see data up to t-1, or up to t |
 | `expectations.re_info` | `'current'`, `'lagged'` | RE agents use \(E_t x_{t+1}\) or \(E_{t-1} x_{t+1}\) for the learning variables. Project baseline: `'lagged'` |
 | `history.re_states` | `'smoothed'`, `'filtered'` | Source of the RE forecasts, the learners' data and the realised values in the fitness errors over the history: the two-sided smoother or the one-sided filter. Project baseline: `'filtered'` |
-| `history.realtime` | `false`, `true` | RE filter on data up to the forecast origin only |
+| `history.realtime` | `false`, `true` | RE filter on data up to the forecast origin only; `history.mode = 're_smoother'` only (ignored by the inversion and the Kalman history, which are one-sided already) |
 
 ## What each type forecasts in quarter t
 
