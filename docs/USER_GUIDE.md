@@ -16,7 +16,7 @@ expectation rules, the options of `docs/DESIGN_br_extensions.md`) added on 2026-
 seven kept portfolio variants on 2026-10-22 (9.10); run times measured on 2026-10-18. Line numbers are
 given as `file` line N. They move when a file is edited, so each one comes with the code it
 points to. All paths are relative to the project root
-`C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\iris_toolbox_learning`.
+(`<project root>` below: the folder that holds `setup_paths.m`).
 
 ---
 
@@ -26,7 +26,7 @@ points to. All paths are relative to the project root
 
 | Path | What it is | Who edits it |
 |---|---|---|
-| `setup_paths.m` | Starts IRIS (folder set on line 12), then adds `toolbox/`, the IRIS patch, `config/` and `scenarios/` with every subfolder to the path | You, only if IRIS moves |
+| `setup_paths.m` | Starts IRIS (the folder in the environment variable `HETLEARN_IRIS_DIR`, else `IRIS-Toolbox-Release-20230622` next to the project root), then adds `toolbox/`, the IRIS patch, `config/` and `scenarios/` with every subfolder to the path | Nobody; set `HETLEARN_IRIS_DIR` if IRIS is elsewhere |
 | `config/master_options.m` | Project-wide option values: the SW07 baseline of 2026-10-20 (lines 86-97, the `o.*` lines; 1.4), a dated table of the previous values above them, and commented knobs (lines 100-102) | You |
 | `scenarios/sw07/<folder>/<id>.m` | The 52 SW07 scenario files, one function per file. Each calls its parent and sets what differs | You |
 | `scenarios/ijcb3/app1_peak/`, `scenarios/as07/app1_peak/` | Application 1 on the two other models: `i1_re`, `i1_learn`, `a1as_re`, `a1as_learn`. Unused since 2026-10-21 (removed from the report; kept in place) | Nobody |
@@ -174,7 +174,7 @@ the run (`hetlearn:load_model:params`). Example: `cfg.model_params = '';` runs a
 ### 2.1 One application, in MATLAB
 
 ```matlab
-cd('C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\iris_toolbox_learning')
+cd('<project root>')
 setup_paths                                   % once per MATLAB session
 run_applications('app1')                      % a1_re, a1_learn: about 30 s
 T = hetlearn.compare({'a1_re', 'a1_learn'}, {'pinfobs', 'robs'})   % levels and differences
@@ -191,7 +191,7 @@ run('results/summary_v3/build_summary_v3.m')  % about 3 min
 ```
 
 ```powershell
-cd "C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\iris_toolbox_learning"
+cd "<project root>"
 python reports/build_report_v3.py             # about 10 s; writes reports/sw07_learning_report.html
 ```
 
@@ -202,7 +202,7 @@ repository has no `results/`: run everything first (2.3).
 ### 2.2 From PowerShell, without a MATLAB window
 
 ```powershell
-& "C:\Program Files\MATLAB\R2025a\bin\matlab.exe" -batch "try, cd('C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\iris_toolbox_learning'), run_applications('app1'), catch e, disp(getReport(e)), exit(1), end" -logfile app1.log
+& "C:\Program Files\MATLAB\R2025a\bin\matlab.exe" -batch "try, cd('<project root>'), run_applications('app1'), catch e, disp(getReport(e)), exit(1), end" -logfile app1.log
 ```
 
 `-batch` does not start in the PowerShell folder, so the command starts with `cd`. MATLAB and
@@ -1334,7 +1334,7 @@ without results is run first, so give every target its results before starting p
 sessions. One PowerShell window per session, each with its own log file:
 
 ```powershell
-& "C:\Program Files\MATLAB\R2025a\bin\matlab.exe" -batch "try, cd('C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\iris_toolbox_learning'), run_applications('eval_part', {'e01_re', 'e02_learn'}, 1:6), catch e, disp(getReport(e)), exit(1), end" -logfile eval_s1.log
+& "C:\Program Files\MATLAB\R2025a\bin\matlab.exe" -batch "try, cd('<project root>'), run_applications('eval_part', {'e01_re', 'e02_learn'}, 1:6), catch e, disp(getReport(e)), exit(1), end" -logfile eval_s1.log
 ```
 
 - **Evaluation:** split the variants (or the parts) over the sessions with
