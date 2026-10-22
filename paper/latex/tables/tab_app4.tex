@@ -1,0 +1,34 @@
+\begin{table}[tbp]
+\centering
+\small
+\caption{Application 4: Ramsey policy against the Taylor rule}
+\label{tab:app4}
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+& \multicolumn{3}{c}{Loss weights} & \multicolumn{3}{c}{RE} & \multicolumn{3}{c}{Learning} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+Weights & $\lambda_y$ & $\lambda_r$ & $\lambda_{\Delta r}$ & Rule & Ramsey & Ratio & Rule & Ramsey & Ratio \\
+\midrule
+\multicolumn{10}{l}{\textit{Discounted loss over 80 quarters}} \\
+\quad Balanced & 0.5 & 0.1 & 0 & 230.1 & 127.7 & 0.56 & 359.4 & 184.5 & 0.51 \\
+\quad Hawk & 0.1 & 0.1 & 0 & 104.9 & 51.5 & 0.49 & 175.4 & 94.6 & 0.54 \\
+\quad Dove & 1 & 0.1 & 0 & 386.6 & 196.2 & 0.51 & 589.4 & 234.2 & 0.40 \\
+\quad Smooth & 0.5 & 0.1 & 0.5 & 232.2 & 129.6 & 0.56 & 364.6 & 201.0 & 0.55 \\
+\addlinespace
+\multicolumn{10}{l}{\textit{Discounted loss over 16 quarters}} \\
+\quad Balanced & 0.5 & 0.1 & 0 & 146.7 & 68.2 & 0.47 & 270.4 & 106.4 & 0.39 \\
+\quad Hawk & 0.1 & 0.1 & 0 & 66.7 & 37.7 & 0.57 & 133.1 & 64.6 & 0.49 \\
+\quad Dove & 1 & 0.1 & 0 & 246.7 & 87.9 & 0.36 & 442.0 & 135.9 & 0.31 \\
+\quad Smooth & 0.5 & 0.1 & 0.5 & 148.8 & 70.2 & 0.47 & 275.6 & 123.1 & 0.45 \\
+\addlinespace
+\multicolumn{10}{l}{\textit{Balanced weights: averages 2022Q3--2026Q2}} \\
+\quad Inflation (\%) & & & & 2.14 & 3.39 & & 2.69 & 4.24 & \\
+\quad Output gap (\%) & & & & $-$2.79 & $-$0.86 & & $-$4.08 & $-$0.77 & \\
+\quad Policy rate (\%) & & & & 4.17 & 4.08 & & 4.75 & 5.47 & \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\begin{minipage}{\linewidth}\footnotesize
+\textit{Notes:} Taylor rule against Ramsey policy under commitment from the 2022Q2 peak, zero shocks. Loss $= \sum_h \delta^h(\hat\pi_h^2 + \lambda_y x_h^2 + \lambda_r \hat r_h^2 + \lambda_{\Delta r} (\Delta \hat r_h)^2)$, where $\hat\pi = 4\pi$ and $\hat r = 4r$ are annualised deviations of inflation and the policy rate from the steady state, $x = y-y^f$ is the output gap, the weight on inflation is 1 and $\delta = \bar\beta\gamma$ is the discount of the SW07 Phillips curve; the 80-quarter loss continues the forecast with zero shocks. Ratio: Ramsey / rule. RE Ramsey: the model-consistent RE plan (RE agents forecast the economy under the Ramsey policy). Learning Ramsey: the anchored RE agents keep the Taylor-rule RE forecast, so its loss is not a clean gain from optimal policy. All runs use period-$t$ RE information. Anchored RE Ramsey losses over 80 quarters (not RE plans): balanced 125.0, hawk 51.5, dove 162.8, smooth 129.8. Source: \texttt{app4\_losses.csv}, \texttt{app4\_targets\_long.csv}, \texttt{paths\_long.csv}.
+\end{minipage}
+\end{table}
