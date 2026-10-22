@@ -70,9 +70,8 @@ function [S, out, ev] = update_learning(ctx, S, t, getVal, fRE, fBR, first, A)
 %   the struct F.<x>.<type> of hetlearn.engine.ntypes('forecasts', ...) and
 %   fBR is ignored. (1) FE^k_t(x) = (x_t - f^k_{t-1}(x))^2 for every type
 %   (out.FE.<x>.<type>); per share group the population types' sums over G go
-%   to hetlearn.switching.discrete_choice_n with switching.memory, .inertia,
-%   .fitness, the group's intensity and costs (two types, RE first, no
-%   inertia, no costs, 'normalized': hetlearn.switching.discrete_choice,
+%   to hetlearn.switching.discrete_choice_n with switching.memory and the
+%   group's intensity (two types, RE first: hetlearn.switching.discrete_choice,
 %   as in the two-type code) -> S.U{g}, S.n{g} (event 'shares_nan' as
 %   before). (2) S.f = F (hetlearn.engine.ntypes 'store'). (3) RLS on every
 %   equation of every learning type whose update is 'rls' (ctx.sys keyed by
@@ -82,9 +81,7 @@ function [S, out, ev] = update_learning(ctx, S, t, getVal, fRE, fBR, first, A)
 %   before. (4) Each type's gain update; its events name the keyed targets.
 %   Phase P4: fRE holds the forecasts as they enter the aggregate (after the
 %   transforms; fitness and errors use them), fBR the second output of
-%   hetlearn.engine.ntypes('forecasts') (forecasts before the transforms); with
-%   level types, hetlearn.engine.anchor_update computes the levels in force in
-%   t+1 between (3) and the ALM check.
+%   hetlearn.engine.ntypes('forecasts') (forecasts before the transforms).
 
 if nargin < 8
     A = [];
@@ -147,7 +144,7 @@ S.fRE = fRE;
 S.fBR = fBR;
 
 % ---- (3) RLS and the projection facility (DESIGN 4.4) ---------------------------------
-doRLS = any(strcmp(o.beliefs.update, {'rls', 'sac', 'kf'}));   % 'sac', 'kf': hetlearn.rls.sac/.kf (DESIGN_br_extensions 1.5, P5)
+doRLS = strcmp(o.beliefs.update, 'rls');
 S.prev = struct('phi', S.phi, 'R', S.R);        % beliefs before this period's update
 nE = numel(sys.eq);
 for i = 1:nE
@@ -166,7 +163,7 @@ if doRLS
         end
         g = G.(tg);
         out.gain.(tg) = g;
-        if strcmp(o.beliefs.update, 'rls'), [cand.(tg), Rcand.(tg)] = hetlearn.rls.update(S.phi.(tg), S.R.(tg), Z{i}, Y(i), g); else, [cand.(tg), Rcand.(tg), S, ev] = feval(['hetlearn.rls.' o.beliefs.update], S.phi.(tg), S.R.(tg), Z{i}, Y(i), g, S, sys.eq(i), o.beliefs, o.gain, t, ev); end
+        [cand.(tg), Rcand.(tg)] = hetlearn.rls.update(S.phi.(tg), S.R.(tg), Z{i}, Y(i), g);
         upd(i) = true;
     end
     if strcmp(hetlearn.engine.facility('name', o), 'plm_alm')
@@ -263,7 +260,7 @@ end
 function [S, out, ev] = update_nt(ctx, S, t, getVal, F, first, A, X)
 % End-of-period update with N agent types (DESIGN_br_extensions 1.1-1.2). F: the forecasts as they
 % enter the aggregate (fitness); X: the second output of hetlearn.engine.ntypes('forecasts') (forecasts
-% before the transforms, partial-adjustment values; phase P4), [] = F itself.
+% before the transforms; phase P4), [] = F itself.
 o = ctx.opts;
 nt = ctx.nt;
 sys = ctx.sys;
@@ -304,16 +301,14 @@ if ~first
                 FEg(q) = FEg(q) + out.FE.(v{1}).(names{q});
             end
         end
-        if numel(names) == 2 && gr.types(1) == nt.re && sw.inertia == 0 && all(gr.C == 0) ...
-                && strcmp(sw.fitness, 'normalized')
+        if numel(names) == 2 && gr.types(1) == nt.re
             % the two-type case of hetlearn.switching.discrete_choice (RE first)
             [n1, zRE, zBR] = feval(['hetlearn.switching.' sw.rule], FEg(1), FEg(2), S.U{g}(1), ...
                 S.U{g}(2), gr.chi, sw.memory);
             n = [n1, 1 - n1];
             U = [zRE, zBR];
         else
-            [n, U] = hetlearn.switching.discrete_choice_n(FEg, S.U{g}, gr.chi, sw.memory, ...
-                'inertia', sw.inertia, 'nprev', S.n{g}, 'costs', gr.C, 'fitness', sw.fitness);
+            [n, U] = hetlearn.switching.discrete_choice_n(FEg, S.U{g}, gr.chi, sw.memory);
         end
         if any(~isfinite(n))
             ev(end+1) = mkev(t, 'shares_nan', strjoin(gr.members, ','), ...
@@ -330,9 +325,6 @@ S = hetlearn.engine.ntypes('store', ctx, S, F, X);
 
 % ---- (3) RLS of every learning type and the projection facility ---------------------------------
 S.prev = struct('phi', S.phi, 'R', S.R);
-if isfield(S, 'levels')
-    S.prev.levels = S.levels;      % level coefficients in force in t (an ALM revert keeps them)
-end
 nE = numel(sys.eq);
 for i = 1:nE
     out.gain.(sys.eq(i).target) = NaN;
@@ -348,7 +340,7 @@ if nE > 0
 end
 for j = 1:numel(nt.types)
     ty = nt.types(j);
-    if isempty(ty.sys) || ~any(strcmp(ty.update, {'rls', 'sac', 'kf'}))   % 'sac', 'kf': P5
+    if isempty(ty.sys) || ~strcmp(ty.update, 'rls')
         continue
     end
     anyRLS = true;
@@ -395,7 +387,7 @@ for j = 1:numel(nt.types)
         end
         g = G.(e.var);
         out.gain.(e.target) = g;
-        if strcmp(ty.update, 'rls'), [cand.(e.target), Rcand.(e.target)] = hetlearn.rls.update(S.phi.(e.target), S.R.(e.target), Z{q}, Y(q), g); else, [cand.(e.target), Rcand.(e.target), S, ev] = feval(['hetlearn.rls.' ty.update], S.phi.(e.target), S.R.(e.target), Z{q}, Y(q), g, S, e, o.beliefs, gk, t, ev); end
+        [cand.(e.target), Rcand.(e.target)] = hetlearn.rls.update(S.phi.(e.target), S.R.(e.target), Z{q}, Y(q), g);
         upd(ix(q)) = true;
     end
 end
@@ -407,11 +399,6 @@ if anyRLS
         S.phi = cand;
         S.R = Rcand;
     end
-end
-if hetlearn.engine.anchor_update('on', ctx)
-    % level types (phase P4): the levels from the updated beliefs, in force in t+1 (before the ALM check)
-    [S, e] = hetlearn.engine.anchor_update('compute', ctx, S, t);
-    ev = [ev, e];
 end
 S.n1m_keep = [];
 if ~isempty(A)
