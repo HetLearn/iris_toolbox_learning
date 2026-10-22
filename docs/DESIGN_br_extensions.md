@@ -1236,8 +1236,8 @@ supported or refused, and the documentation.
 | D12 | Forecast start under `'kalman'` | the filtered state at the origin (one-sided, consistent); IRFs keep the baseline's `re_smoother` history |
 | D13 | Estimation module | leave `estimation/` unchanged; use gate K4 as the cross-check |
 
-Prototype files (scratchpad, not part of the project):
-`C:\Users\TZ4\AppData\Local\Temp\1\claude\c--Users-TZ4-OneDrive---Asian-Development-Bank-Desktop-ADO-Sept2026-OilPrice-Elnino-v2\0c6c3393-c658-435c-bd28-8390920cd8b0\scratchpad\br_design\`:
+Prototype files (in a session scratchpad folder outside the project, not versioned):
+`<scratchpad>\br_design\`:
 `br_proto1.m` (P1 GIRFs and gate, P2 solvability, P3 level-k, RE RMSE), `br_proto2.m` (Kalman
 history, gates K1 and K2, baseline RMSE), `br_proto3.m` (transform determinacy), `br_proto4.m`
 (heuristic rules), logs `proto1.log` to `proto4.log`, model files `out/p3_v*.model`,
