@@ -24,7 +24,7 @@ years).
 | `gain.koz.error` | `'rls'`, `'forecast'` | Signed error that drives the gain: the PLM's one-step residual, or the learners' expectation error \(x_t - F^{BR}_{t-1}\) |
 | `gain.koz.error_scale` | `1` | Factor on that error; 1 = model units (percent per quarter for SW07) |
 | `gain.koz.structure` | `'common'`, `'per_variable'` | One gain process for every PLM equation, or one per equation driven by its own error |
-| `gain.koz.master` | `''` | `'common'` only: the variable whose error drives the gain; `''` = the first learning variable; a list = the mean of their errors |
+| `gain.koz.master` | `''` | `'common'` only: the variable whose error drives the gain; `''` = the first learning variable; a list = the mean of their errors, so a quarter in which any of them is missing skips the gain update |
 
 ## The endogenous gain
 
