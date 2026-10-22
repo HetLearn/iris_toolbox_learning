@@ -21,7 +21,9 @@ function opts = load_options(cfg, master)
 %     - Free-form subtrees are merged without checking names:
 %       beliefs.init.values, beliefs.plm.by_var, beliefs.plm.derived,
 %       gain.by_var, shares.fixed_n2 (when a struct), shocks.add, report.
-%       conditions is replaced as a whole (struct array).
+%       Replaced as a whole, not merged: conditions (struct array),
+%       policy.loss, expectations.types, expectations.transforms,
+%       shares.init, shares.fixed.
 %     - Strings are converted to char; a char given where a cellstr is
 %       expected (expectations.variables other than 'all', shares.master,
 %       compare_with, shocks.exclude, report.variables) becomes {char}.
