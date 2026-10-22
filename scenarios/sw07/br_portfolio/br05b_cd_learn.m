@@ -15,7 +15,7 @@ cfg.id = 'br05b_cd_learn';
 cfg.title = 'BR 5b: cognitive discounting on the learning set, m = 0.94';
 cfg.description = 'As a1_learn, with the inflation expectations of RE agents and learners discounted by m^h, m = 0.94.';
 FLEX = {'invef', 'pkf', 'rkf', 'cf', 'labf'};
-cfg.expectations.transforms = struct('kind', 'multiplier', 'profile', 'geometric', 'types', 'all', ...
+cfg.expectations.transforms = struct('kind', 'multiplier', 'types', 'all', ...
     'value', 0.94, 'scope', 'learning', 'exclude', {FLEX});
 cfg.compare_with = {'a1_learn', 'a1_re'};
 end
