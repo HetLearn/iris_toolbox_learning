@@ -32,8 +32,11 @@ c.threads_learn = 1;
 c.model = 'sw07';
 c.like_start = [1966 1];
 
-% Dynare material for gates G0 and G2 (read only; Dynare is not run)
-c.dynare_matlab = 'C:\Users\TZ4\OneDrive - Asian Development Bank\Desktop\dynare-4.6.1\matlab';
+% Dynare material for gates G0 and G2 (read only; Dynare is not run).
+% dynare_matlab: Dynare 4.6.1's matlab/ folder, from the environment variable
+% HETLEARN_DYNARE_DIR, else dynare-4.6.1/matlab next to the project folder; '' if neither
+% exists (only est_00_g0_dynare needs it and stops with est_00_g0_dynare:noDynare then).
+c.dynare_matlab = dynare_folder(c.project);
 c.swx1_out = 'C:\dynare_work\sw_ext\swX1_out.mat';
 
 % MCMC
@@ -41,4 +44,21 @@ c.block = 1000;              % draws per checkpoint block file
 c.thin_paths = 50;           % learning chains: paths stored for every 50th draw
 c.re_chains = 4;
 c.re_draws = 100000;
+end
+
+
+function d = dynare_folder(project)
+% Dynare matlab/ folder: HETLEARN_DYNARE_DIR, else the sibling dynare-4.6.1/matlab, else ''.
+d = getenv('HETLEARN_DYNARE_DIR');
+if ~isempty(d)
+    if exist(d, 'dir') ~= 7
+        error('est_config:noDynare', ...
+            'HETLEARN_DYNARE_DIR is set to %s, which is not a folder. Point it to Dynare 4.6.1''s matlab folder.', d);
+    end
+    return
+end
+d = fullfile(fileparts(project), 'dynare-4.6.1', 'matlab');
+if exist(d, 'dir') ~= 7
+    d = '';
+end
 end
