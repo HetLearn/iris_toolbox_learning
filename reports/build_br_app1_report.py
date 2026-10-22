@@ -6,8 +6,9 @@
 
 A separate page from the main report (build_report_v3.py). It reads only the tables in
 results/br_portfolio/ written by run_br_app1.m: app1_variants.csv, app1_summary.csv,
-app1_paths.csv, app1_shares.csv, app1_shares_2022Q2.csv, app1_events.csv and app1_calib18.csv.
-Every number in the text and the charts is computed from them at build time; none is typed.
+app1_paths.csv, app1_shares.csv, app1_shares_2022Q2.csv and app1_events.csv. Every number in
+the text and the charts is computed from them at build time; none is typed. Since 2026-10-22 the
+portfolio has the seven variants that docs/BR_audit.txt keeps; the page says so in a dated note.
 The CSS, the theme tokens (light/dark) and the JS chart engine are those of build_report_v3.py:
 its string constants CSS, CSS_EXTRA, JS and FONTS are read with ast (nothing in that file is
 executed). Writes one page (content only, no <html>/<head>/<body>: the claude.ai artifact
@@ -19,7 +20,6 @@ import html
 import json
 import math
 import pathlib
-import re
 
 import pandas as pd
 
@@ -30,7 +30,10 @@ _AP.add_argument("--out", default=str(ROOT / "reports" / "sw07_br_app1_report.ht
 _ARGS = _AP.parse_args()
 INP = pathlib.Path(_ARGS.inputs)
 OUT = pathlib.Path(_ARGS.out)
-REPORT_DATE = "2026-10-21"
+REPORT_DATE = "2026-10-22"
+CUT_NOTE = ("<b>Note, 2026-10-22.</b> After an audit of the 21 variants built so far, the portfolio was cut to "
+            "seven. Variants 1a, 1b, 4, 5a, 6, 17, 18, 20, 25a, 25b, 27, 29, 31 and 33 were dropped; "
+            "docs/BR_audit.txt gives the reasons.")
 esc = html.escape
 MINUS = "−"
 
@@ -64,15 +67,11 @@ table.sum td:nth-child(4){min-width:200px}
 table.sum td:nth-child(5),table.sum td:nth-child(6){white-space:nowrap}
 table.sum td:nth-child(7){min-width:130px}
 table.sum td:nth-child(8){min-width:100px}
-table.cal thead th{white-space:normal;vertical-align:bottom}
 table.sum td .no{font:600 12.5px "IBM Plex Mono",ui-monospace,Consolas,monospace;color:var(--fg);margin-right:4px}
 table.sum td .src{display:block;color:var(--muted);font-size:11.5px;margin-top:3px}
 table.sum td .chip{margin:3px 4px 0 0}
 table.sum tr.ref td{background:var(--bg-2)}
 table.sum tr.grp td{font-weight:600;color:var(--fg);background:var(--band-2);font-size:12.5px}
-table.cal td{white-space:nowrap}
-table.cal td:first-child{white-space:normal;min-width:230px}
-table.cal tr.pick td{font-weight:600}
 ul.flags{margin:6px 0 0;padding-left:1.1rem}
 ul.flags li{margin-bottom:7px;max-width:88ch}
 .famlist{color:var(--ink-2);font-size:14.5px}
@@ -84,7 +83,7 @@ ul.flags li{margin-bottom:7px;max-width:88ch}
 def rd(name, **kw):
     p = INP / name
     if not p.exists():
-        raise SystemExit(f"missing input {p} (run run_br_app1('csv') and run_br_app1('calib18') first)")
+        raise SystemExit(f"missing input {p} (run run_br_app1('csv') first)")
     return pd.read_csv(p, keep_default_na=True, **kw)
 
 
@@ -94,7 +93,6 @@ PTH = rd("app1_paths.csv")
 SHR = rd("app1_shares.csv")
 S22 = rd("app1_shares_2022Q2.csv")
 EVT = rd("app1_events.csv")
-CAL = rd("app1_calib18.csv")
 
 
 def nz(x):
@@ -152,7 +150,7 @@ VAR4 = ["pinfobs", "robs", "dy", "dc"]
 VLAB = {"pinfobs": "Inflation", "robs": "Policy rate", "dy": "Output growth", "dc": "Consumption growth"}
 VWORD = {"pinfobs": "inflation", "robs": "the policy rate", "dy": "output growth", "dc": "consumption growth"}
 UNIT = "% annualised"
-LVNAME = {"pinf": "inflation", "c": "consumption"}
+LVNAME = {"pinf": "inflation"}
 
 
 # ----------------------------------------------------------------------------- formatting
@@ -177,16 +175,6 @@ def pp(x, d=2, sign=True):
 
 def code(s):
     return f"<code>{esc(s)}</code>"
-
-
-def fnum(x):
-    """A parameter value as written in the tables (%g)."""
-    return re.sub(r"^-", MINUS, f"{x:g}")
-
-
-def g3(x):
-    """Three significant digits."""
-    return re.sub(r"^-", MINUS, f"{x:.3g}")
 
 
 def lc1(s):
@@ -242,31 +230,12 @@ ENT = {"data": dict(name="Data", short="Data", color="ink", width=2.2),
        "a1_re": dict(name="RE(t-1) benchmark", short="RE(t-1)", color="s1"),
        "a1_learn": dict(name="Baseline (RE agents and AR(1) learners)", short="Baseline", color="s2")}
 SLOTS = ["s3", "s4", "s5", "s6", "s7", "s8"]
-# Variants that share a mechanism share a hue and differ by line style (composite encoding), so that the
-# slots are assigned in their fixed order without skipping and no figure needs more than four variant hues.
-HUE_LEAD = {"1b": "1a", "5b": "5a", "25a": "20", "25b": "20", "24": "23", "33": "19", "31": "29"}
-HUE_WHY = {"1a": "level-k reasoning", "5a": "cognitive discounting", "20": "every agent learns the seven sticky expectations",
-           "23": "learners of a mean", "19": "a fixed forecasting rule beside the RE agents", "29": "an AR(1) wedge on expectations"}
-STYLES = ["solid", "dashed", "dotted"]
-HUE_GROUPS = {}
+# One hue per variant within its family, the slots in their fixed order (the IRF page repeats this).
 for fam, _ in FAMS:
-    k = -1
-    seen = {}
-    for i in FAMIDS[fam]:
-        no = RUN[i]["no"]
-        lead = HUE_LEAD.get(no, no)
-        if lead in seen:
-            col = seen[lead][0]
-            sty = STYLES[len(seen[lead][1])]
-            seen[lead][1].append(i)
-        else:
-            k += 1
-            if k >= len(SLOTS):
-                raise SystemExit(f"family {fam}: more than {len(SLOTS)} hues needed")
-            col, sty = SLOTS[k], "solid"
-            seen[lead] = (col, [i])
-        ENT[i] = dict(name=label(i), short=no, color=col, style=sty)
-    HUE_GROUPS[fam] = {lead: ids for lead, (_, ids) in seen.items() if len(ids) > 1}
+    if len(FAMIDS[fam]) > len(SLOTS):
+        raise SystemExit(f"family {fam}: more than {len(SLOTS)} hues needed")
+    for k, i in enumerate(FAMIDS[fam]):
+        ENT[i] = dict(name=label(i), short=RUN[i]["no"], color=SLOTS[k], style="solid")
 
 CHARTS, LEGENDS = {}, {}
 FIGN = [0]
@@ -436,47 +405,9 @@ def stop_txt(i):
         return "none"
     if st == "stopped":
         why = {"hetlearn:engine:noSolution": "no model solution",
-               "hetlearn:engine:levelNoSolution": "a level economy has no stable solution",
                "hetlearn:engine:almUnstable": "the first model checked is already unstable"}.get(txt(i, "error_id"), "stops")
         return f"stops in {txt(i, 'stop_date')} ({txt(i, 'stop_stage')} stage): {why}"
     return f"error: {txt(i, 'error_message')[:120]}"
-
-
-# level-k: the first facility event's detail (beliefs and the level-1 loading)
-def levelk_facts():
-    out = {}
-    ids = [i for i in VARIANTS if RUN[i]["no"] in ("1a", "1b")]
-    for i in ids:
-        ev = EVF[(EVF.variant == i) & (EVF.type == "projection_level")].sort_values("date")
-        if not len(ev):
-            continue
-        d0 = ev.iloc[0]
-        m_b = re.search(r"pinf__L0 = \[([-0-9.e]+) ([-0-9.e]+)\]", str(d0.detail))
-        m_l = re.search(r"coefficient on pinf\{-1\} ([-0-9.e]+)", str(d0.detail))
-        m_j = re.search(r"the level-(\d+) economy", str(d0.detail))
-        out[i] = dict(date=str(d0.date), stage=str(d0.stage), beta=float(m_b.group(2)) if m_b else None,
-                      alpha=float(m_b.group(1)) if m_b else None, load=float(m_l.group(1)) if m_l else None,
-                      level=int(m_j.group(1)) if m_j else None, dates=ev.date.astype(str).tolist(),
-                      levels=[int(x) for x in re.findall(r"the level-(\d+) economy", " ".join(ev.detail.astype(str)))])
-    return out
-
-
-LK = levelk_facts()
-
-
-# ============================================================================= variant 18 calibration
-CALR = CAL.to_dict("records")
-CDES = next((r for r in CALR if r["tag"] == "design"), None)
-CPUB = next((r for r in CALR if int(r["published"]) == 1), None)
-CPICK = next((r for r in CALR if int(r["chosen"]) == 1), None)
-NPASS = int(CAL["pass"].sum())
-ID18 = next((i for i in VARIANTS if RUN[i]["no"] == "18"), None)
-DG_SRC = txt(ID18, "source") if ID18 else ""
-
-
-def dg_val(name):
-    m = re.search(name + r" = ([0-9.]+)", DG_SRC)
-    return m.group(1) if m else "n/a"
 
 
 # ============================================================================= figure builders
@@ -564,8 +495,6 @@ def share_panels(gid, ids):
         if not RAN[i]:
             continue
         for lv in learn_vars(i):
-            if lv not in ("pinf", "c"):
-                continue
             ts = [t for t in types_of(i, lv) if INPOP.get((i, lv, t), 0) == 1]
             if MODE.get(i) != "switching" or (lv == "pinf" and two_type(i)) or len(ts) < 2:
                 continue
@@ -573,7 +502,7 @@ def share_panels(gid, ids):
             for k, t in enumerate(ts):
                 ss.append(S(i, share_series(i, lv, t, X), name=t, short=t, style=DASHES[k % len(DASHES)]))
             v22 = ", ".join(f"{t} {f(S22D.get((i, lv, t)), 3)}" for t in ts)
-            what = "inflation expectations" if lv == "pinf" else "the consumption expectation"
+            what = "inflation expectations" if lv == "pinf" else f"the expectation of {code(lv)}"
             cap = (f"Shares of the {len(ts)} types in {what}, computed by discrete choice at the end of each quarter and "
                    f"in force in the next; one line style per type. At the end of {ORIGIN}: {v22}.")
             out.append(chart(f"{gid}-sh-{RUN[i]['no']}-{lv}", gid,
@@ -603,10 +532,6 @@ def family_figure(gid, fam, title):
     missing = [i for i in ids if not RAN[i]]
     t = (f"{title}: forecast from the {ORIGIN} peak, {X[0]}-{END}. The shaded area is the forecast; lines start at the "
          f"origin." + (f" The data line has a gap in {NODATA[0]}-{NODATA[-1]}, the covid quarters left out." if NODATA else ""))
-    grp = HUE_GROUPS.get(fam, {})
-    if grp:
-        t += (" Variants drawn in one hue share a mechanism and differ by line style: " + "; ".join(
-            f"{joinand(label(i, True) for i in ids)} ({HUE_WHY.get(lead, 'same mechanism')})" for lead, ids in grp.items()) + ".")
     extra = ""
     if notes or missing:
         bits = notes + [f"{label(i, True)} has no path ({stop_txt(i)})" for i in missing]
@@ -680,11 +605,10 @@ def var_list(fam):
 
 
 FAM_INTRO = {
-    "depth": "Agents form their inflation forecast by working out how others forecast, for a limited number of steps.",
     "disc": "Agents shrink their forecasts of deviations from the steady state, more at longer horizons.",
     "info": "The expectation reacts too little or too much to news.",
-    "learn": "Other forecasting rules and learning algorithms take the learners' place.",
-    "dist": "Forecasters with a bias, an extra forecasting type, or another way to weight the forecasters.",
+    "learn": "The learners keep the baseline's switching against the RE agents but learn another object or use another gain.",
+    "dist": "A third forecasting type joins the RE agents and the learners.",
 }
 
 
@@ -705,45 +629,19 @@ def path_txt(i):
 
 def flag_items():
     out = []
+    nf = sum(1 for i in IDS if fac_n(i) > 0)
     if STOPPED or ERRORS:
         out.append("<b>Stops.</b> " + " ".join(f"{esc(label(i))} {esc(stop_txt(i))}." for i in STOPPED + ERRORS))
     else:
-        out.append(f"<b>No run stops.</b> With the {code(FAC)} facility all {len(IDS)} runs reach {END}. The facility "
-                   f"acts in {sum(1 for i in IDS if fac_n(i) > 0)} of them, listed next.")
-    if LK:
-        ids = list(LK)
-        d1 = LK[ids[0]]
-        same = all(LK[i]["dates"] == d1["dates"] for i in ids)
-        bylev = {}
-        for q, lv in zip(d1["dates"], d1["levels"]):
-            bylev.setdefault(lv, []).append(q)
-        fails = "; ".join(f"level {lv} in {span_txt(qs)}" for lv, qs in sorted(bylev.items(), reverse=True))
-        evs = (span_txt(d1["dates"]) if same else
-               "; ".join(f"{label(i, True)}: {span_txt(LK[i]['dates'])}" for i in ids))
-        out.append(f"<b>Level-k ({joinand(label(i, True) for i in ids)}).</b> In {d1['date']} the level-{d1['level']} economy "
-                   f"has no stable solution once the learners' persistence passes 1: after that quarter's update the "
-                   f"level-0 learners' AR(1) coefficient is {f(d1['beta'], 3)}, and the level-1 forecast loads "
-                   f"{f(d1['load'], 3)} on inflation at t-1. Under the facility {code('none')} the run stops there. Under "
-                   f"{code(FAC)} the facility returns the learners' beliefs to their value before the update and keeps the "
-                   f"previous levels, in {evs} (the economy without a solution: {fails}); after that the beliefs update "
-                   f"again. The paths swing widely: " + "; ".join(f"in {label(i, True)} {path_txt(i)}" for i in ids) + ".")
-    others = [i for i in IDS if fac_n(i) > 0 and i not in LK]
-    for i in others:
+        out.append(f"<b>No run stops.</b> With the {code(FAC)} facility all {len(IDS)} runs reach {END}. "
+                   + (f"The facility acts in {nf} of them, listed next." if nf else
+                      "The facility never acts, in the history or in the forecast."))
+    for i in [i for i in IDS if fac_n(i) > 0]:
         extra = ""
         if two_type(i) and learners_2022(i) is not None and learners_2022(i) > 0.99:
             extra = (f" By the end of {ORIGIN} the learners hold {f(learners_2022(i), 3)} of inflation expectations, and "
                      f"{path_txt(i)}; average inflation is {pct(num(i, 'avg_pinf'))}.")
         out.append(f"<b>Facility, {esc(label(i))}.</b> {esc(fac_txt(i))}.{extra}")
-    if ID18 and CDES and CPICK:
-        out.append(f"<b>{esc(label(ID18))} is recalibrated.</b> The design's calibration (bias "
-                   f"g = sd(y - yf)/2 = {f(CDES['g_value'], 2)} in the RE limit, intensity {fnum(CDES['chi'])}, memory "
-                   f"{fnum(CDES['omega'])}) produces a deflation spiral: inflation falls to {pct(CDES['pinf_min'], 1)} and "
-                   f"consumption growth swings between {pct(CDES['dc_min'], 0)} and {pct(CDES['dc_max'], 0)} "
-                   f"(annualised). This report uses bias {fnum(CPICK['g_value'])}, intensity {fnum(CPICK['chi'])} and "
-                   f"memory {fnum(CPICK['omega'])}, the setting closest to De Grauwe's published values that passes the "
-                   f"three checks of <a href=\"#calib\">section 7</a>.")
-    elif ID18 is None and CDES is not None:
-        out.append("<b>Variant 18 is left out.</b> No calibration passed the checks of <a href=\"#calib\">section 7</a>.")
     return out
 
 
@@ -757,10 +655,6 @@ def summary_table():
         flags = []
         if i in STOPPED:
             flags.append(chip("stops", "rm"))
-        if i in LK:
-            flags.append(chip("facility at origin"))
-        if i == ID18:
-            flags.append(chip("recalibrated"))
         name = (f'<span class="no">{esc(r["no"])}</span>{esc(r["name"])}' + ("<br>" + "".join(flags) if flags else ""))
         par = f'{esc(r["params"])}<span class="src">{esc(r["source"])}</span>'
         a = num(i, "avg_pinf")
@@ -812,71 +706,10 @@ def sec_family(no, fam, title):
     return section(fam, no, title, body)
 
 
-def sec_calib(no):
-    if CDES is None:
-        return ""
-    rows = [r for r in CALR if r["tag"] == "design" or int(r["published"]) == 1 or int(r["pass"]) == 1]
-
-    def row(r, pick=False):
-        crit = "".join("yes " if int(r[k]) else "no " for k in ("c1", "c2", "c3")).strip().replace(" ", " / ")
-        lab = "design (P4)" if r["tag"] == "design" else ("published, converted" if int(r["published"]) else "nearby")
-        return (f'<tr class="{"pick" if pick else ""}"><td>{esc(lab)}{" (used)" if pick else ""}</td>'
-                f'<td class="n">{g3(r["g_value"])}</td><td class="n">{g3(r["chi"])}</td><td class="n">{g3(r["omega"])}</td>'
-                f'<td class="n">{f(r["pinf_min"], 1)} to {f(r["pinf_max"], 1)}</td><td class="n">{f(r["dc_min"], 1)} to {f(r["dc_max"], 1)}</td>'
-                f'<td class="n">{f(r["ext_sd"], 3)} / {f(r["ext_corner"], 2)}</td><td class="n">{f(r["pes_sd"], 3)} / {f(r["pes_corner"], 2)}</td>'
-                f'<td>{crit}</td></tr>')
-
-    hdr = ["Setting", "Bias g", "Intensity", "Memory", "Inflation, min to max, %", "Consumption growth, min to max, %",
-           "EXT share: sd / fraction of quarters at 0 or 1", "PES share: sd / fraction of quarters at 0 or 1",
-           "C1 / C2 / C3"]
-    head = "".join(f"<th>{esc(h)}</th>" for h in hdr)
-    body_rows = "".join(row(r, int(r["chosen"]) == 1) for r in rows)
-    allrows = "".join(row(r, int(r["chosen"]) == 1) for r in CALR)
-    r0 = CALR[0]
-    pub = CPUB
-    pk = CPICK
-    p1 = (f"The design gave the optimists and pessimists of variant 18 a bias of half the RE limit's standard deviation of "
-          f"the output gap and kept the baseline's switching. De Grauwe calibrates in decimal units with months as the "
-          f"time unit (CESifo WP 2418, Appendix A: fixed divergence beta = {dg_val('beta')}, variable divergence delta = "
-          f"{dg_val('delta')}, intensity gamma = {dg_val('gamma')}, memory rho = {dg_val('rho')}). In this model's units, "
-          f"percent and quarters, that is a bias g = beta/2 = {fnum(pub['g_value'])} (a level, so no time conversion; "
-          f"delta = 0, the paper's constant-bias case), an intensity of {fnum(pub['chi'])} per squared percentage point, "
-          f"and a memory of {fnum(pub['omega'])} per quarter (rho cubed, as a quarter has three months). The search ran {len(CALR) - 1} "
-          f"settings around these values plus the design's: bias {joinand(g3(v) for v in sorted({r['g_value'] for r in CALR[1:]}))} "
-          f"(the third adds delta times the RE limit's variance of y - yf), intensity "
-          f"{joinand(g3(v) for v in sorted({r['chi'] for r in CALR[1:]}))} (1/9 converts the inflation errors from monthly "
-          f"to quarterly rates; 2 is the baseline) and memory {joinand(g3(v) for v in sorted({r['omega'] for r in CALR[1:]}))}.")
-    p2 = (f"Three checks, fixed before the runs. C1: the run completes. C2: inflation and consumption growth stay inside "
-          f"their {f(r0['data_pinf_min'], 1)} to {f(r0['data_pinf_max'], 1)}% and {f(r0['data_dc_min'], 1)} to "
-          f"{f(r0['data_dc_max'], 1)}% ranges of 1966Q1-2019Q4 (annualised) in every forecast quarter. C3: in each share "
-          f"group the second type's share (EXT for inflation, PES for consumption) is below 0.02 or above 0.98 in at most "
-          f"10% of the quarters 1966Q1-{END} and has a standard deviation of at least 0.02. Of the {len(CALR)} settings, "
-          f"{NPASS} pass.")
-    if pk is not None:
-        p3 = (f"The published values, converted, fail C2: consumption growth swings between {pct(pub['dc_min'], 0)} and "
-              f"{pct(pub['dc_max'], 0)}. The setting used, the passing one closest to them (fewest values changed, then the "
-              f"smallest log distance), is bias {fnum(pk['g_value'])}, intensity {fnum(pk['chi'])} and memory "
-              f"{fnum(pk['omega'])}: inflation stays between {pct(pk['pinf_min'], 1)} and {pct(pk['pinf_max'], 1)}, "
-              f"consumption growth between {pct(pk['dc_min'], 1)} and {pct(pk['dc_max'], 1)}, and the shares move "
-              f"(standard deviation {f(pk['ext_sd'], 3)} for EXT and {f(pk['pes_sd'], 3)} for PES) without sitting at 0 or 1.") \
-            if int(pub["pass"]) == 0 else (f"The published values, converted, pass and are used.")
-    else:
-        p3 = "No setting passes, so variant 18 is left out of this report."
-    body = (f"<p>{p1}</p>\n<p>{p2}</p>\n<p>{p3}</p>\n"
-            f'<div class="tw"><table class="cal"><caption>The design\'s setting, the converted published values and every '
-            f'setting that passes (forecast {HOR[0]}-{END}; shares over 1966Q1-{END}).</caption><thead><tr>{head}</tr></thead>'
-            f'<tbody>{body_rows}</tbody></table></div>\n'
-            f'<details class="tables"><summary>All {len(CALR)} settings</summary><div class="tw"><table class="cal">'
-            f'<thead><tr>{head}</tr></thead><tbody>{allrows}</tbody></table></div></details>')
-    return section("calib", no, "Variant 18: calibration search", body)
-
-
 def sec_notes(no):
     lines = ["% MATLAB, from the project root",
-             "run_br_app1('check')                         % options of the 23 scenarios load",
-             "run_br_app1('run', {'a1_re', 'a1_learn'})    % the references first",
-             "run_br_app1('run', ids)                      % the variants, in up to four sessions (help run_br_app1)",
-             "run_br_app1('calib18')                       % the variant-18 search, results/br_portfolio/app1_calib18.csv",
+             f"run_br_app1('check')                         % options of the {len(IDS)} scenarios load",
+             "run_br_app1('run')                           % the references, then the variants (help run_br_app1)",
              "run_br_app1('csv')                           % results/br_portfolio/app1_*.csv",
              "",
              "# Python",
@@ -888,8 +721,7 @@ def sec_notes(no):
             f"shares a mode fixes ({code('learning')}: every agent learns; {code('fixed_shares')}). Facility "
             f"{code(FAC)}: each quarter the model with the new beliefs and shares is solved; if it has no unique stable "
             f"solution, every belief goes back to its value before that quarter's update, and if that does not solve "
-            f"either, last quarter's shares stay in force (events {code('projection_alm')}, {code('projection_alm_shares')}); "
-            f"a level economy without a solution reverts the beliefs the same way ({code('projection_level')}). "
+            f"either, last quarter's shares stay in force (events {code('projection_alm')}, {code('projection_alm_shares')}). "
             f"Scenario files: {code('scenarios/sw07/br_portfolio/')}; runs in {code('results/<id>/')}; tables in "
             f"{code('results/br_portfolio/')}. The {len(IDS)} runs took {f(sum(rt), 0)} s of compute in total.</p>"
             f'<pre class="code"><code>{esc(chr(10).join(lines))}</code></pre>')
@@ -900,27 +732,27 @@ def sec_notes(no):
 PARTS = [sec_summary()]
 for k, (fam, title) in enumerate(FAMS):
     PARTS.append(sec_family(k + 2, fam, title))
-PARTS.append(sec_calib(len(FAMS) + 2))
-PARTS.append(sec_notes(len(FAMS) + 3))
+PARTS.append(sec_notes(len(FAMS) + 2))
 
 n_ok = sum(1 for i in IDS if txt(i, "status") == "ok")
 n_fac = sum(1 for i in IDS if fac_n(i) > 0)
 toc = "".join(f'<a href="#{sid}"><span class="tn">{no}</span> {esc(t)}</a>' for sid, no, t in SEC)
 bl = RUN["a1_learn"]
 lede1 = (f"Application 1, the forecast from the {ORIGIN} inflation peak, for each of the {len(VARIANTS)} "
-         f"bounded-rationality variants built into hetlearn (docs/DESIGN_br_extensions.md, section 3). Each variant "
+         f"bounded-rationality variants of the hetlearn portfolio (design: docs/DESIGN_br_extensions.md, section 3). Each variant "
          f"is the baseline scenario {code('a1_learn')} with one change to how expectations are formed. Every chart also "
          f"shows the baseline and the RE(t-1) benchmark.")
 lede2 = (f"Baseline: the Smets-Wouters (2007) model at its published posterior mode. Inflation expectations mix RE agents, "
          f"who see data up to t-1, and AR(1) learners ({esc(lc1(bl['params']))}). RE values in the history come from the "
          f"one-sided filter. Projection facility {code(FAC)}. The forecast runs {H} quarters, {HOR[0]}-{END}, with zero "
-         f"shocks. Variants are grouped by the five families of the literature review behind the design.")
+         f"shocks. Variants are grouped by family, as in the literature review behind the design.")
 body = f"""
 <header class="top wrap">
   <p class="kicker">hetlearn toolbox report · {REPORT_DATE}</p>
   <h1>{len(VARIANTS)} expectation rules at the {ORIGIN} inflation peak</h1>
   <p class="lede">{lede1}</p>
   <p class="lede">{lede2}</p>
+  <aside class="box" role="note"><p>{CUT_NOTE}</p></aside>
   <p class="meta"><span>{REPORT_DATE}</span><span>{len(IDS)} runs, {n_ok} complete{f", {len(IDS) - n_ok} stop" if n_ok < len(IDS) else ""}</span>
   <span>facility {esc(FAC)}: events in {n_fac} run{'s' if n_fac != 1 else ''}</span><span>Inputs: results/br_portfolio/</span></p>
   <nav class="toc" aria-label="Sections">{toc}</nav>
