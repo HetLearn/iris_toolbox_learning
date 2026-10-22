@@ -1,54 +1,50 @@
 function R = test_transforms(part)
-%TEST_TRANSFORMS  Forecast transforms, phase P3 of docs/DESIGN_br_extensions.md (1.3, D11, 1.7 R4; variants 4-7, 10, 18, 29, 31).
+%TEST_TRANSFORMS  Forecast transforms, phase P3 of docs/DESIGN_br_extensions.md (1.3, D11, 1.7 R4; variants 5b, 7, 10).
 %
 %   R = test_transforms()        every part
-%   R = test_transforms(part)    'neutral' | 'refs' | 'copies' | 'wedges' | 'values' | 'errors' | 'r4'
+%   R = test_transforms(part)    'neutral' | 'refs' | 'copies' | 'errors' | 'r4' | 'fitness'
 %
-%   N1-N8  collapse at the neutral value: each kind at its identity value (multiplier
-%          m = 1, lambda = 1 with equation copies, alpha = 0; myopia [1 0]; diagnostic
-%          theta = 0; partial adjustment g = 1; wedge std 0; constant wedges 0 on the
-%          De Grauwe types) loaded on the 2026-10-20 baseline (tsw07_a1_learn) is the
-%          baseline's RE limit (IRFs of every common variable to the seven shocks, 40
-%          periods, 1e-12; anchored RE(t-1) agents, the anchor economy of D11). Same
-%          generated file as the non-neutral variant (the factors are parameters).
+%   19 checks. The checks of the transform kinds and multiplier profiles removed
+%   on 2026-10-22 (docs/BR_audit.txt: N3, N6-N8, H3, H7, W1-W4, V1, R4e-f) are
+%   gone; the other labels are unchanged.
+%   N1-N5  collapse at the neutral value: each kind at its identity value (multiplier
+%          m = 1, also with equation copies; myopia [1 0]; diagnostic theta = 0) loaded
+%          on the 2026-10-20 baseline (tsw07_a1_learn) is the baseline's RE limit
+%          (IRFs of every common variable to the seven shocks, 40 periods, 1e-12;
+%          anchored RE(t-1) agents, the anchor economy of D11). Labels N1, N2, N4, N5.
+%          Same generated file as the non-neutral variant (the values are parameters).
 %          N9 anchored RE with period-t information: the coefficients from the RE
 %          limit's state space (m = 1 equals the source-model anchor, 1e-12; m =
 %          0.62 passes the anchored = model-consistent check)
-%   H1-H7  generated = hand-written: the RE limit with model-consistent RE (period-t
+%   H1-H6  generated = hand-written: the RE limit with model-consistent RE (period-t
 %          information, learning {pinf}) equals the SW07 source edited by hand as in the
 %          design's prototype P3 (scratchpad br_design/br_proto3.m): CD m = 0.62 on the
-%          sticky seven (p3_v02), shallow reasoning GHL 0.76/0.86/0.08 with equation
-%          copies (p3_v06), hyperbolic alpha = 0.176 (p3_v08), DE theta = 0.44 (p3_v09),
-%          myopia and anchoring (0.52, 0.4343) in the price Phillips curve (p3_v12);
-%          H6 DE with inflation RE(t-1): one more chain element, E_{t-2} pinf_{t+1};
-%          H7 partial adjustment g = 0.6 of the RE type (pinf) and of the
-%          model-consistent expectation of w (IRFs, 40 periods, 1e-10)
+%          sticky seven (p3_v02), multipliers 0.76/0.86/0.08 of the RE type with
+%          equation copies (p3_v06, m^h with h = 1), DE theta = 0.44 (p3_v09), myopia
+%          and anchoring (0.52, 0.4343) in the price Phillips curve (p3_v12); H6 DE with
+%          inflation RE(t-1): one more chain element, E_{t-2} pinf_{t+1} (IRFs, 40
+%          periods, 1e-10). Labels H1, H2, H4, H5, H6
 %   C1-C3  equation copies: equal values in the copies = the global multiplier (1e-12);
 %          the copies replace pinf{+1} in their equations only; bad labels rejected
-%   W1-W4  wedges: the shock enters the model (pinf_exp1 impact response = sigma at the
-%          RE limit; hand-written AR(1) wedge model, 1e-10); in a 2019Q4 forecast run
-%          with shocks.add the wedge shock moves pinf_exp1 by sigma on impact and xi
-%          decays with rho; ACD loadings = Cov(z, y)/Var(y) and the calibrated std
-%          gives a 51% band (6-32 quarters) variance share of y, by independent
-%          state-space formulas
-%   V1     De Grauwe bias g = sd(y - yf)/2 (independent Lyapunov) and equal OPT/PES
-%          shares reproduce the model-consistent c expectation exactly
-%   E1     errors at the P4 boundary and for kinds not built: diagnostic on the anchored
-%          RE type, anchored agents in an economy with diagnostic memory states,
-%          diagnostic or partial adjustment on a learned type, diagnostic after another
-%          transform, unknown model rule, a transform acting on nothing
-%   R4a-f  R4 of DESIGN_br_extensions 1.7: the full baseline run (tsw07_a1_learn)
-%          with a transform at its identity value equals the two-type run. On one
-%          RE filter (the transform model's, recomputed in the session): learning
-%          and final state <= 1e-12, paths exact when the transform adds no model
-%          variable, else <= 1e-10 (IRIS solves a larger system: rounding, as the
-%          target believers at share 0 of test_ntypes H1). On their own fresh
+%   E1     errors: diagnostic on the anchored RE type with period-t information (the
+%          anchored reference is not built), diagnostic on a learned type, diagnostic
+%          after another transform, a transform acting on nothing
+%   R4a-d  R4 of DESIGN_br_extensions 1.7: the full baseline run (tsw07_a1_learn)
+%          with a transform at its identity value (the N1, N2, N4, N5 cases) equals the
+%          two-type run. On one RE filter (the transform model's, recomputed in the
+%          session): learning and final state <= 1e-12, paths exact when the transform
+%          adds no model variable, else <= 1e-10 (IRIS solves a larger system: rounding,
+%          as the target believers at share 0 of test_ntypes H1). On their own fresh
 %          filters: paths <= 1e-10, learning and state <= 1e-11
+%   F1     fitness on transformed forecasts (P4; added 2026-10-22, when the De Grauwe check A8 of
+%          test_anchor went with variant 18): the baseline with the 5b multiplier m = 0.94 on the
+%          learning set; every type's recorded forecast f_<k> (the one fitness and the errors use)
+%          equals m^2 times its untransformed forecast fb_<k> (t-1 information, h = 2), 1e-12
 %
-%   Runs are not saved. About 4 minutes; the first call generates the model files.
+%   Runs are not saved. About 3 minutes; the first call generates the model files.
 
 if nargin < 1 || isempty(part)
-    part = {'neutral', 'refs', 'copies', 'wedges', 'values', 'errors', 'r4'};
+    part = {'neutral', 'refs', 'copies', 'errors', 'r4', 'fitness'};
 end
 part = cellstr(part);
 here = fileparts(mfilename('fullpath'));
@@ -64,17 +60,14 @@ end
 if any(strcmp(part, 'copies'))
     R = copies_checks(R, spec);
 end
-if any(strcmp(part, 'wedges'))
-    R = wedges(R, spec);
-end
-if any(strcmp(part, 'values'))
-    R = values(R, spec);
-end
 if any(strcmp(part, 'errors'))
     R = errors(R, spec);
 end
 if any(strcmp(part, 'r4'))
     R = r4(R);
+end
+if any(strcmp(part, 'fitness'))
+    R = fitness_check(R);
 end
 end
 
@@ -97,41 +90,27 @@ end
 
 
 function X = br04(a, b, c)
-X = [tf('multiplier', 'profile', 'flat', 'types', {{'RE'}}, 'value', a, 'scope', {{'c', 'lab', 'inve', 'pk', 'rk'}}), ...
-    tf('multiplier', 'profile', 'flat', 'types', {{'RE'}}, 'value', b, 'scope', ...
+% three multipliers of the RE type with equation copies of the inflation expectation (the structure of
+% the shallow-reasoning prototype p3_v06; m^h, h = 1 with period-t information)
+X = [tf('multiplier', 'types', {{'RE'}}, 'value', a, 'scope', {{'c', 'lab', 'inve', 'pk', 'rk'}}), ...
+    tf('multiplier', 'types', {{'RE'}}, 'value', b, 'scope', ...
     {{'w', 'pinf@Phillips curve, price setting', 'pinf@Wage Phillips curve, wage setting'}}), ...
-    tf('multiplier', 'profile', 'flat', 'types', {{'RE'}}, 'value', c, 'scope', ...
+    tf('multiplier', 'types', {{'RE'}}, 'value', c, 'scope', ...
     {{'pinf@Consumption Euler equation', 'pinf@Arbitrage equation for the value of capital'}})];
 end
 
 
-function c = br18(c)
-T = @(varargin) struct(varargin{:});
-c.expectations.variables = {'pinf', 'c'};
-c.expectations.types = {T('name', 'TAR', 'kind', 'rule', 'rule', '0', 'variables', {{'pinf'}}), ...
-    T('name', 'EXT', 'kind', 'rule', 'rule', 'x{-1}', 'variables', {{'pinf'}}), ...
-    T('name', 'OPT', 'kind', 're', 'variant', 'model_consistent', 'info', 'current', 'variables', {{'c'}}), ...
-    T('name', 'PES', 'kind', 're', 'variant', 'model_consistent', 'info', 'current', 'variables', {{'c'}})};
-end
-
-
 function cases = identity_cases()
-% {name, transforms, adds model variables (equation copies, reference chains, partial-adjustment
-% states, wedge factors)}
-w0 = tf('wedge', 'types', 'all', 'scope', {{'pinf'}}, 'factor', struct('rho', 0.714, 'std', 0, 'mean', 0, 'shock', 'e_wpinf'));
+% {N label, R4 label, name, transforms, adds model variables (equation copies, reference chains)}; the
+% labels are those of 2026-10-21 (N3, N6-N8 and R4e-f went with their kinds on 2026-10-22)
 cases = {
-    'multiplier geometric m = 1 (br05a structure)', tf('multiplier', 'profile', 'geometric', 'types', 'all', ...
+    'N1', 'a', 'multiplier m = 1, every forward expectation but the flex block', tf('multiplier', 'types', 'all', ...
         'value', 1, 'scope', 'all', 'exclude', {flex()}), false
-    'multiplier flat lambda = 1, equation copies (br04 structure)', br04(1, 1, 1), true
-    'multiplier hyperbolic alpha = 0 (br06 structure)', tf('multiplier', 'profile', 'hyperbolic', 'types', 'all', ...
-        'value', 0, 'scope', 'all', 'exclude', {flex()}), false
-    'myopia and anchoring [1 0] in the Phillips curve (br07 structure)', tf('myopia_anchoring', 'types', 'all', ...
-        'value', [1 0], 'scope', {{'pinf@Phillips curve, price setting'}}), true
-    'diagnostic theta = 0 on the RE type, sticky expectations outside the learning set', tf('diagnostic', ...
-        'types', {{'RE'}}, 'value', 0, 'scope', {st6()}), true
-    'partial adjustment g = 1 on c and w (all types)', tf('partial_adjustment', 'types', 'all', 'value', 1, ...
-        'scope', {{'c', 'w'}}), true
-    'wedge with std 0 on pinf, all types (br29 structure)', w0, true};
+    'N2', 'b', 'multiplier m = 1 with equation copies (br04 structure)', br04(1, 1, 1), true
+    'N4', 'c', 'myopia and anchoring [1 0] in the Phillips curve (br07 structure)', tf('myopia_anchoring', ...
+        'types', 'all', 'value', [1 0], 'scope', {{'pinf@Phillips curve, price setting'}}), true
+    'N5', 'd', 'diagnostic theta = 0 on the RE type, sticky expectations outside the learning set', tf('diagnostic', ...
+        'types', {{'RE'}}, 'value', 0, 'scope', {st6()}), true};
 end
 
 
@@ -142,10 +121,10 @@ base = tsw07_a1_learn();
 el = cellstr(get(m0, 'eList'));
 cases = identity_cases();
 for q = 1:size(cases, 1)
-    nm = sprintf('tf N%d: %s at its neutral value = the baseline RE limit (IRFs, 1e-12)', q, cases{q, 1});
+    nm = sprintf('tf %s: %s at its neutral value = the baseline RE limit (IRFs, 1e-12)', cases{q, 1}, cases{q, 3});
     try
         c = base;
-        c.expectations.transforms = cases{q, 2};
+        c.expectations.transforms = cases{q, 4};
         [m, info] = hetlearn.load_model(spec, hetlearn.load_options(c));
         d = irf_max(m0, m, cellstr(get(m0, 'xList')), el);
         ok = d <= 1e-12 && info.meta.generator_version == 7 && all(info.meta.collapse_maxdiff(2:3) < 1e-10);
@@ -155,25 +134,13 @@ for q = 1:size(cases, 1)
         R = add(R, nm, false, where(err));
     end
 end
-nm = 'tf N8: constant wedges 0 on the De Grauwe types OPT and PES (br18 structure) = br18 without transforms (IRFs, 1e-12)';
-try
-    c = br18(base);
-    [m1, i1] = hetlearn.load_model(spec, hetlearn.load_options(c));
-    c.expectations.transforms = [tf('wedge', 'types', {{'OPT'}}, 'factor', struct('mean', 0)), ...
-        tf('wedge', 'types', {{'PES'}}, 'factor', struct('mean', 0))];
-    [m2, i2] = hetlearn.load_model(spec, hetlearn.load_options(c));
-    d = irf_max(m1, m2, cellstr(get(m1, 'xList')), el);
-    R = add(R, nm, d <= 1e-12 && ~strcmp(i1.meta.ext_file, i2.meta.ext_file), sprintf('max IRF diff %.3g', d));
-catch err
-    R = add(R, nm, false, where(err));
-end
 nm = ['tf N9: anchored RE with period-t information (D11 from the RE limit''s state space): CD m = 1 = the RE ' ...
     'limit without transforms (anchored on the source model, 1e-12); m = 0.62: anchored = model-consistent at n_RE = 1'];
 try
     c = base;
     c.expectations.re_info = 'current';
     [mc0, ~] = hetlearn.load_model(spec, hetlearn.load_options(c));
-    cdm = tf('multiplier', 'profile', 'geometric', 'types', 'all', 'value', 1, 'scope', 'all', 'exclude', {flex()});
+    cdm = tf('multiplier', 'types', 'all', 'value', 1, 'scope', 'all', 'exclude', {flex()});
     c.expectations.transforms = cdm;
     [mc1, ic1] = hetlearn.load_model(spec, hetlearn.load_options(c));
     d1 = irf_max(mc0, mc1, cellstr(get(mc0, 'xList')), el);
@@ -199,14 +166,11 @@ hh = {'inve', 'pk', 'rk', 'c', 'lab'};
 mc = tsw07_a1_learn();
 mc.expectations.re_variant = 'model_consistent';
 mc.expectations.re_info = 'current';
-st7 = [st6(), {'pinf'}];
 H = {
-    'H1: CD m = 0.62 on the sticky seven (p3_v02)', tf('multiplier', 'profile', 'geometric', 'types', 'all', ...
+    'H1: CD m = 0.62 on the sticky seven (p3_v02)', tf('multiplier', 'types', 'all', ...
         'value', 0.62, 'scope', 'all', 'exclude', {flex()}), glob(fwd7, '0.62*x{+1}'), mc
-    'H2: shallow reasoning GHL 0.76/0.86/0.08, four inflation equation copies (p3_v06)', br04(0.76, 0.86, 0.08), ...
+    'H2: multipliers 0.76/0.86/0.08 of the RE type, four inflation equation copies (p3_v06)', br04(0.76, 0.86, 0.08), ...
         [glob(hh, '0.76*x{+1}'), glob({'w'}, '0.86*x{+1}'), pinf_split('0.08*pinf{+1}', '0.86*pinf{+1}', '0.86*pinf{+1}')], mc
-    'H3: hyperbolic alpha = 0.176 on the sticky seven (p3_v08)', tf('multiplier', 'profile', 'hyperbolic', ...
-        'types', 'all', 'value', 0.176, 'scope', {st7}), glob(fwd7, '(1/(1+0.176))*x{+1}'), mc
     'H4: diagnostic theta = 0.44 on the sticky seven, RE type (p3_v09)', tf('diagnostic', 'types', {{'RE'}}, ...
         'value', 0.44, 'scope', 'all', 'exclude', {flex()}), de(fwd7, '0.44'), mc
     'H5: myopia and anchoring (0.52, 0.4343) in the price Phillips curve (p3_v12)', tf('myopia_anchoring', ...
@@ -217,10 +181,6 @@ lg.expectations.re_variant = 'model_consistent';
 H(end+1, :) = {'H6: diagnostic theta = 0.44 with inflation RE(t-1): reference E_{t-2} pinf_{t+1} = pinf_REt3{-2}', ...
     tf('diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', 'all', 'exclude', {flex()}), ...
     [de(st6(), '0.44'), de_lagged('pinf', '0.44')], lg};
-% (g = 0.6 on the consumption expectation has no stable solution: NO_STABLE)
-H(end+1, :) = {'H7: partial adjustment g = 0.6 of the RE forecast of pinf and of the expectation of w', ...
-    tf('partial_adjustment', 'types', {{'RE'}}, 'value', 0.6, 'scope', {{'pinf', 'w'}}), ...
-    pa_hand({'pinf', 'w'}, '0.6'), mc};
 tmp = tempname;
 mkdir(tmp);
 cl = onCleanup(@() rmdir(tmp, 's'));
@@ -253,13 +213,13 @@ end
 % =========================================================================================
 function R = copies_checks(R, spec)
 base = tsw07_a1_learn();
-nm = 'tf C1: equal values in the four inflation copies and on c, lab, inve, pk, rk, w = one global flat multiplier (1e-12)';
+nm = 'tf C1: equal values in the four inflation copies and on c, lab, inve, pk, rk, w = one global multiplier (1e-12)';
 try
     a = base;
     a.expectations.transforms = br04(0.8, 0.8, 0.8);
     [ma, ia] = hetlearn.load_model(spec, hetlearn.load_options(a));
     b = base;
-    b.expectations.transforms = tf('multiplier', 'profile', 'flat', 'types', {{'RE'}}, 'value', 0.8, 'scope', ...
+    b.expectations.transforms = tf('multiplier', 'types', {{'RE'}}, 'value', 0.8, 'scope', ...
         {{'c', 'lab', 'inve', 'pk', 'rk', 'w', 'pinf'}});
     [mb, ib] = hetlearn.load_model(spec, hetlearn.load_options(b));
     % variables of the source model (pinf_exp1 differs by construction: unused, untransformed with copies)
@@ -306,7 +266,7 @@ try
     n = 0;
     for q = 1:numel(bad)
         c = base;
-        c.expectations.transforms = tf('multiplier', 'profile', 'flat', 'value', 0.5, 'scope', bad(q));
+        c.expectations.transforms = tf('multiplier', 'value', 0.5, 'scope', bad(q));
         try
             hetlearn.load_model(spec, hetlearn.load_options(c));
         catch err
@@ -321,165 +281,11 @@ end
 
 
 % =========================================================================================
-function R = wedges(R, spec)
-base = tsw07_a1_learn();
-w29 = tf('wedge', 'types', 'all', 'scope', {{'pinf'}}, 'factor', struct('rho', 0.714, 'std', 0.182, 'mean', 0, ...
-    'shock', 'e_wpinf'));
-nm = 'tf W1: wedge of variant 29: e_wpinf in the model with std 0.182; impact response of pinf_exp1 = sigma at the RE limit';
-try
-    c = base;
-    c.expectations.transforms = w29;
-    [m, info] = hetlearn.load_model(spec, hetlearn.load_options(c));
-    el = cellstr(get(m, 'eList'));
-    s = srf(m, 1:3, 'select', {'e_wpinf'});
-    sd = m.std_e_wpinf;
-    d = abs(s.pinf_exp1(1) - 0.182) + abs(s.xi_e_wpinf(2) - 0.714 * 0.182);
-    ok = any(strcmp(el, 'e_wpinf')) && abs(sd - 0.182) < 1e-15 && d < 1e-12 && abs(info.params.std_e_wpinf - 0.182) < 1e-15;
-    R = add(R, nm, ok, sprintf('std %.4g; pinf_exp1 impact %.6g, xi at h = 2 %.6g (rho*sigma %.6g); pinf impact %.4g', ...
-        sd, s.pinf_exp1(1), s.xi_e_wpinf(2), 0.714 * 0.182, s.pinf(1)));
-catch err
-    R = add(R, nm, false, where(err));
-end
-
-nm = 'tf W2: generated wedge model (model-consistent RE, period-t information) = hand-written AR(1) wedge model (IRFs to 8 shocks, 1e-10)';
-try
-    c = base;
-    c.expectations.re_variant = 'model_consistent';
-    c.expectations.re_info = 'current';
-    c.expectations.transforms = w29;
-    [m, ~] = hetlearn.load_model(spec, hetlearn.load_options(c));
-    src = fileread(fullfile(spec.folder, spec.model_file));
-    E = glob({'pinf'}, 'x{+1} + wdg');
-    E(end+1) = struct('find', '', 'repl', '', 'decl', {{'wdg'}}, 'eq', {{'wdg = 0.714*wdg{-1} + e_wpinf;'}});
-    txt = build(src, E);
-    txt = [txt, newline, '!transition_shocks', newline, '    e_wpinf', newline];
-    tmp = tempname;
-    mkdir(tmp);
-    cl = onCleanup(@() rmdir(tmp, 's'));
-    f = fullfile(tmp, 'hand_wedge.model');
-    write_text(f, txt);
-    mh = Model.fromFile(f, 'linear', true, 'assign', spec.assign);
-    mh = put(mh, call_params(spec, 'sw07_params_original'));
-    mh.std_e_wpinf = 0.182;
-    [mh, okh] = hetlearn.engine.solve_model(mh, spec);
-    xl = cellstr(get(Model.fromFile(fullfile(spec.folder, spec.model_file), 'linear', true), 'xList'));
-    d = irf_max(mh, m, xl, cellstr(get(mh, 'eList')));
-    R = add(R, nm, okh && d < 1e-10, sprintf('max IRF diff %.3g over %d variables', d, numel(xl)));
-    clear cl
-catch err
-    R = add(R, nm, false, where(err));
-end
-
-nm = ['tf W3: 2019Q4 forecast run of the baseline with the variant-29 wedge: shocks.add one sd of e_wpinf in 2020Q1 ' ...
-    'moves pinf_exp1 by sigma on impact, xi decays with rho (beliefs, gains, shares updating)'];
-try
-    a = tsw07_girf2019('learn');
-    a.expectations.transforms = w29;
-    o = hetlearn.load_options(a);
-    [m, info] = hetlearn.load_model(spec, o);
-    Hf = fresh_filter(spec, o);
-    M = struct('spec', spec, 'm', m, 'info', info);
-    r0 = hetlearn.run(a, 'save', false, 'quiet', true, 'model', M, 'filter', Hf);
-    b = tsw07_girf2019('learn', 'e_wpinf', 0.182);
-    b.expectations.transforms = w29;
-    r1 = hetlearn.run(b, 'save', false, 'quiet', true, 'model', M, 'filter', Hf);
-    t1 = qq(2020, 1);
-    dp = r1.paths.pinf_exp1(t1) - r0.paths.pinf_exp1(t1);
-    dx1 = r1.paths.xi_e_wpinf(t1) - r0.paths.xi_e_wpinf(t1);
-    dx2 = r1.paths.xi_e_wpinf(t1 + 1) - r0.paths.xi_e_wpinf(t1 + 1);
-    dpi = r1.paths.pinf(t1 + 1) - r0.paths.pinf(t1 + 1);
-    ok = abs(dp - 0.182) < 1e-10 && abs(dx1 - 0.182) < 1e-12 && abs(dx2 - 0.714 * 0.182) < 1e-12 && abs(dpi) > 1e-4;
-    R = add(R, nm, ok, sprintf(['GIRF 2020Q1: pinf_exp1 %.6g, xi %.6g; 2020Q2: xi %.6g (rho*sigma %.6g), pinf %.4g; ' ...
-        'shares in 2020Q1 equal in both runs %d'], dp, dx1, dx2, 0.714 * 0.182, dpi, ...
-        abs(r1.learning.pinf.n_model_BR(t1) - r0.learning.pinf.n_model_BR(t1)) < 1e-15));
-catch err
-    R = add(R, nm, false, where(err));
-end
-
-nm = ['tf W4: variant 31 (ACD confidence): loadings model:projection = Cov(z, y)/Var(y) and std model:acd51 = a 51% ' ...
-    'share of y in the 6-32 quarter band, by independent state-space formulas'];
-try
-    c = base;
-    c.expectations.transforms = tf('wedge', 'types', 'all', 'scope', {{'c', 'inve', 'lab'}}, 'factor', ...
-        struct('rho', 0.833, 'std', 'model:acd51', 'loadings', 'model:projection', 'shock', 'e_xi'));
-    [m, info] = hetlearn.load_model(spec, hetlearn.load_options(c));
-    mv = info.nt.model_values;
-    % loadings: the wedge-free RE limit (loadings 0)
-    m0 = m;
-    for z = {'c', 'inve', 'lab'}
-        m0.(['tf1_lam__' z{1}]) = 0;
-    end
-    m0 = hetlearn.engine.solve_model(m0, spec);
-    [V, xv] = state_cov(m0);
-    iy = find(strcmp(xv, 'y'));
-    dl = 0;
-    lam = struct();
-    for z = {'c', 'inve', 'lab'}
-        iz = find(strcmp(xv, z{1}));
-        lam.(z{1}) = V(iz, iy) / V(iy, iy);
-        dl = max(dl, abs(lam.(z{1}) - m.(['tf1_lam__' z{1}])));
-    end
-    sh = band_shares(m, 'y', 2*pi/32, 2*pi/6);
-    k = find(strcmp(cellstr(get(m, 'eList')), 'e_xi'));
-    share = sh(k);
-    ok = dl < 1e-8 && abs(share - 0.51) < 5e-3 && abs(mv.acd51.std - m.std_e_xi) < 1e-15;
-    R = add(R, nm, ok, sprintf(['loadings c %.6f, inve %.6f, lab %.6f (independent diff %.2g); std %.6g; band share of ' ...
-        'y from e_xi %.5f (target 0.51, IRIS acf with a band filter vs Simpson on the transfer function)'], ...
-        lam.c, lam.inve, lam.lab, dl, m.std_e_xi, share));
-catch err
-    R = add(R, nm, false, where(err));
-end
-end
-
-
-% =========================================================================================
-function R = values(R, spec)
-nm = ['tf V1: variant 18 (De Grauwe): g = model:sd_ygap_half = sd(y - yf)/2 of the RE limit (independent ' ...
-    'Lyapunov), means +g/-g; equal OPT/PES shares give the model-consistent c expectation exactly'];
-try
-    c = br18(tsw07_a1_learn());
-    c.expectations.transforms = [tf('wedge', 'types', {{'OPT'}}, 'factor', struct('mean', 'model:sd_ygap_half')), ...
-        tf('wedge', 'types', {{'PES'}}, 'factor', struct('mean', '-model:sd_ygap_half'))];
-    [m, info] = hetlearn.load_model(spec, hetlearn.load_options(c));
-    [V, xv] = state_cov(m);
-    iy = find(strcmp(xv, 'y'));
-    iyf = find(strcmp(xv, 'yf'));
-    g = sqrt(V(iy, iy) + V(iyf, iyf) - 2 * V(iy, iyf)) / 2;
-    dg = abs(g - m.tf1_mu) / g + abs(m.tf2_mu + m.tf1_mu);
-    % equal OPT/PES shares: c_exp1 = 0.5*(c{+1} + g) + 0.5*(c{+1} - g) = c{+1}, against OPT alone with mean 0
-    a = m;
-    a.n_RE_c = 0;
-    a.n_OPT_c = 0.5;
-    a.n_PES_c = 0.5;
-    a = hetlearn.engine.solve_model(a, spec);
-    a = sstate(a);
-    b = m;
-    b.n_RE_c = 0;
-    b.n_OPT_c = 1;
-    b.n_PES_c = 0;
-    b.tf1_mu = 0;
-    b = hetlearn.engine.solve_model(b, spec);
-    b = sstate(b);
-    d = irf_max(a, b, cellstr(get(a, 'xList')), cellstr(get(a, 'eList')));
-    ssa = get(a, 'sstateLevel');
-    ssb = get(b, 'sstateLevel');
-    dss = max(abs(ssa.c_exp1 - ssb.c_exp1), abs(ssa.c - ssb.c));
-    ok = dg < 1e-10 && d < 1e-12 && dss < 1e-12 && isfield(info.nt.model_values, 'sd_ygap_half');
-    R = add(R, nm, ok, sprintf(['g %.6g (independent %.6g; sd(y - yf) %.4g); equal shares vs OPT alone with no bias: ' ...
-        'IRFs %.3g, steady state %.3g'], m.tf1_mu, g, 2 * g, d, dss));
-catch err
-    R = add(R, nm, false, where(err));
-end
-end
-
-
-% =========================================================================================
 function R = errors(R, spec)
 base = tsw07_a1_learn();
-T = @(varargin) struct(varargin{:});
 E = {};
-% the two P4-boundary cases of phase P3 (variant 10 on the anchored baseline; anchored RE(t-1) agents
-% with diagnostic memory states) load since phase P4 (2026-10-21): tests/test_anchor.m checks them
+% variant 10 on the anchored baseline and anchored RE(t-1) agents with diagnostic memory states load
+% since phase P4 (2026-10-21): tests/test_anchor.m checks them
 x = base;
 x.expectations.re_info = 'current';
 x.expectations.transforms = tf('diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', 'all', 'exclude', {flex()});
@@ -489,19 +295,17 @@ x = base;
 x.expectations.transforms = tf('diagnostic', 'types', {{'BR'}}, 'value', 0.44, 'scope', 'learning');
 E(end+1, :) = {'diagnostic on the learners', x, 'hetlearn:load_model:transforms'};
 x = base;
-x.expectations.transforms = tf('partial_adjustment', 'types', {{'BR'}}, 'value', 0.5, 'scope', 'learning');
-E(end+1, :) = {'partial adjustment of the learners'' forecast', x, 'hetlearn:load_model:transforms'};
-x = base;
 x.expectations.re_variant = 'model_consistent';
 x.expectations.transforms = {tf('multiplier', 'value', 0.9, 'scope', {{'c'}}), ...
     tf('diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', {{'c'}})};
 E(end+1, :) = {'diagnostic after another transform', x, 'hetlearn:extend_model:transforms'};
 x = base;
-x.expectations.transforms = tf('wedge', 'scope', {{'pinf'}}, 'factor', struct('mean', 'model:foo'));
-E(end+1, :) = {'unknown model rule', x, 'hetlearn:load_model:modelValue'};
-x = br18(base);
-x.expectations.transforms = tf('wedge', 'types', {{'OPT'}}, 'scope', {{'pinf'}}, 'factor', struct('mean', 0.1));
-E(end+1, :) = {'a transform acting on nothing (OPT does not forecast pinf)', x, 'hetlearn:extend_model:transforms'};
+% scope 'learning' acts in the learning branch of every forward variable (the generator does not know
+% the run's learning set), so only excluding all twelve forward variables leaves it nothing to act on
+x.expectations.transforms = tf('multiplier', 'types', 'all', 'value', 0.9, 'scope', 'learning', 'exclude', ...
+    {[{'c', 'inve', 'lab', 'pk', 'rk', 'w', 'pinf'}, flex()]});
+E(end+1, :) = {'a transform acting on nothing (scope learning, every forward variable excluded)', x, ...
+    'hetlearn:extend_model:transforms'};
 bad = {};
 for q = 1:size(E, 1)
     try
@@ -513,9 +317,8 @@ for q = 1:size(E, 1)
         end
     end
 end
-R = add(R, sprintf('tf E1: %d settings outside phase P3 or malformed stop with their error', size(E, 1)), ...
+R = add(R, sprintf('tf E1: %d settings the transforms do not cover or malformed stop with their error', size(E, 1)), ...
     isempty(bad), strjoin(bad, ' | '));
-clear T
 end
 
 
@@ -533,19 +336,17 @@ spec = hetlearn.load_spec(oa.model);
 Ma = struct('spec', spec, 'm', ma, 'info', ia);
 ra = hetlearn.run(a, 'save', false, 'quiet', true, 'model', Ma, 'filter', fresh_filter(spec, oa));
 cases = identity_cases();
-sel = [1 2 4 5 6 7];
-for q = 1:numel(sel)
-    k = sel(q);
+for k = 1:size(cases, 1)
     tolP = 0;
-    if cases{k, 3}
+    if cases{k, 5}
         tolP = 1e-10;
     end
     nm = sprintf(['tf R4%s: baseline run with %s = the two-type run (one RE filter: learning, state 1e-12, ' ...
-        'paths %s; own filters: paths 1e-10, learning and state 1e-11)'], char('a' + q - 1), cases{k, 1}, ...
-        ternary(cases{k, 3}, '1e-10', 'exact'));
+        'paths %s; own filters: paths 1e-10, learning and state 1e-11)'], cases{k, 2}, cases{k, 3}, ...
+        ternary(cases{k, 5}, '1e-10', 'exact'));
     try
         b = a;
-        b.expectations.transforms = cases{k, 2};
+        b.expectations.transforms = cases{k, 4};
         [rb, Hb] = fresh_run(b);
         ra2 = hetlearn.run(a, 'save', false, 'quiet', true, 'model', Ma, 'filter', Hb);
         [d1, ~, e1] = compare_runs(ra2, rb, {'pinf'}, 'BR', setdiff(fieldnames(rb.paths), fieldnames(ra2.paths)));
@@ -554,10 +355,39 @@ for q = 1:numel(sel)
             && isfinite(d2) && e2.paths <= 1e-10 && e2.learning <= 1e-11 && e2.state <= 1e-11;
         R = add(R, nm, ok, sprintf(['one filter: paths %.3g, learning %.3g, state %.3g; own filters: paths %.3g, ' ...
             'learning %.3g, state %.3g; adds model variables %d; %d events'], e1.paths, e1.learning, e1.state, ...
-            e2.paths, e2.learning, e2.state, cases{k, 3}, height(rb.events)));
+            e2.paths, e2.learning, e2.state, cases{k, 5}, height(rb.events)));
     catch err
         R = add(R, nm, false, where(err));
     end
+end
+end
+
+
+function R = fitness_check(R)
+% F1: the forecasts that fitness and the forecast errors use are the transformed ones
+nm = 'tf F1: fitness on transformed forecasts: f_<k> = m^2*fb_<k> for RE and BR (multiplier 0.94, 1e-12)';
+try
+    b = tsw07_a1_learn();
+    b.expectations.transforms = tf('multiplier', 'types', 'all', 'value', 0.94, 'scope', 'learning', ...
+        'exclude', {flex()});
+    rb = hetlearn.run(b, 'save', false, 'quiet', true);
+    L = rb.learning.pinf;
+    D = 0.94^2;
+    d = 0;
+    nOk = 0;
+    gap = 0;
+    for k = {'RE', 'BR'}
+        f = double(L.(['f_' k{1}]));
+        fb = double(L.(['fb_' k{1}]));
+        u = isfinite(f) & isfinite(fb);
+        nOk = nOk + sum(u);
+        d = max([d; abs(f(u) - D * fb(u))]);
+        gap = max([gap; abs(f(u) - fb(u))]);
+    end
+    R = add(R, nm, nOk > 400 && d <= 1e-12 && gap > 1e-3, sprintf(['max |f - m^2 fb| %.3g over %d quarter-type ' ...
+        'pairs; max |f - fb| %.3g (the transform acts)'], d, nOk, gap));
+catch err
+    R = add(R, nm, false, where(err));
 end
 end
 
@@ -582,17 +412,6 @@ for i = 1:numel(vars)
     E(end+1) = struct('find', ['(?<![\w])' x '\{\+1\}'], 'repl', [x '_e'], 'decl', {{[x '_e'], [x '_t1'], [x '_t2']}}, ...
         'eq', {{sprintf('%s_e = (1+%s)*%s_t1 - %s*%s_t2{-1};', x, th, x, th, x), sprintf('%s_t1 = %s{+1};', x, x), ...
         sprintf('%s_t2 = %s_t1{+1};', x, x)}}); %#ok<AGROW>
-end
-end
-
-
-function E = pa_hand(vars, g)
-% x_e = g*x{+1} + (1 - g)*x_e{-1}
-E = struct('find', {}, 'repl', {}, 'decl', {}, 'eq', {});
-for i = 1:numel(vars)
-    x = vars{i};
-    E(end+1) = struct('find', ['(?<![\w])' x '\{\+1\}'], 'repl', [x '_e'], 'decl', {{[x '_e']}}, ...
-        'eq', {{sprintf('%s_e = %s*%s{+1} + (1 - %s)*%s_e{-1};', x, g, x, g, x)}}); %#ok<AGROW>
 end
 end
 
@@ -669,58 +488,6 @@ for i = 1:numel(xl)
     e(isnan(e)) = Inf;
     d = max([d; e(:)]);
 end
-end
-
-
-function [V, xv] = state_cov(m)
-% unconditional covariance of the transition vector [xf; xb] of a solved linear model (doubling)
-[T, R, ~, ~, ~, ~, ~, Omg] = sspace(m, 'triangular', false);
-T = T(:, :, 1);
-Omg = Omg(:, :, 1);
-ne = size(Omg, 1);
-R = R(:, 1:ne, 1);
-nb = size(T, 2);
-nf = size(T, 1) - nb;
-Tb = T(nf+1:end, :);
-Rb = R(nf+1:end, :);
-Q = Rb * Omg * Rb';
-S = Q;
-A = Tb;
-for it = 1:60
-    S = S + A * S * A';
-    A = A * A;
-    if max(abs(A(:))) < 1e-30
-        break
-    end
-end
-V = T * S * T' + R * Omg * R';
-xv = cellstr(get(m, 'xVector'));
-end
-
-
-function sh = band_shares(m, y, w1, w2)
-% share of each shock in the variance of y at frequencies [w1, w2] (Simpson on the transfer function)
-[T, R, ~, ~, ~, ~, ~, Omg] = sspace(m, 'triangular', false);
-T = T(:, :, 1);
-Omg = Omg(:, :, 1);
-ne = size(Omg, 1);
-R = R(:, 1:ne, 1);
-nb = size(T, 2);
-nf = size(T, 1) - nb;
-Tb = T(nf+1:end, :);
-Rb = R(nf+1:end, :);
-iy = find(strcmp(cellstr(get(m, 'xVector')), y), 1);
-n = 4000;
-w = linspace(w1, w2, n + 1);
-sw = [1, repmat([4 2], 1, n/2 - 1), 4, 1] * (w2 - w1) / (3 * n);
-v = zeros(1, ne);
-I = eye(nb);
-for q = 1:numel(w)
-    z = exp(-1i * w(q));
-    H = T(iy, :) * z * ((I - Tb * z) \ Rb) + R(iy, :);
-    v = v + sw(q) * abs(H).^2 .* diag(Omg)';
-end
-sh = v / sum(v);
 end
 
 
