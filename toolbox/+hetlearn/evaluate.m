@@ -46,7 +46,7 @@ function E = evaluate(name, variants, origins, opts)
 %   N agent types and forecast transforms (docs/DESIGN_br_extensions.md 1.1-1.5;
 %   phase P6): supported. Such a variant's RE filter is that of its own RE
 %   limit (its generated file, with the type forecasts, transform states and
-%   factors), so it shares a filter only with variants of the same generated
+%   parameters), so it shares a filter only with variants of the same generated
 %   file, parameter values, toggles and learning set. history.mode = 'inversion' is not
 %   available with N types (hetlearn.load_options refuses it); 'kalman'
 %   variants run through hetlearn.run like the others.
@@ -158,8 +158,8 @@ for v = 1:nV
     end
     if isfield(info, 'nt') && ~isempty(info.nt)
         % N agent types and forecast transforms (phase P6): the RE filter model is the variant's own
-        % generated file at its RE limit (type forecasts, transform states and factors, rule constants,
-        % wedge stds), so it is shared only with variants of the same file, parameter values, toggles
+        % generated file at its RE limit (type forecasts, transform states and parameters, rule
+        % constants), so it is shared only with variants of the same file, parameter values, toggles
         % and learning set
         plmKey{v} = sprintf('%s|nt|%s|%s|%s|%s|%s', plmKey{v}, info.meta.ext_file, ...
             hetlearn.util.struct_key(get(m, 'parameters')), hetlearn.util.struct_key(get(m, 'std')), ...
