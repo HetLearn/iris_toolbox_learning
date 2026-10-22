@@ -21,10 +21,14 @@ function o = defaults()
 %     gain.koz.gamma0 = []         gain.value (per_variable: gain.by_var.<x> where set)
 %     gain.koz.master = ''         the first learning variable (structure 'common')
 %
-%   Free-form subtrees (merged but not validated by load_options):
+%   Free-form subtrees (merged without name checks by load_options):
 %     beliefs.init.values, beliefs.plm.by_var, beliefs.plm.derived (checked
 %     to hold strings), gain.by_var, shares.fixed_n2 (when a struct),
-%     conditions, shocks.add, report.
+%     shocks.add, report.
+%
+%   Replaced as a whole, not merged (the scenario's value replaces the
+%   master's or the default): conditions (a struct array, validated by
+%   load_options), policy.loss, and the BR options listed below.
 %
 %   Bounded-rationality extensions (docs/DESIGN_br_extensions.md; options
 %   added 2026-10-20 to 2026-10-21, phases P0 to P6; cut on 2026-10-22 to
