@@ -185,7 +185,7 @@ ev = empty_ev();
 sys = ctx.sys;
 lv = ctx.learnVars;
 fac = facility_name(ctx.opts);
-P = make_params(sys, S.phi, lv, n1m, hetlearn.engine.anchor_update('params', ctx, S));
+P = make_params(sys, S.phi, lv, n1m);
 [m, stable, si] = try_solve(m, P, ctx.spec, fac);
 r.n_solve = 1;
 r.flag = si.flag;
@@ -215,11 +215,8 @@ reason2 = '';
 if isfield(S, 'prev') && isstruct(S.prev) && ~isempty(fieldnames(S.prev)) && differs(S, sys)
     S.phi = S.prev.phi;
     S.R = S.prev.R;
-    if isfield(S.prev, 'levels')
-        S.levels = S.prev.levels;      % the level coefficients of the reverted beliefs (phase P4)
-    end
     r.reverted = true;
-    P = make_params(sys, S.phi, lv, n1m, hetlearn.engine.anchor_update('params', ctx, S));
+    P = make_params(sys, S.phi, lv, n1m);
     [m, stable, si] = try_solve(m, P, ctx.spec, fac);
     r.n_solve = r.n_solve + 1;
     if stable
@@ -236,7 +233,7 @@ end
 n1k = [];
 if isfield(S, 'n1m_last') && isstruct(S.n1m_last) && ~isequal(S.n1m_last, n1m)
     n1k = S.n1m_last;
-    P = make_params(sys, S.phi, lv, n1k, hetlearn.engine.anchor_update('params', ctx, S));
+    P = make_params(sys, S.phi, lv, n1k);
     [m, stable, si] = try_solve(m, P, ctx.spec, fac);
     r.n_solve = r.n_solve + 1;
     if stable
@@ -345,17 +342,7 @@ end
 end
 
 
-function P = make_params(sys, phi, lv, n1m, extra)
-% extra (optional): further parameter values, the level coefficients in force (phase P4,
-% hetlearn.engine.anchor_update 'params'); appended after the PLM and share parameters
-if nargin >= 5 && isstruct(extra) && ~isempty(fieldnames(extra))
-    P = make_params(sys, phi, lv, n1m);
-    f = fieldnames(extra);
-    for i = 1:numel(f)
-        P.(f{i}) = extra.(f{i});
-    end
-    return
-end
+function P = make_params(sys, phi, lv, n1m)
 P = struct();
 if ~isempty(sys.eq)
     P = hetlearn.plm.param_values(sys, phi);
