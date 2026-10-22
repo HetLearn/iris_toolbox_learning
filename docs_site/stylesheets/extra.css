@@ -1,0 +1,15 @@
+/* Small additions to the Material theme. */
+
+/* Figures: full content width, a light border in both colour schemes. */
+.md-typeset img.figure {
+  width: 100%;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+/* Key-number tables: right-align the numeric columns. */
+.md-typeset table.numbers td:not(:first-child),
+.md-typeset table.numbers th:not(:first-child) {
+  text-align: right;
+}
