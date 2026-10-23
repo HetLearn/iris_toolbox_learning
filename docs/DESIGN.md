@@ -1,10 +1,10 @@
-# hetlearn: design specification
+# HetLearn: design specification
 
 This file specifies how the code is built (package contract, generator, timing, engine stages,
 option tree, outputs, tests and their tolerances); the methods document, with the equations in
 their own notation, is the technical appendix in `docs/technical_appendix/`.
 
-`hetlearn` is a MATLAB wrapper around the IRIS toolbox (tested on IRIS 20230622,
+HetLearn is a MATLAB wrapper around the IRIS toolbox (tested on IRIS 20230622,
 MATLAB R2025a). It takes a self-contained IRIS model (model file, parameterization,
 optional steady-state solver) and an IRIS-readable database, and runs forecasts and
 scenarios in which expectations are a time-varying mix of rational expectations (RE)
