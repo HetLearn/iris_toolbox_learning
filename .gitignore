@@ -3,7 +3,6 @@ results/*
 !results/summary_v3/
 results/summary_v3/*
 !results/summary_v3/*.m
-!results/summary_v3/FINDINGS_v3.md
 **/generated/
 tests/output/
 reports/*.html
