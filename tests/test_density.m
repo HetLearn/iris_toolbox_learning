@@ -19,7 +19,7 @@ function R = test_density(part)
 %   D7 switching (general path, bootstrap): files, CSV columns, n2 in [0,1],
 %      event counts
 %   D8 conditions stay in force: every draw hits the conditioned target
-%   D10 N agent types (phase P6): the switching density with RE and BR spelled
+%   D10 N agent types: the switching density with RE and BR spelled
 %      out = the two-type density (observables, the BR model share against
 %      n2_model, beliefs alpha/beta against alpha/beta__BR; quantiles, point
 %      and draws, 1e-9); {RE, BR, TB} on the general path, model shares
@@ -227,7 +227,7 @@ catch err
     R = add(R, 'density D8: conditions stay in force in every draw (general path)', false, err.message);
 end
 
-% ---- D10: N agent types (phase P6) ---------------------------------------------------------------
+% ---- D10: N agent types ---------------------------------------------------------------------------
 nm = ['density D10: N agent types: RE and BR spelled out = the two-type density (observables, BR model share = ' ...
     'n2_model, beliefs; <= 1e-9); {RE, BR, TB} runs on the general path, model shares sum to 1 in every draw'];
 try
