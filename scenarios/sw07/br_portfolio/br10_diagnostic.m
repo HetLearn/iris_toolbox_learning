@@ -3,8 +3,8 @@ function cfg = br10_diagnostic()
 %
 %   cfg = br10_diagnostic()
 %
-%   As a1_learn, with docs/DESIGN_br_extensions.md mechanism 10 and the 10
-%   row of section 3: diagnostic agents replace the RE agents. Every forward
+%   As a1_learn, with rule 10 of the portfolio (docs/USER_GUIDE.md
+%   section 7.7): diagnostic agents replace the RE agents. Every forward
 %   expectation of the RE type becomes (1 + theta) E_t x_{t+1} - theta
 %   E_{t-1} x_{t+1}; the inflation type is t-1 dated, so its reference is the
 %   anchored E_{t-2} pinf_{t+1}. theta = 0.44 is LSY's estimate in SW07 with
