@@ -1,7 +1,7 @@
 # Expectations
 
 Two options decide **whose** expectations are heterogeneous and **how** the population is
-split.
+split between rational expectations (RE) agents and learners.
 
 | Option | Values (default first) | Meaning |
 |---|---|---|
@@ -14,10 +14,14 @@ For every variable `x` in `expectations.variables`, the generated model replaces
 expectation variable `x_exp1` and adds the block
 
 \[
-x^{e}_{t} = n_{1,x}\, x^{e,RE}_{t} + n_{2,x}\, x^{e,BR}_{t}, \qquad n_{1,x} + n_{2,x} = 1 .
+\tilde E_t x_{t+1} = n_{1,x}\, f^{RE}_t(x) + n_{2,x}\, f^{BR}_t(x), \qquad n_{1,x} + n_{2,x} = 1 ,
 \]
 
-Here is the block the toolbox writes for SW07 inflation (`models/sw07/generated/sw07_ext_ar1.model`):
+where \(\tilde E_t x_{t+1}\) is the aggregate expectation in the model, \(f^{RE}_t(x)\) the RE
+agents' forecast and \(f^{BR}_t(x)\) the learners' forecast (BR, for bounded rationality, is
+the code's label for the learners). Here is the block the toolbox writes for the inflation of
+the Smets and Wouters (2007) model (SW07), in `models/sw07/generated/sw07_ext_ar1.model`
+(`sw07_ext_ar1_relag.model` under the baseline's t-1 RE information):
 
 ```text
 !if br_pinf
@@ -85,11 +89,11 @@ cfg.expectations.variables = 'all';               % all 12 forward-looking varia
 res = hetlearn.run(cfg, 'save', false);
 ```
 
-- Each learning variable gets its own learners (its own PLM and beliefs) and, by default, its
-  own share (`shares.structure = 'per_variable'`). One share for several variables:
-  [Shares and switching](switching.md#one-share-for-several-variables).
+- Each learning variable gets its own learners (its own perceived law of motion and beliefs)
+  and, by default, its own share (`shares.structure = 'per_variable'`). One share for several
+  variables: [Shares and switching](switching.md#one-share-for-several-variables).
 - A name that is not forward-looking stops the load with `hetlearn:load_model:notForward`.
-  To list the candidates:
+  The candidates:
 
 ```matlab
 spec = hetlearn.load_spec('sw07');
@@ -112,5 +116,5 @@ facility `'alm'` and 2.72% with `'plm_alm'`, against 3.45% for inflation-only le
 ## Related
 
 - RE agents' forecasts: [RE agents](re-agents.md).
-- More than two types of agents and transforms of the expectations, with seven rules from the
-  literature: [Further expectation rules](further-expectation-rules.md).
+- More than two types of agents and transforms of the expectations:
+  [Further expectation rules](further-expectation-rules.md).
