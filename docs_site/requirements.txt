@@ -1,4 +1,4 @@
-# Python packages to build the hetlearn documentation site (mkdocs.yml at the repository root).
+# Python packages to build the HetLearn documentation site (mkdocs.yml at the repository root).
 # Versions as tested locally on 2026-10-22.
 mkdocs==1.6.1
 mkdocs-material==9.7.7
