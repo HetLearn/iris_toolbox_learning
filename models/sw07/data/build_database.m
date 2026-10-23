@@ -12,8 +12,8 @@ obs = {'dy', 'dc', 'dinve', 'dw', 'labobs', 'pinfobs', 'robs'};
 startDate = qq(1965,1);
 endDate = qq(2026,2);
 % Covid quarters: every observable is set to NaN in these quarters, so the RE filter treats them
-% as missing data (user decision 2026-10-19: ignore the covid quarters; the raw panel keeps
-% them, and nothing else changes). Set to [] to keep them, as before 2026-10-19.
+% as missing data (the raw panel keeps them, and nothing else changes). Set to [] to keep
+% them.
 covid_nan_quarters = qq(2020,1):qq(2020,3);
 
 T = readtable(fullfile(here, 'sw_ext_1966_latest.csv'), 'TextType', 'string');
