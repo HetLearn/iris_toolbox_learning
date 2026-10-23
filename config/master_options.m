@@ -1,5 +1,5 @@
 function o = master_options()
-%MASTER_OPTIONS  Project-wide hetlearn option overrides (edit this file).
+%MASTER_OPTIONS  Project-wide HetLearn option overrides (edit this file).
 %
 %   o = master_options()
 %
@@ -27,7 +27,7 @@ o = struct();
 %                              match FEDFUNDS/4 over 2009-15 (mean 0.032, sd 0.0095); the
 %                              RE-column rate trend 1.02 matches the 1960-2019 mean of
 %                              FEDFUNDS/4 (1.25).
-%   shares.init_n2 = 0.5       hetlearn choice to start the share recursion, not from IJCB.
+%   shares.init_n2 = 0.5       HetLearn choice to start the share recursion, not from IJCB.
 %
 % Differences from IJCB that bear on these values:
 %   - Fitness errors: IJCB's FE sums the squared errors of inflation and the output gap
