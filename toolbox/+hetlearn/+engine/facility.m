@@ -1,5 +1,5 @@
 function varargout = facility(cmd, varargin)
-%FACILITY  Projection facility: PLM block check and ALM check (DESIGN 4.4, user decision 2026-10-18).
+%FACILITY  Projection facility: PLM block check and ALM check (DESIGN 4.4).
 %
 %   [S, ev] = hetlearn.engine.facility('plm', ctx, S, cand, Rcand, upd, t)
 %   [m, S, r, ev] = hetlearn.engine.facility('alm', ctx, m, S, t, stage)
@@ -31,7 +31,7 @@ function varargout = facility(cmd, varargin)
 %                ALM check of 'alm'.
 %   Under 'alm' and 'plm_alm', if the model is still unstable with every
 %   belief at its previous value, the previous quarter's model shares are
-%   kept as well (user decision 2026-10-18): the beliefs and model shares
+%   kept as well: the beliefs and model shares
 %   last in force, which solved, stay in the model for that quarter (event
 %   'projection_alm_shares'; S.n1m_keep, read by
 %   hetlearn.engine.shares_for_mode for one quarter). Switching carries on:
@@ -42,7 +42,7 @@ function varargout = facility(cmd, varargin)
 %   hetlearn:engine:almUnstable (date, stage, shares, beliefs, IRIS flag).
 %   Gain processes (S.gain) are not touched by the facility.
 %
-%   N agent types (docs/DESIGN_br_extensions.md 1.1): ctx.sys is then the
+%   N agent types: ctx.sys is then the
 %   keyed system of every learning type (hetlearn.load_model), so the PLM
 %   blocks are per type, an ALM revert reverts every type's beliefs, and
 %   'params' sets the share parameters of sys.nt.share_names from the share
@@ -228,7 +228,7 @@ if isfield(S, 'prev') && isstruct(S.prev) && ~isempty(fieldnames(S.prev)) && dif
     end
     reason2 = flag_text(si);
 end
-% (3) also the previous quarter's model shares (user decision 2026-10-18): the beliefs and
+% (3) also the previous quarter's model shares: the beliefs and
 % model shares last in force, which solved, stay in the model; S.n1 (discrete choice) moves on
 n1k = [];
 if isfield(S, 'n1m_last') && isstruct(S.n1m_last) && ~isequal(S.n1m_last, n1m)
