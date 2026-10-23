@@ -3,7 +3,7 @@ function cfg = a6_kalman_re()
 %
 %   cfg = a6_kalman_re()
 %
-%   As a6_smooth_re with history.mode = 'kalman' (docs/DESIGN_br_extensions.md sec. 5):
+%   As a6_smooth_re with history.mode = 'kalman' (technical appendix, "The Kalman history"):
 %   every agent is RE, so the ALM is the RE(t-1) model in every quarter and the filter
 %   equals the IRIS filter of that model (gate K1 of tests/test_kalman.m). Its one-step
 %   prediction errors and log likelihood are the RE(t-1) benchmark of the in-sample RMSE
