@@ -21,7 +21,7 @@ function outDir = save_results(res, spec, resultsDir)
 %                        projection.facility = 'none', the file is not written
 %                        and a warning (hetlearn:save_results:compare) names the
 %                        error; this run's own files are kept and the run does
-%                        not fail (2026-10-20)
+%                        not fail
 %     density.mat, density_quantiles.csv, density_events.csv
 %                        when res.density exists (density.enabled;
 %                        hetlearn.density.write_outputs); res.density is not
