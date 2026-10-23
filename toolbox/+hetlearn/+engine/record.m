@@ -26,7 +26,7 @@ function rec = record(rec, k, ctx, S, out, n1m)
 %     rec.var.<x>.FE_RE, FE_BR    own squared forecast errors at t
 %     rec.var.<x>.fRE, fBR        forecasts of x_{t+1} made in t
 %
-%   N agent types (ctx.nt, docs/DESIGN_br_extensions.md 1.1): rec.eq follows
+%   N agent types (ctx.nt): rec.eq follows
 %   the keyed system ctx.sys (<target>__<type>; gain-rule series from
 %   S.gain.<type>.rec), and rec.var.<x> holds, for each type k of x,
 %   n_<k> (discrete-choice share at the end of t; 0 outside the population),
@@ -117,7 +117,7 @@ end
 
 % =========================================================================
 function rec = alloc_nt(T, ctx)
-% record of an N-type run (DESIGN_br_extensions 1.1)
+% record of an N-type run
 sys = ctx.sys;
 nt = ctx.nt;
 rec = struct();
@@ -141,7 +141,7 @@ end
 rec.var = struct();
 fl = {'n_', 'n_model_', 'U_', 'FE_', 'f_'};
 if isfield(nt, 'has_tf') && nt.has_tf
-    fl{end+1} = 'fb_';            % forecast before the transforms (phase P4); f_ is the transformed one
+    fl{end+1} = 'fb_';            % forecast before the transforms; f_ is the transformed one
 end
 for i = 1:numel(ctx.learnVars)
     x = ctx.learnVars{i};
