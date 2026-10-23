@@ -22,7 +22,7 @@ vintage **2026-09-29**, built by `build_database.m` (MATLAB, IRIS) from
 | `ffr` | FEDFUNDS/4 in every quarter: `robs` before the ELB blanking | % per quarter |
 | `elb` | 1 in ELB quarters, 0 otherwise | |
 | `yobs_hamilton` | helper, not an observable: the plain Hamilton gap, OLS over 1957Q1-2026Q2 on unadjusted GDP | % of trend output |
-| `yobs_fullsample` | helper, not an observable: covid-adjusted regressors, OLS over 1957Q1-2026Q2 (the definition of `yobs` before the final decision) | % of trend output |
+| `yobs_fullsample` | helper, not an observable: covid-adjusted regressors, OLS over 1957Q1-2026Q2 (an earlier definition of `yobs`) | % of trend output |
 
 Only `yobs`, `pinfobs` and `robs` are observables (`../model_spec.m`). IJCB uses the same FRED
 series (App. B) and applies the Hamilton filter "to log(GDP_t) over the estimation sample".
@@ -61,7 +61,7 @@ application-1 origin.
 
 ## Covid adjustment of the output gap
 
-User decision, 2026-10-18. No dummies; the 2020 quarters stay in. The plain Hamilton gap at t+8
+No dummies; the 2020 quarters stay in. The plain Hamilton gap at t+8
 is the error of a projection from y_t, ..., y_{t-3}, so the lockdown trough of 2020Q2 comes
 back eight quarters later, when it is a regressor: +9.0 in 2022Q2, the application-1 origin.
 With the IJCB-sample coefficients and the 2020Q1-Q3 regressors on a straight line, `yobs` is
