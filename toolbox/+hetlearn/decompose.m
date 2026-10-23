@@ -60,8 +60,8 @@ function D = decompose(res, vars, range, opts)
 %   propagation. Check: the same matrices with constants rebuild res.paths
 %   period by period (D.check.recon_maxerr).
 %
-%   N agent types and forecast transforms (docs/DESIGN_br_extensions.md
-%   1.1-1.5; phase P6): supported, with the model of the run (the N-type file:
+%   N agent types and forecast transforms (docs/USER_GUIDE.md section 7):
+%   supported, with the model of the run (the N-type file:
 %   transform parameters and rule constants are its parameters). 'tv' over
 %   the forecast takes every learning type's beliefs from
 %   res.learning.<target>__<type> and the share parameters from
@@ -398,7 +398,7 @@ sys = info.sys;
 lv = info.learnVars;
 nt = [];
 if isfield(info, 'nt') && ~isempty(info.nt)
-    nt = info.nt;                          % N agent types (phase P6)
+    nt = info.nt;                          % N agent types
     isBR = reshape(ismember(names, type_forecast_vars(nt, lv)), [], 1);
 else
     isBR = reshape(endsWith(names, '_exp1_BR'), [], 1);
@@ -544,7 +544,7 @@ end
 
 
 function P = forecast_params(sys, lv, res, t, nt)
-% Beliefs phi_{t-1} and the model share n1_model(t) from res.learning. N agent types (nt, phase P6):
+% Beliefs phi_{t-1} and the model share n1_model(t) from res.learning. N agent types (nt):
 % the keyed system's beliefs and every type's model share n_model_<k>(t) as its share parameter.
 P = struct();
 for i = 1:numel(sys.eq)
