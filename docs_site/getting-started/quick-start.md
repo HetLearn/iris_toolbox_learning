@@ -1,8 +1,8 @@
 # Quick start
 
-This page runs the project's main example, compares the learning economy with the RE
-benchmark, and changes one assumption. It assumes you have done the
-[installation](installation.md).
+This page runs the project's main example, compares the learning economy with the rational
+expectations (RE) benchmark, and changes one assumption. It assumes the
+[installation](installation.md) is done.
 
 ## 1. Start a session
 
@@ -38,9 +38,9 @@ T = hetlearn.compare({'a1_re', 'a1_learn'}, {'pinfobs', 'robs'})
 `T` is a table with one row per forecast quarter, the level of each variable in each scenario
 (`pinfobs__a1_re`, `pinfobs__a1_learn`) and the difference from the first scenario
 (`pinfobs__a1_learn_minus_a1_re`). Values are in model units: inflation and the policy rate in
-percent per quarter, so multiply by 4 for annual rates.
+percent per quarter, so multiplying by 4 gives annual rates.
 
-Averages over the forecast, annualised:
+Averages over the forecast, annualized:
 
 ```matlab
 h = qq(2022, 3):qq(2026, 2);
@@ -50,13 +50,15 @@ mean(4*res.paths.pinfobs(h))        % 3.45
 
 ## 4. Look at the learners
 
+The learners forecast inflation from a perceived law of motion (PLM), here an AR(1):
+
 ```matlab
 L = res.learning.pinf;              % learning series of the inflation PLM
 L.beta_pinf(qq(2022, 2))            % perceived AR(1) coefficient at the origin: 1.061
 L.n2(qq(2022, 2))                   % learners' share at the end of 2022Q2: 0.591
 ```
 
-Plot the learners' share over the history and the forecast:
+The learners' share over the history and the forecast:
 
 ```matlab
 figure
@@ -66,8 +68,8 @@ title('Learners'' share of inflation expectations, end of quarter')
 
 ## 5. Change one assumption
 
-A scenario is a MATLAB function that returns a struct, so you can change it in memory and
-run it without creating a file:
+A scenario is a MATLAB function that returns a struct, so it can be changed in memory and run
+without creating a file:
 
 ```matlab
 cfg = a1_learn();
@@ -77,7 +79,7 @@ res1 = hetlearn.run(cfg);
 T = hetlearn.compare({'a1_learn', 'a1_learn_chi1'}, {'pinfobs'});
 ```
 
-Pass `'save', false` to keep a run out of `results/`:
+The option `'save', false` keeps a run out of `results/`:
 
 ```matlab
 res1 = hetlearn.run(cfg, 'save', false);
@@ -85,8 +87,8 @@ res1 = hetlearn.run(cfg, 'save', false);
 
 ## 6. Make it permanent
 
-Save a scenario as a file under `scenarios/` (any subfolder). The file name, the function
-name and `cfg.id` should be the same:
+A scenario saved as a file under `scenarios/` (any subfolder) becomes permanent. The file
+name, the function name and `cfg.id` should be the same:
 
 ```matlab
 function cfg = a1_learn_chi1()
@@ -103,7 +105,7 @@ Then `hetlearn.run(a1_learn_chi1())` or `run_applications('a1_learn_chi1')`.
 
 ## Where next
 
-- The [Application 1 walkthrough](../tutorial/application-1.md) explains what the two runs do,
-  step by step, with the figures and numbers.
+- [Application 1](../applications/app1-peak.md) explains what the two runs do, step by step,
+  with the figures and numbers.
 - The [options pages](../options/index.md) show every setting with working code.
 - [Functions and outputs](../reference/functions-outputs.md) lists what a run writes.
