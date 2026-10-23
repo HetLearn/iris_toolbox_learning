@@ -1,5 +1,5 @@
 function out = run_br_portfolio(cmd, varargin)
-%RUN_BR_PORTFOLIO  BR portfolio: generalised IRFs from 2019Q4 and in-sample (Kalman) RMSE, with their CSV tables.
+%RUN_BR_PORTFOLIO  BR portfolio: generalized IRFs from 2019Q4 and in-sample (Kalman) RMSE, with their CSV tables.
 %
 %   run_br_portfolio('irf')          GIRF runs of the 9 scenarios (references a1_re, a1_learn, then
 %                                    the 7 variants of scenarios/sw07/br_portfolio/), in this session
@@ -11,9 +11,8 @@ function out = run_br_portfolio(cmd, varargin)
 %                                    one family of tables)
 %   ids = run_br_portfolio('ids')    the 9 ids in report order (= run_br_app1('ids'))
 %
-%   docs/DESIGN_br_extensions.md sections 4 (impulse responses) and 5 (in-sample RMSE), phase P7.
-%   Since 2026-10-22 the portfolio has the seven variants that docs/BR_audit.txt keeps (5b, 7, 10,
-%   19, 23, 24, 26); see help run_br_app1.
+%   The portfolio has seven variants (5b, 7, 10, 19, 23, 24, 26; docs/USER_GUIDE.md section 7.7);
+%   see help run_br_app1.
 %   Every run uses the original SW07 parameters (the published mode, config/master_options.m) and
 %   inherits every baseline option, projection.facility 'alm' included; facility events are
 %   recorded. Nothing is written to results/<id>/: runs are not saved (hetlearn.run 'save' false, or
@@ -74,7 +73,7 @@ function out = run_br_portfolio(cmd, varargin)
 %     irf_check.csv       ('check') per pair: max abs difference between the rerun and the full run
 %                         (GIRF and unshocked path of the five paths, end-of-quarter shares)
 %
-%   Sessions: on 2026-10-21 the 9 scenarios took about three minutes ('irf') and one and a half
+%   Sessions: the 9 scenarios take about three minutes ('irf') and one and a half
 %   ('rmse') in total, so one session is enough. 'irf' and 'rmse' write one file per scenario, so
 %   sessions can also take disjoint id lists; 'csv' runs after all of them.
 %
