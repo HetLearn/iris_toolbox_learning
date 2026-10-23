@@ -1,5 +1,5 @@
 function run_tests(only)
-%RUN_TESTS  Run every hetlearn unit test and print one PASS/FAIL line per check.
+%RUN_TESTS  Run every HetLearn unit test and print one PASS/FAIL line per check.
 %
 %   run_tests()
 %   run_tests(only)   only the suites named in the cellstr only (e.g. to
