@@ -1,5 +1,5 @@
 function varargout = kalman_history(varargin)
-%KALMAN_HISTORY  History stage of history.mode = 'kalman': time-varying Kalman filter of the ALM (DESIGN_br_extensions 5).
+%KALMAN_HISTORY  History stage of history.mode = 'kalman': time-varying Kalman filter of the ALM (technical appendix, "The Kalman history").
 %
 %   [S, rec, ev, dK, hinfo] = hetlearn.engine.kalman_history(ctx, S, H, rec, m)
 %   hetlearn.engine.kalman_history('write', res, outDir)        kalman_errors.csv
@@ -48,8 +48,8 @@ function varargout = kalman_history(varargin)
 %   (4) hetlearn.engine.update_learning, unchanged, with the ALM check of the
 %       model in force in t+1 under projection.facility 'alm' | 'plm_alm';
 %       first = true at beliefs.init.date
-%   N agent types and forecast transforms (ctx.nt; docs/DESIGN_br_extensions.md
-%   1.1-1.5, phase P6): the ALM in force has the share vectors of
+%   N agent types and forecast transforms (ctx.nt; docs/USER_GUIDE.md
+%   section 7.6): the ALM in force has the share vectors of
 %   hetlearn.engine.shares_for_mode (before beliefs.init.date share 1 on the
 %   RE type). Every type's forecast made in t comes from
 %   hetlearn.engine.ntypes('forecasts', ..., 'history', t) on the agents'
@@ -62,7 +62,7 @@ function varargout = kalman_history(varargin)
 %   forecast the agents used. PLM, rule and re_mean types are then evaluated
 %   as in the RE-smoother history, transforms as there. update_learning
 %   takes its N-type path. The forecast stage starts from the filtered state
-%   at the origin (D12), except for what hetlearn.engine.ntypes('seed')
+%   at the origin, except for what hetlearn.engine.ntypes('seed')
 %   writes there: with a 're_mean' type, <x>_exp1_RE at the origin (the
 %   forecast the agents used). history.mode = 'kalman' with N types and
 %   transforms needs nothing else.
@@ -89,7 +89,7 @@ function varargout = kalman_history(varargin)
 %            state vector at the origin (elements v{-k}) take their values in
 %            a_{origin|origin}, so the forecast stage, which hetlearn.engine.core
 %            starts from this databank, starts from the filtered state at the
-%            origin (D12)
+%            origin
 %     hinfo  .alm_check_s, .alm_n_check, .alm_n_solve, .warm (as
 %            hetlearn.engine.history), .start, .db_start, .origin, .n_solve,
 %            .runtime_s, .kalman (returned by hetlearn.run as res.kalman):
@@ -125,7 +125,7 @@ function varargout = kalman_history(varargin)
 %            per subsample), .subsamples (name, first, last), .note.
 %            subsamples: cell {name, first, last; ...}; default full
 %            (beliefs.init.date .. origin), y1966_1983, y1984_2007, y2008_2019,
-%            y2020Q4_end (DESIGN_br_extensions 5; 2020Q4 is a four-step
+%            y2020Q4_end (2020Q4 is a four-step
 %            prediction after the 2020Q1-Q3 gap), clipped to the filter dates.
 %
 %   See also hetlearn.engine.core, hetlearn.engine.history,
@@ -177,7 +177,7 @@ if isfield(ctx, 'info') && isfield(ctx.info, 'policy') && isstruct(ctx.info.poli
 end
 doAlm = ~strcmp(hetlearn.engine.facility('name', o), 'none');
 reLagged = isfield(o.expectations, 're_info') && strcmp(o.expectations.re_info, 'lagged');
-isNT = hetlearn.engine.ntypes('on', ctx);       % N agent types, forecast transforms (phase P6)
+isNT = hetlearn.engine.ntypes('on', ctx);       % N agent types, forecast transforms
 brInfo = 'lagged';
 if isfield(sys, 'info') && ~isempty(sys.info)
     brInfo = char(sys.info);
@@ -362,7 +362,7 @@ for k = 1:nT
     end
     % (3) forecasts made in t
     if isNT
-        % every type's forecast on the agents' data (DESIGN_br_extensions 1.1, phase P6): fRE = F, the
+        % every type's forecast on the agents' data: fRE = F, the
         % forecasts as they enter the aggregate (fitness), fBR = X, with X.base before the transforms
         getVal = @(name, j) xval(XA, rowOf, kc, name, j);
         [fRE, fBR] = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'history', t);
@@ -419,7 +419,7 @@ for k = 1:nT
     rec = hetlearn.engine.record(rec, kRec, ctx, S, out, n1m);
 end
 
-% ---- databank for the forecast stage: the filtered state at the origin (D12) -------------------
+% ---- databank for the forecast stage: the filtered state at the origin -------------------------
 dbStart = start;
 if nT - 1 < maxLagX                       % a short history: the origin's lags reach before the start
     dbStart = origin - maxLagX;
@@ -676,7 +676,7 @@ end
 
 
 function AV = agent_rows(rowOf, reLagged, lv)
-% Rows of the agents' data that differ from the real-time filtered values (N types, phase P6):
+% Rows of the agents' data that differ from the real-time filtered values (N types):
 % .pred  rows taken from the predictions x_{t|t-1}: with expectations.re_info = 'lagged' every
 %        <x>_exp1_RE and <x>_DEg_RE (functions of the period-(t-1) state; hetlearn.engine.history_db
 %        takes them from H.predicted under history.re_states = 'filtered')
