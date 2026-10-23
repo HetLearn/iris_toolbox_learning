@@ -13,10 +13,10 @@ function cfg = sw07_re()
 %   scenario and everything that inherits from it. Unknown field names are an
 %   error. Run with:  res = hetlearn.run(sw07_re());
 %
-%   Baseline since 2026-10-20 (user decision, config/master_options.m): the
-%   published SW07 (2007) parameters, RE agents and learners on t-1
-%   information, RE states of the history from the one-sided filter, KOZ gain
-%   from 0.05, chi 2, memory 0.8, facility 'alm' (since 2026-10-21; 'none' before).
+%   The project baseline (config/master_options.m): the published SW07 (2007)
+%   parameters, RE agents and learners on t-1 information, RE states of the
+%   history from the one-sided filter, KOZ gain (Kostyshyna, Ozden and Zhang
+%   2024) from 0.05, chi 2, memory 0.8, facility 'alm'.
 %
 %   Inflation is in the heterogeneous block (expectations.variables =
 %   {'pinf'}), but with mode 'rational' every agent is RE (n1_pinf = 1), so the
@@ -31,7 +31,7 @@ cfg.id = 'sw07_re';                           % results go to results/<id>/; use
 cfg.title = 'Forecast from the 2022Q2 inflation peak, rational expectations';
 cfg.description = 'Unconditional forecast (zero future shocks) from the 2022Q2 inflation peak; every agent rational.';
 cfg.model = 'sw07';                           % model package models/sw07/
-% cfg.model_params = 'sw07_params_original';  % master: published SW07 mode 1966-2004; '' = spec.params (swX1 1966-2026, the default)
+% cfg.model_params = 'sw07_params_original';  % master: published SW07 mode 1966-2004; '' = spec.params (sw07_params, the package's second parameter set; the default)
 
 % ---- forecast origin and horizon -----------------------------------------------------------
 % The origin is the quarter of peak q/q GDP-deflator inflation (pinfobs) in 2020Q1-2024Q4.
@@ -83,15 +83,15 @@ cfg.expectations.variables = {'pinf'};        % forward-looking variables in the
 % cfg.switching.intensity = 2;                % master (default 0.51, IJCB estimate on % per quarter data): chi
 % cfg.switching.memory = 0.8;                 % master (default 0.6): omega
 
-% ---- projection facility (the only stabilising device; USER_GUIDE 5.7) ---------------------
-% cfg.projection.facility = 'alm';            % master since 2026-10-21 (default 'plm_alm'): 'plm_alm' (PLM blocks, then the ALM) | 'alm' (ALM only) | 'none'
+% ---- projection facility (the only stabilizing device) ------------------------------------
+% cfg.projection.facility = 'alm';            % master (default 'plm_alm'): 'plm_alm' (PLM blocks, then the ALM) | 'alm' (ALM only) | 'none'
 
 % ---- history stage ---------------------------------------------------------------------------
 % cfg.history.learn = true;                   % false: the initial beliefs apply at the origin
 % cfg.history.mode = 're_smoother';           % 're_smoother' | 'inversion' (history backed out with the learning model)
 % cfg.history.re_states = 'filtered';         % master (default 'smoothed'): 're_smoother': RE forecasts and learners' data smoothed (two-sided) | 'filtered' (data up to t)
 % cfg.history.inversion.start = [];           % 'inversion': [] = beliefs.init.date
-% cfg.history.inversion.shocks = {};          % 'inversion': endogenised shocks; {} = every transition shock
+% cfg.history.inversion.shocks = {};          % 'inversion': endogenized shocks; {} = every transition shock
 % cfg.history.realtime = false;               % true: RE filter on data up to the origin only
 
 % ---- shocks over the horizon (all unanticipated) -------------------------------------------
@@ -100,7 +100,7 @@ cfg.expectations.variables = {'pinf'};        % forward-looking variables in the
 % cfg.shocks.exclude = {};                    % e.g. {'em'}
 % cfg.shocks.add = {};                        % e.g. {{'em', qq(2022,3), 0.25}}: name, dates, values added on top
 
-% ---- conditions (exogenise a variable, endogenise a shock) ----------------------------------
+% ---- conditions (exogenize a variable, endogenize a shock) ----------------------------------
 % cfg.conditions = struct('variable', 'ms', 'shock', 'em', ...
 %     'dates', [qq(2022, 3), qq(2023, 2)], 'values', -0.25, ...
 %     'type', 'delta', 'reference', 'self');  % default: none; 'level' | 'delta'; 'self' | scenario id
