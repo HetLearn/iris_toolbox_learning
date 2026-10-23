@@ -1,5 +1,5 @@
 function [R, info] = anchor_coefficients(m, targets, states, varargin)
-%ANCHOR_COEFFICIENTS  Anchored forecasts E_{t-j} z_{t+h} = k + C s_{t-j} in a solved economy (DESIGN_br_extensions 1.4, E4).
+%ANCHOR_COEFFICIENTS  Anchored forecasts E_{t-j} z_{t+h} = k + C s_{t-j} in a solved economy (generalized anchor, docs/USER_GUIDE.md section 7.5).
 %
 %   [R, info] = hetlearn.anchor_coefficients(m, targets, states)
 %   [R, info] = hetlearn.anchor_coefficients(m, targets, states, 'lag', j, 'horizon', h, ...
