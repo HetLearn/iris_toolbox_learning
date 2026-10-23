@@ -8,7 +8,7 @@ function cfg = a6_inv_learn()
 %   their data values and the 7 shocks endogenised, so the shocks, beliefs and
 %   shares are those of the learning economy. Writes compare_a6_smooth_learn.csv.
 %
-%   history.re_states = 'smoothed' (2026-10-20): the baseline sets 'filtered',
+%   history.re_states = 'smoothed': the baseline sets 'filtered',
 %   which applies to the RE smoother only and is an error with the inversion.
 %   The inversion is one-sided by construction (quarter t uses data up to t),
 %   so this line only restores the value the option check accepts.
