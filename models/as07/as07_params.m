@@ -8,8 +8,7 @@ function P = as07_params()
 % (small-scale NK model, US data 1983Q1-2002Q4). The table reports posterior
 % means and [5th, 95th] percentiles, no medians; its note: 100,000 draws from
 % the posterior, the first 50,000 discarded. The values are used as published
-% (two decimals); nothing is estimated or sampled in this package (user
-% decision 2026-10-18).
+% (two decimals); nothing is estimated or sampled in this package.
 %
 % Units: the book's code measures y, pi and R in percent (pi and R in % per
 % quarter: INFL = piA + 4*pi), so the published values apply as they stand
