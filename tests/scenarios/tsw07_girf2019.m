@@ -1,10 +1,10 @@
 function cfg = tsw07_girf2019(base, shock, value)
-%TSW07_GIRF2019  Test scenario: one 2019Q4 conditional IRF run of docs/DESIGN_br_extensions.md sec. 4 on the baseline.
+%TSW07_GIRF2019  Test scenario: one 2019Q4 conditional IRF run on the baseline (impulse responses of the further expectation rules).
 %
 %   cfg = tsw07_girf2019(base)                 run without a shock (the reference path of the GIRF)
 %   cfg = tsw07_girf2019(base, shock, value)   value added to the shock in 2020Q1
 %
-%   base   'learn' (tsw07_a1_learn, the 2026-10-20 baseline) | 're' (tsw07_a1_re, the RE(t-1)
+%   base   'learn' (tsw07_a1_learn, the frozen baseline) | 're' (tsw07_a1_re, the RE(t-1)
 %          benchmark br00_re)
 %   shock  SW07 shock name ('ea', 'eb', 'eg', 'eqs', 'em', 'epinf', 'ew'); '' = none
 %   value  size of the shock (make_br_freeze passes one sd, std_<shock> of the published mode)
