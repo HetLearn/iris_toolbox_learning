@@ -1,5 +1,5 @@
 function R = rule_terms(rule, x, k, info, tvars)
-%RULE_TERMS  Parse the expression of a 'rule' agent type for one variable (DESIGN_br_extensions 1.1).
+%RULE_TERMS  Parse the expression of a 'rule' agent type for one variable (docs/USER_GUIDE.md section 7.1).
 %
 %   R = hetlearn.plm.rule_terms(rule, x, k, info, tvars)
 %
@@ -19,9 +19,8 @@ function R = rule_terms(rule, x, k, info, tvars)
 %     <param>    a constant of struct(..., 'params', ...): model parameter
 %                <param>__<k>, no lag
 %     <name>     any other transition variable of the model, with a lag
-%   Functions are errors. The terms self, mean, dn and re1(...) were removed on
-%   2026-10-22 with the portfolio variants that used them (docs/BR_audit.txt,
-%   variants 17 and 33).
+%   Functions are errors. The terms self, mean, dn and re1(...) are not
+%   supported.
 %
 %   Output R (struct)
 %     .text          IRIS right-hand side of <x>_exp1_<k> = ...
@@ -96,7 +95,7 @@ while p <= n
     nm = tk.name;
     lag = tk.lag;
     if tk.call
-        error(ID, '%s calls a function %s(...); rules take no functions (re1(...) was removed on 2026-10-22).', ...
+        error(ID, '%s calls a function %s(...); rules take no functions (re1(...) is not supported).', ...
             where, nm);
     end
     if tk.lead
@@ -118,7 +117,7 @@ while p <= n
                 [txt, mx] = put(txt, mx, var_text(nm, lag), j);
             else
                 error(ID, ['%s: unknown name %s (terms: x, the constants in params, or a transition variable of ' ...
-                    'the model; self, mean, dn and re1 were removed on 2026-10-22).'], where, nm);
+                    'the model; self, mean, dn and re1 are not supported).'], where, nm);
             end
     end
 end
