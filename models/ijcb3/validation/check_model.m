@@ -1,5 +1,5 @@
 function R = check_model()
-% CHECK_MODEL  IRIS-only validation of the ijcb3 package (no hetlearn calls).
+% CHECK_MODEL  IRIS-only validation of the ijcb3 package (no HetLearn calls).
 %
 %   R = check_model()
 %
