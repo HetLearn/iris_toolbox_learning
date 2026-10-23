@@ -1,5 +1,5 @@
 function R = test_inversion(part)
-%TEST_INVERSION  History backed out with the learning model (DESIGN 15) and the B2 options.
+%TEST_INVERSION  History backed out with the learning model (DESIGN 15) and the engine.step options.
 %
 %   R = test_inversion()            all checks
 %   R = test_inversion('toy')       I1-I7 (toy NK)
@@ -312,7 +312,7 @@ try
         inv.shock_diff_vs_smoothed, inv.path_diff_vs_smoothed, inv.max_obs_miss);
     growth = growth_profile(r, c);
     % Compare with the smoother up to the first quarter with a missing observable: the
-    % SW07 database has no observations in 2020Q1-Q3 (user decision 2026-10-19). There the
+    % SW07 database has no observations in 2020Q1-Q3. There the
     % inversion has nothing to hit and backs out zero shocks, so from then on the two differ.
     spec = hetlearn.load_spec(c.model);
     H = hetlearn.re_filter(spec, hetlearn.load_options(c));
