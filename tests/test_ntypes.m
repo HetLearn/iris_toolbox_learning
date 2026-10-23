@@ -1,11 +1,11 @@
 function R = test_ntypes(part)
-%TEST_NTYPES  N agent types, phase P2 of docs/DESIGN_br_extensions.md (1.1-1.2, 1.7 R3; variant 19).
+%TEST_NTYPES  N agent types (docs/USER_GUIDE.md sections 7.1-7.2; rule 19 of the portfolio).
 %
 %   R = test_ntypes()        every part
 %   R = test_ntypes(part)    'units' | 'r3' | 'hl' | 'modes'
 %
-%   13 checks. B1-B2, S1 and A1-A4 were removed with the features they tested
-%   on 2026-10-22 (docs/BR_audit.txt); the other labels are unchanged.
+%   13 checks. B1-B2, S1 and A1-A4 were removed with the features they tested;
+%   the other labels are unchanged.
 %   U1-U5  hetlearn.switching.discrete_choice_n and init_fitness_n: the two-type
 %          case equals discrete_choice/init_fitness, the N-type logit with
 %          normalized fitness (hand formula), edge cases, initial fitness through
@@ -13,7 +13,7 @@ function R = test_ntypes(part)
 %          + - * / ( ), x{-k}, other transition variables with lags, constants)
 %          and the rejected rules (malformed, or using terms that no longer exist)
 %   R3     the baseline in N-type syntax (types RE and BR spelled out) equals the
-%          two-type run: SW07 2026-10-20 baseline (tsw07_a1_learn) and its RE(t-1)
+%          two-type run: the frozen SW07 baseline (tsw07_a1_learn) and its RE(t-1)
 %          benchmark (tsw07_a1_re), the toy switching run; the two-type file on the
 %          N-type engine path (shares.init given); <= 1e-12 in paths, shares,
 %          fitness, forecasts, beliefs, gains, events and final state. The RE
@@ -74,7 +74,7 @@ catch err
     R = add(R, nm, false, err.message);
 end
 
-nm = 'nt U2: the N-type logit with normalized fitness follows DESIGN_br_extensions 1.2 (hand formula, 4 types, 30 periods)';
+nm = 'nt U2: the N-type logit with normalized fitness follows the hand formula (4 types, 30 periods)';
 try
     rs = RandStream('mt19937ar', 'Seed', 2);
     chi = 0.7; om = 0.6;
@@ -143,7 +143,7 @@ try
         && strcmp(b.text, '0') && isempty(b.terms) && b.maxlag == 0 ...
         && strcmp(c.text, 'c1__FN*pinf{-1} + c2__FN*r{-1}') && c.maxlag == 1 ...
         && strcmp(c.param_names.c1, 'c1__FN') && c.param_values.c2 == 2;
-    % the output fields and term kinds of the cut grammar (no own-forecast, mean or re1 terms)
+    % the output fields and term kinds of the rule grammar (no own-forecast, mean or re1 terms)
     fl = {'text', 'mexpr', 'terms', 'param_names', 'param_values', 'maxlag', 'expr'};
     kinds = unique([{a.terms.kind}, {c.terms.kind}]);
     okf = isempty(setxor(fieldnames(a), fl)) && isempty(setxor(fieldnames(c), fl)) ...
@@ -159,7 +159,7 @@ try
         end
     end
     ok = ok && okf && isfinite(f(v));
-    % malformed rules, and rules in the terms removed on 2026-10-22 (own forecast, learned mean,
+    % malformed rules, and rules in the terms that are not supported (own forecast, learned mean,
     % nominal growth, anchored RE forecast)
     bad = {'x', 'lagged'; 'x{-1}*x{-2}', 'lagged'; 'x{+1}', 'current'; 'q{-1}', 'lagged'; ...
         '0.65*x{-1} + 0.35*self{-1}', 'lagged'; 'self + x{-1}', 'lagged'; ...
