@@ -3,8 +3,8 @@ function cfg = v3_all_alm()
 %
 %   cfg = v3_all_alm()
 %
-%   As v3_all, with projection.facility = 'alm' set explicitly (the baseline
-%   since 2026-10-21, so the same run): PLMs are never restricted; an unstable
+%   As v3_all, with projection.facility = 'alm' set explicitly (the baseline,
+%   so the same run): PLMs are never restricted; an unstable
 %   model reverts every belief (and, if needed, keeps last quarter's shares).
 %   Writes compare_v3_all.csv (if v3_all has results).
 
