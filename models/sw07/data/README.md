@@ -30,8 +30,8 @@ and `canova_dataset_SW_observables_balanced.csv`. Nothing in `raw/` is read by t
 | `robs` | FEDFUNDS / 4 (quarterly average) | % per quarter |
 
 - Covid quarters 2020Q1-Q3: the raw panel keeps them (`EXCLUDE_COVID = False`, no dummies), but
-  since 2026-10-19 `build_database.m` sets all seven observables to NaN in 2020Q1-2020Q3
-  (`covid_nan_quarters`; user decision 2026-10-19: ignore the covid quarters). The database
+  `build_database.m` sets all seven observables to NaN in 2020Q1-2020Q3
+  (`covid_nan_quarters`: the covid quarters are ignored). The database
   therefore has exactly 21 missing values, and the RE filter treats those quarters as missing.
   The swX1 parameters were estimated with the covid quarters in the sample.
 - Because `labobs` is demeaned over the full panel, `constelab` moves with the
