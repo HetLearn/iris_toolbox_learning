@@ -4,7 +4,7 @@ The SW (2007, AER) medium-scale New Keynesian model, log-linear, seven shocks an
 US observables, at the posterior mode of Dynare run `swX1` (2026-09-29, Dynare 4.6.1,
 likelihood sample 1966Q1-2026Q2, log posterior -1578.2488). The equations are Pfeifer's
 Dynare version of the AER `usmodel.mod`, translated line by line to IRIS. This is the
-first model of the `hetlearn` portfolio and follows `docs/DESIGN.md` sec. 2.
+first model of the HetLearn portfolio and follows `docs/DESIGN.md` sec. 2.
 
 ## Files
 
