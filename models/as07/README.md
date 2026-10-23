@@ -6,8 +6,7 @@ estimate on US data for 1983Q1-2002Q4: an Euler equation, a Phillips curve and a
 with smoothing, technology-growth and government-spending shocks, a policy shock, and three
 observables (per capita output growth, CPI inflation, federal funds rate) with measurement
 errors. Equations and measurement come from the book's replication code; the parameters are
-the published posterior means. Nothing is estimated or sampled in this package (user decision
-2026-10-18). This is the third model of the `hetlearn` portfolio (template `models/ijcb3/`) and
+the published posterior means. Nothing is estimated or sampled in this package. This is the third model of the `hetlearn` portfolio (template `models/ijcb3/`) and
 a model for application 1: the forecast from the 2022Q2 inflation peak, RE against learning on
 inflation with anchored RE agents (`scenarios/as07/app1_peak/`).
 
@@ -117,7 +116,7 @@ The replication code's likelihood (`dsgeliki.m` through `sysmat.m`) has measurem
 fixed variances, (0.20 x the us.txt sample std)², std devs 0.579923, 1.470832 and 2.237937,
 marked "from dsge1_me.yaml". They are not estimated. The published table lists no
 measurement-error parameters and the slides do not mention them. The package keeps the code's
-errors as IRIS measurement shocks with these fixed std devs (decision 2026-10-18). Setting
+errors as IRIS measurement shocks with these fixed std devs. Setting
 `std_me_dy`, `std_me_pinfobs` and `std_me_robs` to 0 in `as07_params.m` gives the model without
 them; the IRIS likelihood then matches `kalman.m` with H = 0 (Validation).
 
@@ -206,7 +205,7 @@ zero: its 2009Q1-2015Q4 mean is 3.44% (trough -1.15% in 2009Q1, 5.14% in 2011Q4)
 2. Measurement errors: the published means come with the replication code's fixed measurement
    errors, which the table does not mention (Measurement errors). SW07 and IJCB3 have none.
    `hetlearn.extend_model` parses `!measurement_shocks`, and the IRIS filter output carries the
-   smoothed errors, and the engine has now run the package (track M3, application 1: 11/11
+   smoothed errors, and the engine has run the package (application 1: 11/11
    checks in `results/summary_v3/other_models_checks.txt`). Std 0 for the three errors removes them.
 3. Steady state of the 1983-2002 sample: inflation 3.30% and a funds rate of 5.80% a year,
    output growth 2.08% a year. The RE forecast from 2022Q2 reverts to these levels.
