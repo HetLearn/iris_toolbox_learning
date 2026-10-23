@@ -107,7 +107,7 @@ switch o.method
         info.pool_mean = mean(pool, 1);
         info.demean = ~isfield(o, 'demean') || logical(o.demean);
         if info.demean
-            pool = pool - info.pool_mean;   % centred on the scenario's own shocks (B2)
+            pool = pool - info.pool_mean;   % centered on the scenario's own shocks
         end
         idx = zeros(nT, N);
         for j = 1:N
