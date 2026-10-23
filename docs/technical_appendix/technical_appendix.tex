@@ -1,5 +1,5 @@
 % =====================================================================
-% hetlearn technical appendix
+% HetLearn technical appendix
 % Standalone article. Compile with pdflatex + bibtex (see README.txt).
 % =====================================================================
 \documentclass[11pt,a4paper]{article}
@@ -85,7 +85,7 @@
 \begin{abstract}
 \noindent
 This appendix documents the mathematics, the assumptions and every user-facing option of the
-\code{hetlearn} toolbox. The toolbox takes a linear IRIS model (nonlinear models have a code path but
+HetLearn toolbox. The toolbox takes a linear IRIS model (nonlinear models have a code path but
 no test) with forward-looking terms and replaces each one-step expectation by a population mix of rational
 (RE) agents and adaptive learners whose shares switch on past forecast performance, as in
 \citet{ozden2025}. It writes the extended model file, runs a history stage (learning on the RE
@@ -107,7 +107,7 @@ file that implements it.
 
 \subsection{What the toolbox does}
 
-\code{hetlearn} is a MATLAB package (\code{toolbox/+hetlearn/}) built on the IRIS toolbox
+HetLearn is a MATLAB package (\code{toolbox/+hetlearn/}) built on the IRIS toolbox
 \citep{iris}. A user supplies a model package: an IRIS model file, a parameter function, an
 IRIS-readable database, the observables and a filter range. The toolbox
 
