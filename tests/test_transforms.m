@@ -1,24 +1,24 @@
 function R = test_transforms(part)
-%TEST_TRANSFORMS  Forecast transforms, phase P3 of docs/DESIGN_br_extensions.md (1.3, D11, 1.7 R4; variants 5b, 7, 10).
+%TEST_TRANSFORMS  Forecast transforms (docs/USER_GUIDE.md section 7.3; rules 5b, 7 and 10 of the portfolio).
 %
 %   R = test_transforms()        every part
 %   R = test_transforms(part)    'neutral' | 'refs' | 'copies' | 'errors' | 'r4' | 'fitness'
 %
-%   19 checks. The checks of the transform kinds and multiplier profiles removed
-%   on 2026-10-22 (docs/BR_audit.txt: N3, N6-N8, H3, H7, W1-W4, V1, R4e-f) are
-%   gone; the other labels are unchanged.
+%   19 checks. The checks of the transform kinds and multiplier profiles that are
+%   no longer supported (N3, N6-N8, H3, H7, W1-W4, V1, R4e-f) are gone; the other
+%   labels are unchanged.
 %   N1-N5  collapse at the neutral value: each kind at its identity value (multiplier
 %          m = 1, also with equation copies; myopia [1 0]; diagnostic theta = 0) loaded
-%          on the 2026-10-20 baseline (tsw07_a1_learn) is the baseline's RE limit
+%          on the frozen baseline (tsw07_a1_learn) is the baseline's RE limit
 %          (IRFs of every common variable to the seven shocks, 40 periods, 1e-12;
-%          anchored RE(t-1) agents, the anchor economy of D11). Labels N1, N2, N4, N5.
+%          anchored RE(t-1) agents, the variant's own RE limit as anchor economy). Labels N1, N2, N4, N5.
 %          Same generated file as the non-neutral variant (the values are parameters).
 %          N9 anchored RE with period-t information: the coefficients from the RE
 %          limit's state space (m = 1 equals the source-model anchor, 1e-12; m =
 %          0.62 passes the anchored = model-consistent check)
 %   H1-H6  generated = hand-written: the RE limit with model-consistent RE (period-t
-%          information, learning {pinf}) equals the SW07 source edited by hand as in the
-%          design's prototype P3 (scratchpad br_design/br_proto3.m): CD m = 0.62 on the
+%          information, learning {pinf}) equals the SW07 source edited by hand (the
+%          hand-written models at the end of this file): CD m = 0.62 on the
 %          sticky seven (p3_v02), multipliers 0.76/0.86/0.08 of the RE type with
 %          equation copies (p3_v06, m^h with h = 1), DE theta = 0.44 (p3_v09), myopia
 %          and anchoring (0.52, 0.4343) in the price Phillips curve (p3_v12); H6 DE with
@@ -29,15 +29,15 @@ function R = test_transforms(part)
 %   E1     errors: diagnostic on the anchored RE type with period-t information (the
 %          anchored reference is not built), diagnostic on a learned type, diagnostic
 %          after another transform, a transform acting on nothing
-%   R4a-d  R4 of DESIGN_br_extensions 1.7: the full baseline run (tsw07_a1_learn)
+%   R4a-d  regression check R4: the full baseline run (tsw07_a1_learn)
 %          with a transform at its identity value (the N1, N2, N4, N5 cases) equals the
 %          two-type run. On one RE filter (the transform model's, recomputed in the
 %          session): learning and final state <= 1e-12, paths exact when the transform
 %          adds no model variable, else <= 1e-10 (IRIS solves a larger system: rounding,
 %          as the target believers at share 0 of test_ntypes H1). On their own fresh
 %          filters: paths <= 1e-10, learning and state <= 1e-11
-%   F1     fitness on transformed forecasts (P4; added 2026-10-22, when the De Grauwe check A8 of
-%          test_anchor went with variant 18): the baseline with the 5b multiplier m = 0.94 on the
+%   F1     fitness on transformed forecasts (it replaces the De Grauwe check A8 of
+%          test_anchor): the baseline with the 5b multiplier m = 0.94 on the
 %          learning set; every type's recorded forecast f_<k> (the one fitness and the errors use)
 %          equals m^2 times its untransformed forecast fb_<k> (t-1 information, h = 2), 1e-12
 %
@@ -102,7 +102,7 @@ end
 
 function cases = identity_cases()
 % {N label, R4 label, name, transforms, adds model variables (equation copies, reference chains)}; the
-% labels are those of 2026-10-21 (N3, N6-N8 and R4e-f went with their kinds on 2026-10-22)
+% labels are kept (N3, N6-N8 and R4e-f went with their kinds)
 cases = {
     'N1', 'a', 'multiplier m = 1, every forward expectation but the flex block', tf('multiplier', 'types', 'all', ...
         'value', 1, 'scope', 'all', 'exclude', {flex()}), false
@@ -134,7 +134,7 @@ for q = 1:size(cases, 1)
         R = add(R, nm, false, where(err));
     end
 end
-nm = ['tf N9: anchored RE with period-t information (D11 from the RE limit''s state space): CD m = 1 = the RE ' ...
+nm = ['tf N9: anchored RE with period-t information (coefficients from the RE limit''s state space): CD m = 1 = the RE ' ...
     'limit without transforms (anchored on the source model, 1e-12); m = 0.62: anchored = model-consistent at n_RE = 1'];
 try
     c = base;
@@ -285,7 +285,7 @@ function R = errors(R, spec)
 base = tsw07_a1_learn();
 E = {};
 % variant 10 on the anchored baseline and anchored RE(t-1) agents with diagnostic memory states load
-% since phase P4 (2026-10-21): tests/test_anchor.m checks them
+% with the generalized anchor: tests/test_anchor.m checks them
 x = base;
 x.expectations.re_info = 'current';
 x.expectations.transforms = tf('diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', 'all', 'exclude', {flex()});
@@ -393,7 +393,7 @@ end
 
 
 % =========================================================================================
-% hand-written models (the text edits of the design's prototype P3)
+% hand-written models (the SW07 source edited by hand)
 function E = glob(vars, form)
 % every x{+1} of each variable -> x_e = form
 E = struct('find', {}, 'repl', {}, 'decl', {}, 'eq', {});
