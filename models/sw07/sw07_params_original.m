@@ -9,8 +9,8 @@ function P = sw07_params_original()
 % the same set as results/app1_t1_filtered_koz/sw07orig/sw07orig_params.m. Not estimated here.
 % Fixed parameters (ctou, clandaw, cg, curvp, curvw) as in sw07_params.m (swX1), which they equal.
 %
-% Select it per run with the option model_params = 'sw07_params_original' (the project baseline
-% since 2026-10-20, config/master_options.m); model_params = '' uses spec.params = sw07_params (swX1).
+% Select it per run with the option model_params = 'sw07_params_original' (the project baseline,
+% config/master_options.m); model_params = '' uses spec.params = sw07_params (swX1).
 % constelab (-0.103) is the published value: labobs is demeaned over 1947Q2-2026Q2 here, so the
 % hours constant is not comparable across samples (estimation/FINDINGS_estimates.md).
 % Generated from the CSV; do not edit by hand.
