@@ -19,7 +19,7 @@ function R = test_evaluate(part)
 %   V4 SW07 smoke: origins 2010Q1-2024Q2, H = 8, variants tsw07_peak_re and
 %      tsw07_switch_pinf; prints the inflation RMSE at h = 1, 4, 8 and the
 %      runtime
-%   V5 N agent types (phase P6), toy, 8 origins: the switching variant with RE
+%   V5 N agent types, toy, 8 origins: the switching variant with RE
 %      and BR spelled out = the two-type variant; {RE, BR, TB} gets its own
 %      real-time RE filter (not the two-type one) and its forecasts equal
 %      separate real-time runs (first and last origin)
@@ -256,7 +256,7 @@ catch err
         false, err.message);
 end
 
-% ---- V5: N agent types (phase P6) ------------------------------------------------------------------
+% ---- V5: N agent types ------------------------------------------------------------------------------
 nm = ['evaluate V5: N agent types: the switching variant with RE and BR spelled out = the two-type variant (<= 1e-9); ' ...
     '{RE, BR, TB} gets its own real-time RE filter, its forecasts = separate real-time runs (<= 1e-9)'];
 try
@@ -306,7 +306,7 @@ try
     T = E.metrics(strcmp(E.metrics.sample, 'full') & strcmp(E.metrics.variable, 'pinfobs'), :);
     ids = {'tsw07_peak_re', 'tsw07_switch_pinf'};
     % expected targets per horizon: origins whose target quarter has data (the SW07
-    % database has no observations in 2020Q1-Q3, user decision 2026-10-19)
+    % database has no observations in 2020Q1-Q3)
     db = hetlearn.load_database(hetlearn.load_spec('sw07'));
     org = qq(2010, 1):qq(2024, 2);
     nexp = arrayfun(@(h) sum(isfinite(db.pinfobs(org + h))), (1:8)');
