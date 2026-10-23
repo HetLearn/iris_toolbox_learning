@@ -43,8 +43,8 @@ function E = evaluate(name, variants, origins, opts)
 %   then starts from that state and the backed-out databank clipped at the
 %   origin (ctx.history_cache). No real-time RE filters are computed for
 %   PLM specs used only by inversion variants.
-%   N agent types and forecast transforms (docs/DESIGN_br_extensions.md 1.1-1.5;
-%   phase P6): supported. Such a variant's RE filter is that of its own RE
+%   N agent types and forecast transforms (docs/USER_GUIDE.md section 7):
+%   supported. Such a variant's RE filter is that of its own RE
 %   limit (its generated file, with the type forecasts, transform states and
 %   parameters), so it shares a filter only with variants of the same generated
 %   file, parameter values, toggles and learning set. history.mode = 'inversion' is not
@@ -157,7 +157,7 @@ for v = 1:nV
             ov.expectations.re_variant);
     end
     if isfield(info, 'nt') && ~isempty(info.nt)
-        % N agent types and forecast transforms (phase P6): the RE filter model is the variant's own
+        % N agent types and forecast transforms: the RE filter model is the variant's own
         % generated file at its RE limit (type forecasts, transform states and parameters, rule
         % constants), so it is shared only with variants of the same file, parameter values, toggles
         % and learning set
