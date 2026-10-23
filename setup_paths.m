@@ -1,5 +1,5 @@
 function setup_paths()
-%SETUP_PATHS  Put IRIS and the hetlearn toolbox on the MATLAB path.
+%SETUP_PATHS  Put IRIS and the HetLearn toolbox on the MATLAB path.
 %
 %   setup_paths()
 %
