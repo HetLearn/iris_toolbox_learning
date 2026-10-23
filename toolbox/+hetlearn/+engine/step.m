@@ -43,7 +43,7 @@ function [s, d, info] = step(m, d, t, cond)
 %   conditions, is hetlearn.engine.backward_simulate instead of IRIS
 %   simulate.
 %
-%   Fast step (B2, option engine.step = 'fast'). When solve_model cached the
+%   Fast step (option engine.step = 'fast'). When solve_model cached the
 %   state-space system of the IRIS solution in the model's user data (field
 %   hetlearn_sspace, built by step('build', m, previous) from
 %   sspace(m, 'triangular', false); names are reused from previous), period
@@ -183,7 +183,7 @@ end
 
 
 % =========================================================================
-% Fast step from the state-space form of the IRIS solution (B2)
+% Fast step from the state-space form of the IRIS solution
 % =========================================================================
 function ss = build_fast(m, prev)
 % State-space system of a solved model; names reused from prev (same model).
