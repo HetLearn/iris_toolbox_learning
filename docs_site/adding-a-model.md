@@ -1,6 +1,6 @@
 # Adding a model
 
-`hetlearn` works with any linear IRIS model that has forward-looking terms. The model file is
+HetLearn works with any linear IRIS model that has forward-looking terms. The model file is
 not changed to add learners: the toolbox reads it, finds every lead, and writes an extended
 version in which the expectations of the chosen variables are a mix of rational expectations
 (RE) agents and learners. This page goes from a model file to a first run. The worked example
