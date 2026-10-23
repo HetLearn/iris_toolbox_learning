@@ -29,7 +29,7 @@ function make_br_freeze()
 %
 %   Run it only on the code to be frozen (first made 2026-10-20 with the code before phase P1),
 %   at the default thread count, from a session where tests/scenarios is on the path (run_tests
-%   adds it), and say so in README_PIPELINE.md.
+%   adds it).
 
 here = fileparts(mfilename('fullpath'));    % tests/scenarios
 tests = fileparts(here);
