@@ -1,5 +1,5 @@
 function R = test_facility()
-%TEST_FACILITY  Projection facility (DESIGN 4.4; user decision 2026-10-18): F1-F9, unit systems and the toy NK model.
+%TEST_FACILITY  Projection facility (DESIGN 4.4): F1-F9, unit systems and the toy NK model.
 %
 %   R = test_facility()   returns a struct array of checks (name, pass, msg).
 %
@@ -30,8 +30,8 @@ function R = test_facility()
 %      beliefs, Rg_t and gamma follow the recursion with FE_t (hand loop)
 %   F9 stages: 'none' solves nothing in the RE-smoothed history; 'plm_alm'
 %      checks every history period; mode 'rational' skips the solve
-%   F10 model shares kept when reverting the beliefs is not enough (user
-%      decision 2026-10-18): a run that used to stop completes, n1_model =
+%   F10 model shares kept when reverting the beliefs is not enough: a run
+%      that used to stop completes, n1_model =
 %      the previous quarter's at projection_alm_shares periods while n1
 %      moves, 'none' stops, the 'tv' decomposition rebuilds the paths
 %   Results go to tests/output/results/ (not the project results/).
@@ -257,7 +257,7 @@ catch err
 end
 
 % ---- F6: no earlier solved model: the initial beliefs and shares are unstable -------------------
-% Since 2026-10-18 (user decision) the facility keeps the previous quarter's beliefs and model
+% The facility keeps the previous quarter's beliefs and model
 % shares when reverting the beliefs is not enough; it stops only when no earlier solved model
 % exists. Two cases: the forecast's first quarter with history.learn = false (initial beliefs at
 % the origin), and the first history check (initial beliefs at beliefs.init.date).
@@ -305,7 +305,7 @@ end
 % ---- F10: model shares kept when reverting the beliefs is not enough ----------------------------
 % Model-consistent toy, switching on y and pie, fixed beliefs (0.99, 0.99) that are stable at
 % n2 = 0.9 (start) and unstable near n2 = 0.5 (chi = 0.05, memory 0: the discrete-choice shares
-% jump to about 0.5 and keep moving). Before 2026-10-18 this run stopped (almUnstable); now the
+% jump to about 0.5 and keep moving). Without the kept shares this run would stop (almUnstable); now the
 % previous quarter's model shares stay in force, projection_alm_shares events, n1 keeps moving.
 nm = ['facility F10: run that used to stop completes: n1_model = previous quarter''s at every ' ...
     'projection_alm_shares period while n1 moves; the discrete-choice shares would not solve; none stops; tv rebuilds'];
