@@ -1,7 +1,7 @@
 # Gains
 
 The gain sets how much weight the learners put on the newest observation when they update
-their beliefs. With a gain \(g_t\) and regressors \(z_{t-1}\), recursive least squares is
+their beliefs. With a gain \(g_t\) and regressors \(z_{t-1}\), recursive least squares (RLS) is
 
 \[
 R_t = R_{t-1} + g_t\left(z_{t-1} z_{t-1}' - R_{t-1}\right), \qquad
@@ -14,23 +14,23 @@ years).
 
 | Option | Values (default first) | Meaning |
 |---|---|---|
-| `gain.rule` | `'constant'`, `'koz'` | Constant gain, or the endogenous gain of Kostyshyna, Özden and Zhang (2024). The name is a function in `toolbox/+hetlearn/+gain/`. Project baseline: `'koz'` |
+| `gain.rule` | `'constant'`, `'koz'` | Constant gain, or the endogenous gain of Kostyshyna, Özden and Zhang (2024; KOZ below). The name is a function in `toolbox/+hetlearn/+gain/`. Project baseline: `'koz'` |
 | `gain.value` | `0.0585` | The constant gain (Özden 2025, posterior mean), and the start of `'koz'`. In (0, 1]. Project baseline: 0.05 |
 | `gain.by_var.<x>` | number | Gain of one variable: with `'constant'` its gain, with `'koz'` and `'per_variable'` its start value (ignored with a warning under `'common'`) |
 | `gain.koz.mu` | `0.001` | Step size of the gain process; 0 gives the constant gain exactly |
 | `gain.koz.gamma0` | `[]` | Start gain; `[]` = `gain.value` |
 | `gain.koz.Rg0` | `0` | Start value of \(R^g\) |
 | `gain.koz.bounds` | `[0.001 0.25]` | The gain stays inside; a `gain_bound` event each quarter a bound binds |
-| `gain.koz.error` | `'rls'`, `'forecast'` | Signed error that drives the gain: the PLM's one-step residual, or the learners' expectation error \(x_t - F^{BR}_{t-1}\) |
-| `gain.koz.error_scale` | `1` | Factor on that error; 1 = model units (percent per quarter for SW07) |
-| `gain.koz.structure` | `'common'`, `'per_variable'` | One gain process for every PLM equation, or one per equation driven by its own error |
+| `gain.koz.error` | `'rls'`, `'forecast'` | Signed error that drives the gain: the residual of the perceived law of motion, one step ahead, or the learners' expectation error \(x_t - f^{BR}_{t-1}\) (BR, for bounded rationality, labels the learners) |
+| `gain.koz.error_scale` | `1` | Factor on that error; 1 = model units (percent per quarter for the Smets and Wouters (2007) model) |
+| `gain.koz.structure` | `'common'`, `'per_variable'` | One gain process for every equation of the perceived laws of motion, or one per equation driven by its own error |
 | `gain.koz.master` | `''` | `'common'` only: the variable whose error drives the gain; `''` = the first learning variable; a list = the mean of their errors, so a quarter in which any of them is missing skips the gain update |
 
 ## The endogenous gain
 
-Kostyshyna, Özden and Zhang (2024, eq. 9), the adaptive step-size algorithm of Kostyshyna
-(2012). After \(x_t\) is observed, with \(e_t\) the signed error (times `error_scale`) and
-\(P\) the projection on `bounds`:
+KOZ (2024, eq. 9) use the adaptive step-size algorithm of Kostyshyna (2012). After \(x_t\) is
+observed, with \(e_t\) the signed error (times `error_scale`) and \(P\) the projection on
+`bounds`:
 
 \[
 \gamma_t = P\left[\gamma_{t-1} + \mu R^g_{t-1} e_t\right], \qquad
@@ -45,16 +45,16 @@ Things to know:
 
 - `mu = 0` reproduces the constant gain bit for bit.
 - `mu` is scale dependent: the error enters both equations, so `mu` acts roughly with the
-  square of `error_scale`. An `error_scale` of 4 (annualised percent) works like a 16 times
+  square of `error_scale`. An `error_scale` of 4 (annualized percent) works like a 16 times
   larger `mu`.
 - With `'koz'`, `res.learning.<x>` also holds `gain_R` (\(R^g_t\)).
-- KOZ's Table 1 "R0 = 0.001" is the initial RLS moment matrix, not \(R^g_0\). To use it, set
+- KOZ's Table 1 "R0 = 0.001" is the initial RLS moment matrix, not \(R^g_0\). It is set with
   `beliefs.init.method = 'user'` and only `beliefs.init.values.<x>.R` (example below).
 
 ## Examples
 
 ```matlab
-% Constant gain at the toolbox default (the previous project baseline)
+% Constant gain at the toolbox default
 cfg = a1_learn(); cfg.id = 'a1_const0585';
 cfg.gain.rule = 'constant';
 cfg.gain.value = 0.0585;
@@ -76,7 +76,7 @@ cfg.gain.value = 0.05;
 cfg.gain.koz.mu = 0.01;
 cfg.gain.koz.error = 'forecast';
 
-% One gain process per PLM equation
+% One gain process per equation
 cfg = a1_learn(); cfg.id = 'a1_koz_pervar';
 cfg.gain.koz.structure = 'per_variable';
 
@@ -91,7 +91,7 @@ cfg.beliefs.init.method = 'user';
 cfg.beliefs.init.values.pinf.R = 0.001*eye(2);
 ```
 
-Inspect the gain after a run:
+The gain after a run:
 
 ```matlab
 res = hetlearn.run(a1_learn(), 'save', false);
@@ -114,4 +114,4 @@ averages 0.0489 over the forecast. Model variant 4 holds it at 0.05:
 | Largest difference in the share, 1966-2026 | | 0.004 |
 
 With `mu = 0.001` and errors in percent per quarter the gain moves little, so the endogenous
-and the constant gain give nearly the same results on SW07.
+and the constant gain give nearly the same results in the Smets and Wouters model.
