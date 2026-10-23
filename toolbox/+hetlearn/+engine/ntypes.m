@@ -1,5 +1,5 @@
 function varargout = ntypes(cmd, varargin)
-%NTYPES  Engine support for N agent types (docs/DESIGN_br_extensions.md 1.1-1.2, phase P2).
+%NTYPES  Engine support for N agent types (docs/USER_GUIDE.md sections 7.1-7.2).
 %
 %   tf       = hetlearn.engine.ntypes('on', ctx)
 %   [S, ctx] = hetlearn.engine.ntypes('init', ctx, m, H)
@@ -11,7 +11,7 @@ function varargout = ntypes(cmd, varargin)
 %   The N-type path of the engine is on when hetlearn.load_model returned
 %   info.nt (expectations.types, forecast transforms, shares.init or
 %   shares.fixed; hetlearn.agent_types). Without it every engine function
-%   runs its two-type code of 2026-10-20 unchanged.
+%   runs its two-type code unchanged.
 %
 %   'on'         true when ctx.nt is set (by 'init', from ctx.info.nt)
 %   'init'       called by hetlearn.engine.state_init: ctx.nt; share groups
@@ -35,16 +35,16 @@ function varargout = ntypes(cmd, varargin)
 %                hetlearn.switching.init_fitness_n. Initial beliefs as before
 %                (beliefs.init.method), per type with its own system. Errors
 %                (hetlearn:engine:types): history.mode 'inversion' (the
-%                history stages are 're_smoother' and, since phase P6,
+%                history stages are 're_smoother' and
 %                'kalman'), mode 'learning' with more than one non-RE type
 %                in a group, fixed_n2 without exactly one non-RE type,
 %                universal groups whose variables have different types.
 %                Density forecasts run on the general path of
-%                hetlearn.density.run (phase P6).
+%                hetlearn.density.run.
 %   'forecasts'  [F, X]: F.<x>.<type> the forecast of x_{t+1} made in t by
 %                each type, as it enters the aggregate expectation x_exp1:
 %                the type's forecast <x>_exp1_<type> after the forecast
-%                transforms that act on its term (phase P4; without
+%                transforms that act on its term (without
 %                transforms the forecast itself), the forecast that fitness,
 %                FE_<type> and f_<type> use. X.base.<x>.<type> = the forecast
 %                before the transforms. src 'history' (RE smoother history,
@@ -279,7 +279,7 @@ for j = 1:numel(nt.types)
         intersect(t.vars, t.sys.targets, 'stable'), t.gain);
 end
 
-% ---- forecasts as they enter the aggregate (phase P4): the transforms of each type's term -------
+% ---- forecasts as they enter the aggregate: the transforms of each type's term ------------------
 ctx.nt.score = score_steps(ctx);
 ctx.nt.has_tf = ~isempty(fieldnames(ctx.nt.score));
 end
@@ -509,7 +509,7 @@ nt = ctx.nt;
 lv = ctx.learnVars;
 for i = 1:numel(lv)
     x = lv{i};
-    % a re_mean type (phase P4): its target <x>_feRE = x - <x>_exp1_RE{-1} of t0+1 uses the RE forecast made
+    % a re_mean type: its target <x>_feRE = x - <x>_exp1_RE{-1} of t0+1 uses the RE forecast made
     % at the origin, which the history stage took from its databank (the predictions under 'filtered')
     b = nt.byvar.(x);
     if any(arrayfun(@(j) strcmp(nt.types(j).kind, 're_mean'), b.types)) && isfield(S, 'fb') ...
