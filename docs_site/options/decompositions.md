@@ -1,8 +1,8 @@
 # Shock decompositions
 
-`hetlearn.decompose` splits the path of a variable, as a deviation from its RE steady state,
-into the contributions of each shock (or group of shocks), the initial conditions and, under
-learning, the moving perceived means.
+`hetlearn.decompose` splits the path of a variable, as a deviation from its rational
+expectations (RE) steady state, into the contributions of each shock (or group of shocks), the
+initial conditions and, under learning, the moving perceived means.
 
 ```matlab
 D = hetlearn.decompose(res)                      % a result struct, default variables {'pinfobs', 'dy'}
@@ -53,7 +53,7 @@ D.check                                          % additivity_maxerr, recon_maxe
 
 The CSV `results/<id>/decomposition.csv` has the columns scenario, date, variable, component,
 value_model, value_report and label (with `total` rows); `value_report` is in report units
-(inflation annualised).
+(inflation annualized).
 
 ```matlab
 T = readtable(fullfile('results', 'a6_inv_learn', 'decomposition.csv'));
@@ -69,7 +69,7 @@ T(k, {'component', 'value_report'})
 
 ## In the project
 
-Average contribution to inflation over 2021Q1-2023Q4 (pp, annualised; total 1.72 pp): price
-mark-up shocks 3.42 under the RE smoother and 6.24 in the history backed out with the learning
-model; the intercept channel adds 0.30 under learning. Full table: [Application
-6](../applications/app6-history.md#results).
+Average contribution to inflation over 2021Q1-2023Q4 (percentage points (pp), annualized;
+total 1.72 pp): price mark-up shocks 3.42 under the RE smoother and 6.24 in the history backed
+out with the learning model; the intercept channel adds 0.30 under learning. Full table:
+[Application 6](../applications/app6-history.md#results).
