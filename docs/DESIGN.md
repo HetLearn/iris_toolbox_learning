@@ -1,16 +1,21 @@
 # hetlearn: design specification
 
+This file specifies how the code is built (package contract, generator, timing, engine stages,
+option tree, outputs, tests and their tolerances); the methods document, with the equations in
+their own notation, is the technical appendix in `docs/technical_appendix/`.
+
 `hetlearn` is a MATLAB wrapper around the IRIS toolbox (tested on IRIS 20230622,
-MATLAB R2025a). It takes a self-contained IRIS model (model file, parameterisation,
+MATLAB R2025a). It takes a self-contained IRIS model (model file, parameterization,
 optional steady-state solver) and an IRIS-readable database, and runs forecasts and
 scenarios in which expectations are a time-varying mix of rational expectations (RE)
 and adaptive learning (bounded rationality, BR). The switching follows Özden (2025),
-"Heterogeneous Expectations and the Business Cycle", IJCB 21(1), eqs. (12)-(16) and
-Appendix D. Estimation is out of scope.
+"Heterogeneous Expectations and the Business Cycle", International Journal of Central
+Banking (IJCB) 21(1), eqs. (12)-(16) and Appendix D. The toolbox does not estimate
+parameters; the separate module `estimation/` does (`estimation/README.md`).
 
-This file is the contract for the code. Every user-facing option is listed in
-`docs/FEATURES.md` with where it is set and whether the user asked for it or it was
-added during the build.
+This file is the contract for the code. Every user-facing option, with its checks, is
+described in `docs/USER_GUIDE.md`; the option table is on the website's Options reference
+(`docs_site/reference/options.md`).
 
 ---------------------------------------------------------------------------------------
 
@@ -20,14 +25,16 @@ added during the build.
 iris_toolbox_learning/
   setup_paths.m              adds IRIS + toolbox/ to the path, runs iris.startup
   run_applications.m         runs the application groups, decompositions and evaluation parts
-  config/master_options.m    project-wide option overrides (user edits this)
-  toolbox/+hetlearn/         the toolbox source (the user never edits this)
+  config/master_options.m    project-wide option overrides (edited by hand)
+  toolbox/+hetlearn/         the toolbox source (not edited for a scenario or model change)
   models/<name>/             one self-contained folder per model (sec. 2)
   scenarios/<name>/*.m       one file per scenario (sec. 6)
   results/<scenario_id>/     outputs of each scenario run (sec. 9)
   reports/                   HTML reports
-  tests/                     unit tests (toy NK model) and model validation tests
-  docs/                      DESIGN.md (this file), FEATURES.md
+  tests/                     unit tests (toy New Keynesian model) and model validation tests
+  estimation/                separate Bayesian estimation module (not used by the toolbox)
+  docs/                      USER_GUIDE.md, DESIGN.md (this file), technical_appendix/
+  docs_site/                 the website (MkDocs sources)
 ```
 
 ## 2. Model package contract
@@ -64,17 +71,17 @@ meta = hetlearn.extend_model(spec, plmSpec)   % writes generated/<name>_ext_<plm
 - Comment text and quoted labels (`"..."`, `'...'`) are never modified. IRIS 20230622
   accepts only `%` and `%{ %}` comments, so `//` and `/* */` delimiters in a source file
   are converted to `%%` and `%{ %}` (text unchanged).
-- Accepted lead notations (whitespace tolerant), all normalised to the IRIS form:
+- Accepted lead notations (whitespace tolerant), all normalized to the IRIS form:
   `x{+k}`, `x{k}`, `x{t+k}`, `x[+k]` (IrisPie), `x(+k)` (Dynare), for integer k >= 1.
-  Non-IRIS lag forms (`x[-k]`, `x{t-k}`, `x(-k)`) are normalised to `x{-k}`. IRIS cannot
+  Non-IRIS lag forms (`x[-k]`, `x{t-k}`, `x(-k)`) are normalized to `x{-k}`. IRIS cannot
   load the non-IRIS forms, so the collapse test (3.4) compares against
-  `generated/<name>_norm.model`, the source with only its subscripts normalised.
+  `generated/<name>_norm.model`, the source with only its subscripts normalized.
 - Pseudo-functions that create leads (`diff`, `difflog`, `mov*` with a lead or a forward
-  window) are rejected with an error that names the equation; the user rewrites them.
+  window) are rejected with an error that names the equation; they must be rewritten by hand.
 - Files using `!for` or `!import`/`!include` are expanded with the IRIS preparser first.
 - The model's own `!if`/`!switch` blocks (switches from `spec.assign`) stay in the generated
   file, but forward-looking variables and max leads are detected on the branches that
-  `spec.assign` selects (IRIS preparser; review m6, 2026-10-18). A variable whose leads sit
+  `spec.assign` selects (IRIS preparser). A variable whose leads sit
   only in inactive branches is not forward-looking and keeps `x{+k}` there. The cache key
   includes `spec.assign`.
 - Name collisions with generated names are an error.
@@ -83,7 +90,7 @@ meta = hetlearn.extend_model(spec, plmSpec)   % writes generated/<name>_ext_<plm
 For each forward-looking variable `x` with maximum lead K:
 1. Replace every `x{+k}` by `x_expk` (k = 1..K).
 2. Append definitions (new sections appended at the end of the file; IRIS allows
-   repeated sections, so the user's declaration blocks are not touched):
+   repeated sections, so the declaration blocks of the source are not touched):
 
 ```
 !transition_variables
@@ -132,14 +139,13 @@ the RE/BR mix, `false` = pure RE, with no extra variables in the model). The mod
 the toolbox (it always sets `n2_x = 1 - n1_x`). The shares used in period t are the shares
 computed at the end of period t-1 (IJCB eq. 16, footnote 13).
 
-RE agents: `cfg.expectations.re_variant` (sec. 11). The baseline since 2026-10-18 (user
-decision) is `'anchored'`: RE agents use the pure-RE model's forecast at the current
+RE agents: `cfg.expectations.re_variant` (sec. 11). The default is `'anchored'`: RE agents use the pure-RE model's forecast at the current
 state. The alternative `'model_consistent'` is `x_exp1_RE = x{+1}`, the model-consistent
 expectation in the heterogeneous economy, under anticipated utility (beliefs and shares
 are treated as permanent when the model is solved; re-solved every quarter).
 
 ### 4.2 Perceived law of motion (PLM) and the BR forecast
-Information assumption (user spec): in period t, BR agents observe data up to t-1. A PLM
+Information assumption: in period t, BR agents observe data up to t-1. A PLM
 equation for variable v is
 
     v_t = alpha_v + sum_j beta_{v,j} * u_j,{t-l_j} + error,    l_j >= 1
@@ -152,14 +158,14 @@ of x_{t+1} is built by iterating the PLMs forward from the information set {.., 
             = E(u, k)     if k >= 0       (must itself be forecast)
     x_exp1_BR = E(x, 1)
 
-For the default AR(1) PLM this gives exactly the user's form
+For the default AR(1) PLM this gives
 
     x_exp1_BR = alpha_x + beta_x*(alpha_x + beta_x*x{-1});
 
-Option `beliefs.info` (added 2026-10-18, review s5 / user question D2): `'lagged'` (default)
+Option `beliefs.info`: `'lagged'` (default)
 is the information assumption above. `'current'` follows IJCB eq. (12): BR agents see
 period-t data, `E_t x_{t+1} = alpha_{t-1} + beta_{t-1} x_t`, determined jointly with x_t,
-and beliefs are updated after x_t is realised, so the forecast in t still uses phi_{t-1}.
+and beliefs are updated after x_t is realized, so the forecast in t still uses phi_{t-1}.
 The recursion is the same with T(u,k) = u{k} for k <= 0; since every lag is >= 1, E(x,1)
 never recurses: AR(1) `alpha_x + beta_x*x`, AR(2) `alpha + b1*x + b2*x{-1}`, VAR
 `alpha + B X_t`, derived and auxiliary regressors dated t. The generator writes both forms
@@ -182,7 +188,7 @@ Shorthands: `'ar1'`, `'ar2'`, `'ar1_noconst'`.
 
 ### 4.3 Belief updating: constant-gain RLS (IJCB eq. 13)
 For each PLM equation e with regressor vector z_{t-1} = [1; regressors dated <= t-1] and
-target v_t, after v_t is realised:
+target v_t, after v_t is realized:
 
     R_t   = R_{t-1} + g_t * (z_{t-1} z_{t-1}' - R_{t-1})
     phi_t = phi_{t-1} + g_t * R_t^{-1} z_{t-1} (v_t - phi_{t-1}' z_{t-1})
@@ -195,11 +201,10 @@ is described in sec. 18.
 
 Belief modes: `'rls'` (endogenous) or `'fixed'` (held at their initial values).
 
-### 4.4 Projection facility (as built 2026-10-18, track G)
-User decision 2026-10-18: the projection facility is the only stabilising device. Partial
-updates, shrinking, the joint (system) check, the root threshold `max_root`, keep-previous
-and error-out as separate fallbacks, and switching error scaling were removed; their option
-names now raise `hetlearn:options:removed`, which points to `projection.facility`. Terms:
+### 4.4 Projection facility
+The projection facility is the only stabilizing device. The option names of earlier
+devices (`projection.max_root`, `.method`, `.scope`, `.on_failure`, `switching.error_scale`,
+`.error_scale_ref`) raise `hetlearn:options:removed`, which points to `projection.facility`. Terms:
 PLM = the agents' forecasting rule; ALM = the model with the beliefs and shares plugged in.
 
 `projection.facility` (`hetlearn.engine.facility`, called from `update_learning` and the
@@ -227,8 +232,8 @@ stages):
   candidate comes from phi_{t-1}, R_{t-1} and each block is judged on its own equations,
   so the outcome does not depend on the equation order.
 - Under `'alm'` and `'plm_alm'`, a model still unstable with every belief at its previous
-  value (the shares alone make it unstable) also keeps the previous quarter's model shares
-  (user decision 2026-10-18, second ruling): the beliefs and model shares last in force,
+  value (the shares alone make it unstable) also keeps the previous quarter's model shares:
+  the beliefs and model shares last in force,
   which solved, stay in the model for that quarter, event `projection_alm_shares` ("beliefs
   and model shares kept at the previous quarter's values"; `projection_alm` stays the
   beliefs-only step, and each check logs at most one of the two). Switching carries on:
@@ -289,9 +294,8 @@ G is the share group: `shares.structure = 'per_variable'` -> one group per learn
 variable, G = {x}; `'universal'` -> one group for all learning variables, G =
 `shares.master` (one variable name; a cellstr sums the squared errors, as the IJCB paper
 does for inflation and the output gap). Computed in a numerically stable form. The
-squared errors enter unscaled (switching error scaling was removed on 2026-10-18). chi =
-0.51 by default, IJCB's estimate on quarterly data, the units of SW07 (user decision
-2026-10-18; it was 8 = 0.51 x 16 on the wrong reading that IJCB's data are annualised).
+squared errors enter unscaled. chi = 0.51 by default, IJCB's estimate on quarterly data,
+the units of SW07.
 Initial fitness: zeta^RE_0 = 0 and zeta^BR_0 set so that n2_0 = `shares.init_n2`.
 
 ### 4.6 Expectation modes (`cfg.expectations.mode`)
@@ -307,7 +311,7 @@ every forward-looking variable. In `'rational'` mode the learning variables keep
 `br_x = true` blocks with n1 = 1, so the RE scenario has the same model structure as the
 learning scenarios it is compared with (the collapse test in 3.4 makes this exact RE).
 
-### 4.7 Belief initialisation (`cfg.beliefs.init`)
+### 4.7 Belief initialization (`cfg.beliefs.init`)
 - `method = 're_moments'` (default, as in IJCB sec. 3.1): phi_0 = E[z z']^{-1} E[z v] and
   R_0 = E[z z'], from the unconditional moments of the RE model (`acf`, with the steady
   state supplying the means).
@@ -334,7 +338,7 @@ measurement equations (`lhsmrhs`, data on the left) reproduce the data (max abs 
 < 1e-8 when there are at least as many shocks as observables). Comparing the smoothed
 observables themselves is vacuous: IRIS copies the data into them.
 
-As built 2026-10-19: one call `filter(m, d, range, 'output', 'filter,smooth', 'meanOnly',
+One call `filter(m, d, range, 'output', 'filter,smooth', 'meanOnly',
 true)` gives both databanks, `H.smooth` (two-sided, x_{t|T}) and `H.filtered` (one-sided,
 x_{t|t}: data up to t). In IRIS 20230622 (`model/filter`, `hdataobj.hdatafinal`) two
 requested outputs come back as a struct with fields `.filter` and `.smooth`; one output is the
@@ -342,26 +346,26 @@ databank itself. The smoothed output is identical with or without the filter out
 max diff 0). The filtered series have no presample lag rows and start one period before the
 range. Observed measurement variables equal the data in both. Where every observable is
 missing (SW07 2020Q1-Q3) the filtered value is the one-step prediction and the filtered
-shocks are 0. The cache key is unchanged. A cache without `H.filtered` (written before
-2026-10-19) is filtered again and rewritten under the same name the first time it is read.
+shocks are 0. A cache without `H.filtered` (written by an older version) is filtered again and rewritten under the same name the first time it is read.
 
 ### 5.2 History stage (`history.mode = 're_smoother'`)
 Learning states are run over [init.date, origin] on the RE-smoothed history. For
 t = init.date .. origin:
-1. realised v_t: smoothed value; f^RE_t = smoothed x_exp1_RE_t; f^BR_t = E(x,1) evaluated
+1. realized v_t: smoothed value; f^RE_t = smoothed x_exp1_RE_t; f^BR_t = E(x,1) evaluated
    numerically with beliefs phi_{t-1} and data up to t-1 (same recursion as 4.2);
 2. FE_t from f_{t-1}; fitness, shares n_t (4.5);
 3. RLS update -> phi_t (4.3), projection facility (4.4).
 The history itself does not depend on the learning states; agents learn while watching the
-RE-smoothed economy. Future option (not implemented): `history.mode = 'hetero_filter'`,
-a time-varying Kalman filter in which the heterogeneous model is solved every period and
-beliefs are updated on the filtered states (IJCB App. D).
+RE-smoothed economy. The time-varying Kalman filter in which the heterogeneous model is
+solved every period and beliefs are updated on the filtered states (IJCB App. D) is
+`history.mode = 'kalman'` (user guide 7.6); the name `'hetero_filter'` is reserved and raises
+`hetlearn:options:notImplemented`.
 
-**RE states: `history.re_states` (as built 2026-10-19).** `'smoothed'` (default) is the loop
+**RE states: `history.re_states`.** `'smoothed'` (default) is the loop
 above. The smoothed `x_exp1_RE_t` is the RE forecast from states estimated with data after t,
 which gives the RE agents hindsight in the fitness race. `'filtered'` takes every value of the
 loop from `H.filtered` instead (`hetlearn.engine.history_db`): f^RE_t = filtered `x_exp1_RE_t`
-= E_t x_{t+1} from s_{t|t}, the learners' data, and the realised v_t in both fitness errors,
+= E_t x_{t+1} from s_{t|t}, the learners' data, and the realized v_t in both fitness errors,
 so the loop is one-sided. Under `'filtered'`:
 - f^RE_t equals the Kalman filter's one-step prediction x_{t+1|t} of the RE model, and FE^RE_t
   is the squared one-step prediction error.
@@ -412,16 +416,15 @@ horizon (unanticipated shocks). This is a regression test.
 With `source = 'smoothed'` and mode `'rational'` from the smoothed state, the scenario
 reproduces the data (regression test).
 
-### 5.5 Conditions: exogenise/endogenise pairs (`cfg.conditions`)
+### 5.5 Conditions: exogenize/endogenize pairs (`cfg.conditions`)
 Each condition is a struct: `variable`, `shock`, `dates`, `values`, `type`
 (`'level'` | `'delta'`), `reference` (`'self'` = the same scenario run without any
 conditions | a scenario id). `variable` may be a transition or a measurement variable.
-In each period the engine solves for the endogenised shocks that put the exogenised
+In each period the engine solves for the endogenized shocks that put the exogenized
 variables on target. Because each one-period simulation is linear in the shocks, the
 engine builds the response matrix by unit-shock simulations and solves the linear system
 (exactly determined: solve; more shocks than targets: minimum-norm; fewer: error).
-Checked against IRIS `Plan` exogenize/endogenize in a test. As built (review finding m10,
-2026-10-18): the minimum norm is taken in units of each shock's standard deviation,
+Checked against IRIS `Plan` exogenize/endogenize in a test. The minimum norm is taken in units of each shock's standard deviation,
 delta = S pinv(M S) gap with S = diag(`std_<shock>`) (`engine.conditions_weighting =
 'std'`, default; `'none'` = unweighted pinv); the exactly determined case is unchanged.
 For `'delta'`, the engine first runs the reference and sets target = reference path + delta.
@@ -437,13 +440,13 @@ A function in `scenarios/<model>/` returning `cfg`. Inheriting from another scen
 plain function call:
 
 ```matlab
-function cfg = sw07_peak_switch_pinf()
-cfg = sw07_peak_re();                      % start from the RE scenario
-cfg.id = 'sw07_peak_switch_pinf';
+function cfg = my_switch_pinf()
+cfg = a1_re();                             % start from the RE scenario
+cfg.id = 'my_switch_pinf';
 cfg.title = 'Peak-inflation forecast, switching on inflation';
 cfg.expectations.mode = 'switching';
 cfg.expectations.variables = {'pinf'};
-cfg.compare_with = {'sw07_peak_re'};
+cfg.compare_with = {'a1_re'};
 end
 ```
 
@@ -451,12 +454,12 @@ end
 ```
 id, title, description, model (model folder name, e.g. 'sw07')
 model_params               [''] = spec.params, or the name of a parameter function (.m file) in the
-                           package folder, e.g. 'sw07_params_original' (2026-10-20; checked by load_model)
+                           package folder, e.g. 'sw07_params_original' (checked by load_model)
 forecast.origin            date (last period of data used)
 forecast.horizon           [16]
 expectations.mode          ['rational'] | 'learning' | 'fixed_shares' | 'switching'
 expectations.variables     [{}] cellstr or 'all'
-expectations.re_variant    ['anchored'] | 'model_consistent'  (sec. 11; anchored default since 2026-10-18)
+expectations.re_variant    ['anchored'] | 'model_consistent'  (sec. 11)
 expectations.re_info       ['current'] | 'lagged'  (RE expectations of the learning set E_{t-1} x_{t+1}, sec. 19)
 beliefs.update             ['rls'] | 'fixed'
 beliefs.info               ['lagged'] | 'current'  (BR information set, sec. 4.2)
@@ -476,16 +479,15 @@ shares.master              name or cellstr (universal only)
 shares.init_n2             [0.5]
 shares.fixed_n2            scalar or struct by variable
 switching.rule             ['discrete_choice']
-switching.intensity        chi [0.51]  (IJCB estimate, quarterly data; user decision 2026-10-18, was 8;
-                           calibration set live in config/master_options.m, sources there)
+switching.intensity        chi [0.51]  (IJCB estimate, quarterly data)
 switching.memory           omega [0.6]
-projection.facility        ['plm_alm'] | 'alm' | 'none'  (sec. 4.4; the only stabilising device)
-                           removed 2026-10-18 (error hetlearn:options:removed): projection.max_root,
+projection.facility        ['plm_alm'] | 'alm' | 'none'  (sec. 4.4; the only stabilizing device)
+                           removed (error hetlearn:options:removed): projection.max_root,
                            .on_failure, .method, .scope; switching.error_scale, .error_scale_ref
 engine.step                ['fast'] | 'iris';  engine.conditions_weighting ['std'] | 'none'
 history.learn              [true]
 history.mode               ['re_smoother'] | 'inversion'  (sec. 15) | 'kalman'  (time-varying Kalman
-                           filter of the ALM, one-step prediction errors; DESIGN_br_extensions 5)
+                           filter of the ALM, one-step prediction errors; user guide 7.6)
 history.re_states          ['smoothed'] | 'filtered'  (sec. 5.2; 're_smoother' only)
 history.inversion          start [[] = beliefs.init.date], shocks [{} = every transition shock]
 history.kalman.init        ['stochastic'] (asymptotic distribution, as IRIS) | 'smoothed' (P0 = 0 at
@@ -505,9 +507,11 @@ policy                     mode ['rule'] | 'ramsey', type ['commitment'] | 'disc
 compare_with               [{}] cellstr of scenario ids
 report.variables           [{}]  reserved; not read by the toolbox
 expectations.types, expectations.transforms, shares.init, shares.fixed
-                           [empty] BR options, replaced as a whole (DESIGN_br_extensions 1.1-1.3)
+                           [empty] agent types, forecast transforms, shares over N types;
+                           replaced as a whole (user guide section 7)
 ```
-The user-facing version of this tree, with meanings and recipes, is `docs/USER_GUIDE.md` sec. 5.
+The checks and meanings of these options are in `docs/USER_GUIDE.md`, section 4; the option table is on the website's
+Options reference.
 
 ## 7. Public API
 ```
@@ -534,12 +538,11 @@ Engine stages are in `toolbox/+hetlearn/+engine/` (`core`, `state_init`, `histor
 
 ## 8. Tests (`tests/`)
 Toy model: 3-equation hybrid NK (IJCB eq. 1) with an extra 2-step lead, written with mixed
-lead notations (`tests/toy_nk/`). `tests/run_tests.m` runs 19 suites (257 checks on
-2026-10-18, track G; 293 on 2026-10-19 with `test_re_info`, whose test models are in
-`tests/models/`); `run_tests({'suite', ...})` runs a subset, because the whole run
+lead notations (`tests/toy_nk/`). `tests/run_tests.m` runs 24 suites (364 checks; the
+test models of `test_re_info` are in `tests/models/`); `run_tests({'suite', ...})` runs a subset, because the whole run
 exceeds one 9-minute batch call. The tests do not read `scenarios/` or `results/`: SW07
 runs use the test scenarios `tests/scenarios/tsw07_*.m` (calibration written out), and
-the stored reference for the 2026-10-18 defaults is `tests/reference/tsw07_switch_pinf_iris.mat`
+the stored reference for the toolbox defaults is `tests/reference/tsw07_switch_pinf_iris.mat`
 (made by `tests/scenarios/make_reference.m`; compared by test_gain G14, test_info I5,
 test_inversion S3b). Internal pins stay: fast step = IRIS step, collapse tests, RE = IRIS
 simulate, conditions = IRIS Plan, inversion = smoother.
@@ -556,10 +559,12 @@ simulate, conditions = IRIS Plan, inversion = smoother.
 | `test_inversion`, `test_decompose` | RE inversion = smoother, real time by construction; decomposition = IRIS, path reconstruction, `'tv'` with the beliefs in force after the facility (C6) |
 | `test_ramsey` | optimal policy against IRIS, loss accounting, multipliers at the origin |
 | `test_info` | `beliefs.info = 'current'`: forecasts = IRIS `x_exp1_BR`, timing assert, unchanged RLS |
-| `test_gain` | endogenous gain: recursion = a hand-coded loop, mu = 0 = constant gain bit for bit, bounds and events, signed-error behaviour, `'common'` vs `'per_variable'`, `'rls'` vs `'forecast'` errors, the gain state through history, inversion, evaluation, density and Ramsey; SW07 smoke run |
-| `test_facility` | projection facility (sec. 4.4): AR(1) block rule under each value, one explosive block among several and order independence, block detection, unstable ALM reverts every belief, history-stage ALM check, model shares kept when reverting the beliefs is not enough (F10: the run completes, `n1_model` kept while `n1` moves, `'tv'` rebuilds the paths), `almUnstable` (no earlier solved model) and `noSolution` errors, the explosive no-lead path under `'none'`, KOZ gain at revert periods, which stages solve |
-| `test_re_states` | `history.re_states` (sec. 5.2): default = pre-change run, filtered databank, f^RE = IRIS prediction, covid gap, realtime orthogonal, `history.learn = false`, `training_ols` |
+| `test_gain` | endogenous gain: recursion = a hand-coded loop, mu = 0 = constant gain bit for bit, bounds and events, signed-error behavior, `'common'` vs `'per_variable'`, `'rls'` vs `'forecast'` errors, the gain state through history, inversion, evaluation, density and Ramsey; SW07 smoke run |
+| `test_facility` | projection facility (sec. 4.4): AR(1) block rule under each value, one explosive block among several and order independence, block detection, unstable ALM reverts every belief, history-stage ALM check, model shares kept when reverting the beliefs is not enough (F10: the run completes, `n1_model` kept while `n1` moves, `'tv'` rebuilds the paths), `almUnstable` (no earlier solved model) and `noSolution` errors, the explosive no-lead path under `'none'`, endogenous gain at revert periods, which stages solve |
+| `test_re_states` | `history.re_states` (sec. 5.2): default = the stored reference run, filtered databank, f^RE = IRIS prediction, the 2020Q1-Q3 data gap, realtime orthogonal, `history.learn = false`, `training_ols` |
 | `test_re_info` | `expectations.re_info` (sec. 19): options; SW07 RE(t-1) model = hand-written IRIS reference and Dynare `EXPECTATION(-1)`; closed form; n1 = 1 collapse; end-to-end runs (f^RE = independent two-step forecasts) and every stage; default files and runs unchanged |
+| `test_kalman`, `test_ntypes`, `test_transforms`, `test_anchor` | the Kalman history (K1-K8), N agent types, forecast transforms, the generalized anchor (user guide section 7) |
+| `test_br_regression` | frozen regression: a scenario without the section-7 options gives bit-identical results |
 
 ## 9. Outputs (`results/<id>/`)
 - `results.mat`: `cfg` (merged), `paths` (databank, history + horizon, all variables incl.
@@ -583,21 +588,19 @@ simulate, conditions = IRIS Plan, inversion = smoother.
 ## 10. Reporting conventions
 Model units: growth rates and inflation in percent quarter on quarter, `robs` in percent per
 quarter, `labobs` in 100 x log deviation. Reports show growth, inflation and the policy rate
-annualised (x4), hours as is. Labels and transformations come from `spec.report`.
+annualized (x4), hours as is. Labels and transformations come from `spec.report`.
 
 ---------------------------------------------------------------------------------------
 
-# Part II: extensions (specified 2026-10-17)
+# Part II: extensions
 
-Requested by the user after the first report: an anchored RE variant, Ramsey policy,
-density forecasts, history backed out with the learning model, shock decompositions,
-recursive forecast evaluation, more PLMs, and (after a review round) an endogenous gain.
-Every new option goes into `docs/FEATURES.md` (Origin `asked` unless it goes beyond the
-request, then `ADDED` with a reason).
+The anchored RE variant, more PLMs, Ramsey policy, density forecasts, the history backed out
+with the learning model, shock decompositions, recursive forecast evaluation, the endogenous
+gain and the RE information set. The agent types, forecast transforms and the Kalman history
+are described in the user guide, section 7.
 
 ## 11. RE variants (`expectations.re_variant`)
-- Default since 2026-10-18 (user decision): `'anchored'`, the baseline of the toolbox;
-  `'model_consistent'` is the alternative. Tests that check the model-consistent variant
+- Default: `'anchored'`; `'model_consistent'` is the alternative. Tests that check the model-consistent variant
   pin it (`re_variant = 'model_consistent'`).
 - `'model_consistent'` (sec. 4.1): `x_exp1_RE = x{+1}` in the heterogeneous
   economy; the model is re-solved every period given the current beliefs and shares.
@@ -618,43 +621,41 @@ request, then `ADDED` with a reason).
   extended model reproduces the RE model's IRFs (< 1e-10).
 - Existence: when every forward-looking variable is a learning variable, the anchored
   model has no leads, so a solution exists for any beliefs and shares, possibly explosive.
-  IRIS `solve` rejects explosive solutions even in purely backward models (NO_STABLE;
-  tested 2026-10-17), so the engine then simulates with its own backward recursion from
+  IRIS `solve` rejects explosive solutions even in purely backward models (NO_STABLE), so the engine then simulates with its own backward recursion from
   the first-order system matrices (`system(m)`), `hetlearn.engine.backward_simulate`, and
-  logs an `explosive` event with the largest root. As built 2026-10-18: this is the
+  logs an `explosive` event with the largest root. This is the
   `projection.facility = 'none'` case; under `'alm'` and `'plm_alm'` a backward root above
   1 is an unstable ALM (sec. 4.4: beliefs reverted, then the previous model shares kept;
   `hetlearn:engine:almUnstable` only without an earlier solved model). If
   leads remain (some forward-looking variable is not learning) and `solve` fails, the
   projection facility of 4.4 applies.
   The backward simulator must equal IRIS `simulate` whenever IRIS has a solution (test).
-  As built (2026-10-18): the trigger is the active model, not the learning list:
+  The trigger is the active model, not the learning list:
   `get(m,'maxLead') = 0` and a linear model. A variable with a lead of 2 or more keeps
   `x_exp2 = x_exp1{+1}` (3.2), so such a model keeps leads even when every variable learns
   (the toy `nk3` with `pie{+2}`; SW07 has only 1-step leads). `solve_model` stores the
   backward system in the IRIS model's user data and reports success; `step` simulates
-  with it and returns the `explosive` event, which `forecast` appends (two-line change
-  there). The state vector is IRIS's `xbVector`, which also holds measured variables
+  with it and returns the `explosive` event, which `forecast` appends. The state vector is IRIS's `xbVector`, which also holds measured variables
   without lags (their coefficients are 0).
 - History under `re_smoother` is the same for both variants (the RE-smoothed path
-  satisfies both). As built, the RE filter model carries the `re_anchored` toggle of the
+  satisfies both). The RE filter model carries the `re_anchored` toggle of the
   scenario (own cache file); the smoothed history equals the model-consistent one to
   1e-13 (toy test).
 - With `expectations.re_info = 'lagged'` both variants use information up to t-1; the
   anchored coefficients then come from the RE(t-1) model of the learning set (sec. 19).
 
 ## 12. More perceived laws of motion (`beliefs.plm`)
-- `'ar2'`: univariate AR(2) with constant (exists; verify on SW07).
-- Per-variable regressors (exists): `beliefs.plm.by_var.<x>.regressors = {'pinf{-1}', ...}`,
+- `'ar2'`: univariate AR(2) with constant.
+- Per-variable regressors: `beliefs.plm.by_var.<x>.regressors = {'pinf{-1}', ...}`,
   `.constant`.
-- Derived regressors (new): `beliefs.plm.derived.<name> = '<linear expression in
+- Derived regressors: `beliefs.plm.derived.<name> = '<linear expression in
   current-dated model variables>'`, e.g. `derived.ygap = 'y - yf'`. The generator adds a
   transition variable `<name>` with equation `<name> = <expr>;` (outside every toggle;
   a name collision is an error). Derived variables can be regressors at any lag >= 1 and
-  get auxiliary PLMs like any other regressor. As built: the expression may use declared
+  get auxiliary PLMs like any other regressor. The expression may use declared
   names, numbers, + - * / and parentheses only (no subscripts or functions) and must
   reference a transition variable; derived variables may also be VAR members.
-- VAR learning (new): `beliefs.plm.var = struct('variables', <cellstr | 'learning'>,
+- VAR learning: `beliefs.plm.var = struct('variables', <cellstr | 'learning'>,
   'lags', 1, 'constant', true)`. Every variable in the set gets the PLM equation
   `v_t = alpha_v + sum_{u in set} sum_{l=1..p} beta_{v,u,l} u_{t-l}`; learning variables in
   the set use it for their expectations, other members are auxiliary equations of the same
@@ -662,7 +663,7 @@ request, then `ADDED` with a reason).
   entry for a VAR member is an error. The BR forecast is the VAR's own two-step forecast
   (the recursion of 4.2). RLS equation by equation (common regressors, so identical to
   system RLS); projection facility on the VAR companion; initial beliefs from RE moments.
-  As built: `hetlearn.load_model` resolves `'learning'` and `'var1'` to the scenario's
+  `hetlearn.load_model` resolves `'learning'` and `'var1'` to the scenario's
   learning variables before calling the generator (which gives every forward-looking
   variable a primary PLM), so the generated file depends on the learning set; regressors
   are ordered lag first, then members in the order given.
@@ -680,18 +681,18 @@ request, then `ADDED` with a reason).
 - IRIS fix: the optimal-policy parser of IRIS 20230622 fails on MATLAB R2025a (non-scalar
   colon operand in `model.Insertable/insert`). The toolbox ships a shadow copy
   `toolbox/iris_patches/+model/Insertable.m` (`where = where(1)`) that `setup_paths` puts
-  ahead of IRIS. The IRIS installation is not modified. Tested 2026-10-17: the commitment
+  ahead of IRIS. The IRIS installation is not modified. Test: the commitment
   targeting rule pi_t + (lambda/kappa)(y_t - y_{t-1}) = 0 holds to 2e-15 on a 3-equation
   NK model; discretion gives pi_t + (lambda/kappa) y_t = 0 to 4e-15.
 - Timing: the history is always the rule-based RE filter (the estimated model). The Ramsey
   model applies from the forecast origin; Lagrange multipliers (IRIS `Mu_Eq<k>`) start at
   zero at the origin (the plan starts there) and their lags are carried forward. With
   learning, the planner treats the current PLM coefficients and shares as permanent
-  (anticipated utility), re-optimises every period and honours past multipliers.
+  (anticipated utility), re-optimizes every period and honors past multipliers.
 - Loss accounting: every scenario reports the discounted loss over the horizon,
   `sum_h discount^h sum_k w_k target_k^2`, with the scenario's weights (rule scenarios use
   `policy.loss` too, so rule and Ramsey runs can be compared with the same weights).
-- As built (2026-10-18, generator version 3; `hetlearn.policy.*`):
+- Implementation (generator version 3; `hetlearn.policy.*`):
   - The wrap is `!if ramsey <loss>; !else <rule> !end` (same as above). The discount is
     written as `(1 - ramsey_disc_on)*(<spec discount>) + ramsey_disc_on*ramsey_disc`, so
     `policy.discount` (a number) needs no new file. `ramsey_disc_on` and `ramsey_disc` are
@@ -714,7 +715,7 @@ request, then `ADDED` with a reason).
   - The generator finds the rule-only names: rule variables used only in their own law
     of motion, and shocks used only in those equations (SW07 `ms`, `em`; toy `e_r`).
     Shocks or conditions on them run with no effect, with one warning per run.
-    Conditions whose endogenised shocks are all rule shocks keep only their rule-only
+    Conditions whose endogenized shocks are all rule shocks keep only their rule-only
     targets.
   - `res.loss` (`hetlearn.policy.loss`) holds the total, the contribution of each target,
     per-period values and the discount, and is also written to `loss.csv`. When
@@ -743,30 +744,30 @@ request, then `ADDED` with a reason).
   `density_events.csv` (per draw: `draw, status`, the event counts in the fixed order
   `projection_plm, projection_alm, projection_alm_shares, explosive_events, rls_missing,
   shares_nan, gain_bound`,
-  then `max_abs, message`; columns since 2026-10-18). Draws that
+  then `max_abs, message`). Draws that
   explode (any |value| > 1e6) are excluded from the quantiles and counted; a draw the
   facility stops (`almUnstable`, `noSolution`) is an `'error'` draw with its message.
-- As built (2026-10-18): `hetlearn.engine.core` returns a forecast-stage bundle F (origin
+- Implementation: `hetlearn.engine.core` returns a forecast-stage bundle F (origin
   state, starting databank, conditions, model); `hetlearn.density.run` adds each draw to
   the scenario's shocks at `density.range` (dates outside the horizon ignored) and calls
   `hetlearn.engine.forecast` from F with the point forecast's period-1 solve reused
-  (`fopt.warm`). Conditions keep their targets, so endogenised shocks offset draws on the
+  (`fopt.warm`). Conditions keep their targets, so endogenized shocks offset draws on the
   same shock. Fast path (`density.fast_path`, default true): one IRIS simulate per draw,
   learning diagnostics replayed on the simulated path (= general path, test). Random
   numbers from `RandStream('mt19937ar', 'Seed', seed)` draw by draw (global stream
   untouched). Bootstrap draws are demeaned over `sigma_range` unless `density.demean =
-false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
+false`; `density.sigma` is then unused. Draws whose
   forecast stage errors count as `'error'` and are excluded too. Quantiles: own helper
-  `hetlearn.density.quantile`, same definition as the Statistics Toolbox default. Summarised
+  `hetlearn.density.quantile`, same definition as the Statistics Toolbox default. Summarized
   series: observables, `n2_model_<x>` and the PLM coefficients of each learning variable
   (q, mean, std, point; report units x `spec.report.scale`). `density.mat` holds variable
   `density`; the mean is not in the CSV. `res.density` is in memory only (not in
-  `results.mat`); a run without density deletes old density files of that id. SW07
-  (2026-10-18): 0.07 s per draw (fast path), 0.6-0.8 s per draw (general path, 16 periods).
+  `results.mat`); a run without density deletes old density files of that id. SW07:
+  0.07 s per draw (fast path), 0.6-0.8 s per draw (general path, 16 periods).
 
 ## 15. History backed out with the learning model (`history.mode = 'inversion'`)
 - Symmetric to forecasts: the history is simulated one period at a time with the learning
-  model, exogenising every observable at its data value and endogenising
+  model, exogenizing every observable at its data value and endogenizing
   `history.inversion.shocks` (default: every transition shock; at least as many as
   observables, minimum norm if more). Same step as a forecast period (5.3) with these
   conditions: beliefs and shares in the model, solve (projection facility, sec. 4.4), solve
@@ -777,10 +778,10 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   [start, origin]; the forecast starts from this history.
 - Check: mode `'rational'` inversion from the smoothed state reproduces the RE-smoothed
   shocks (report the max difference over the sample; target < 1e-8).
-- As built (2026-10-18): the loop is in `hetlearn.engine.history` and calls
+- Implementation: the loop is in `hetlearn.engine.history` and calls
   `hetlearn.engine.step` (observables with data at t as targets) and
   `hetlearn.engine.update_learning`; solves go through `hetlearn.engine.facility`, shared
-  with `hetlearn.engine.forecast` (since 2026-10-18). A start after
+  with `hetlearn.engine.forecast`. A start after
   `beliefs.init.date` first runs the 5.2 learning on the smoothed history up to start-1;
   a start before it, or `history.learn = false`, is an error. Data come from the RE
   filter's `H.data`. Ramsey scenarios back out the history with `info.policy.rule_model`
@@ -792,19 +793,19 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   invertibility problem with 7 shocks for 7 observables). Runtime with `engine.step =
   'fast'` (the default): 6.5-7 s (RE), 5-9 s (switching on pinf); with `'iris'` each period
   costs about 0.25 s (9 simulations): 77 s for the RE inversion (same 2.1e-13). These SW07
-  figures predate the covid treatment (2026-10-19: every observable NaN in 2020Q1-Q3). The
-  inversion has nothing to exogenise in those quarters, so it now equals the RE smoother only
+  figures were measured with the 2020Q1-Q3 quarters in the data; every observable is now NaN
+  there. The inversion has nothing to exogenize in those quarters, so it now equals the RE smoother only
   up to 2019Q4; `test_inversion` S1 checks the shocks there (below 1e-8).
 - Evaluation (17): one inversion per variant to the last origin on the full-sample RE
   filter (it only supplies the state before the start), state kept at every origin
   (`ctx.inv_snapshots`); each forecast starts from it (`ctx.history_cache` of
   `hetlearn.engine.core`). Self references of delta conditions reuse the history.
-- Engine step (B2): `engine.step = 'fast'` simulates each period from the state-space
+- Engine step: `engine.step = 'fast'` simulates each period from the state-space
   solution (`sspace(m, 'triangular', false)`, cached in the model's user data at each
   successful solve) with the exact response matrix for conditions; = IRIS to rounding
-  (1e-14 per period). Default `'fast'` since 2026-10-18 (review finding s2): not
+  (1e-14 per period). Default `'fast'`: not
   bit-identical to `'iris'` (8.9e-16 on the toy reference of test_engine E9; 1.5e-12 on
-  `sw07_peak_switch_pinf`), so the bit-identity tests use 1e-10 and test_inversion S3b
+  an SW07 switching run on inflation), so the bit-identity tests use 1e-10 and test_inversion S3b
   pins `'iris'` = `results/` exactly.
 
 ## 16. Shock decomposition (`hetlearn.decompose`)
@@ -812,7 +813,7 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   deviations from their RE steady state.
 - RE: IRIS contributions (`simulate(..., 'contributions', true)`) from the start of the
   history: one component per shock plus initial conditions.
-- Learning (inversion history): time-varying linear decomposition with the realised model
+- Learning (inversion history): time-varying linear decomposition with the realized model
   of each period: component paths `x^c_t = Phi_t(x^c_{t-1}, eps^c_t)` without constants
   (one-period simulate with `'deviation', true`), c in {each shock, initial conditions};
   "beliefs and constants" = total deviation minus the sum of the components (the
@@ -820,7 +821,7 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   model it must equal the IRIS decomposition (test).
 - `opts.groups` (struct of shock groups); output long CSV (scenario, date, variable,
   component, value, report units).
-- As built (2026-10-18): `opts.method = 'auto'` uses IRIS for mode `'rational'` and the
+- Implementation: `opts.method = 'auto'` uses IRIS for mode `'rational'` and the
   time-varying (`'tv'`) decomposition otherwise. The `'tv'` periods use the state-space
   matrices of each period's solution directly (the deviation form of the one-period
   simulate, without constants; the backward system when IRIS has none) instead of one
@@ -836,10 +837,8 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   2e-13); the period matrices with constants rebuild the paths (SW07 8.5e-13). Ramsey
   results are rejected for now. SW07 2019Q1-2026Q2: 0.6-1.8 s (IRIS), 3-5 s (`'tv'`,
   242 solves).
-- Review fixes (m12, 2026-10-18): the `allow_partial` option and the partial-update code
-  were removed with partial updates (track G). The CSV gains a last column `label` ('intercept channel
-  (perceived means)' for `beliefs_constants`, model-file shock labels); ids unchanged.
-  Reading: slope beliefs and shares act inside every shock component through each
+- The CSV has a last column `label` ('intercept channel (perceived means)' for
+  `beliefs_constants`, model-file shock labels). Reading: slope beliefs and shares act inside every shock component through each
   period's transition matrices; `beliefs_constants` is the intercept channel only.
 
 ## 17. Recursive forecast evaluation (`hetlearn.evaluate`)
@@ -857,7 +856,7 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   variance (`opts.dm`, default true).
 - Outputs in `results/eval_<name>/`: `errors_long.csv`, `metrics.csv`,
   `relative_rmse.csv`, `dm.csv`, `settings.mat`.
-- As built (2026-10-18): option `history.realtime` (default false; `evaluate` sets it
+- Implementation: option `history.realtime` (default false; `evaluate` sets it
   through `opts.realtime`, default true) makes `hetlearn.run` call `hetlearn.re_filter(...,
   'end', origin)`: every database series clipped at the origin, filter over [filter start,
   origin], cache `generated/refilter_rt_<date>_<hash>.mat` with the hash over the clipped
@@ -865,27 +864,27 @@ false` (B2, 2026-10-18); `density.sigma` is then unused. Draws whose
   its model is loaded once and every origin's filter is computed once and passed to
   `hetlearn.run` (`'model'`, `'filter'` call options). Targets without data are skipped.
   Relative RMSE and DM use the targets both variants have; DM loss differential
-  `e_variant^2 - e_benchmark^2`, h-1 autocovariances; kernel `opts.dm_kernel` (review
-  finding m2, 2026-10-18): `'uniform'` gamma_0 + 2 sum_{k<h} gamma_k (the rectangular
+  `e_variant^2 - e_benchmark^2`, h-1 autocovariances; kernel `opts.dm_kernel`: `'uniform'` gamma_0 + 2 sum_{k<h} gamma_k (the rectangular
   estimator for which HLN derived their factor; default when `dm_hln` is true; Bartlett
   fallback where it is not positive, `kernel` column `bartlett_fallback`) or `'bartlett'`
   weights `1 - k/h` (default without `dm_hln`); with `opts.dm_hln` (default
-  true, B2) the Harvey-Leybourne-Newbold factor sqrt((n + 1 - 2h + h(h-1)/n)/n) and
+  true) the Harvey-Leybourne-Newbold factor sqrt((n + 1 - 2h + h(h-1)/n)/n) and
   t(n-1) p-values, else p = `erfc(|DM|/sqrt(2))`. The tables come from
   `hetlearn.evaluate_tables(errors, opts)`, which also rebuilds them from a saved
   `errors_long.csv` (+ `settings.mat`) without re-running forecasts. `opts.subsamples` are target-date ranges
-  (`sample` column). Inversion variants: see 15 (as built). Findings: on the toy, data changed after the origin move the full-sample
+  (`sample` column). Inversion variants: see 15. Findings: on the toy, data changed after the origin move the full-sample
   forecast by only ~3e-14 (later data uninformative there; the test uses data changed AT
   the origin as its control); on SW07 the real-time filter moves the 8-quarter forecasts
-  by up to 0.12-0.18 pp annualised (inflation, growth, policy rate; origins 2010Q1,
+  by up to 0.12-0.18 pp annualized (inflation, growth, policy rate; origins 2010Q1,
   2015Q1, 2020Q1). SW07 2010Q1-2024Q2, H = 8, 2 variants: 116 runs in about 90 s.
 - With `history.re_states = 'filtered'` (5.2) the real-time filters supply `H.filtered`
   as well. The variant's history loop is then the same as on the full-sample filter, and
   the real-time part is the forecast's starting state.
 
-## 18. Endogenous gain (`gain.rule = 'koz'`, as built 2026-10-18)
-Kostyshyna, Özden and Zhang (2024, Bank of Canada SWP 2024-14), eq. (9), the adaptive
-step-size algorithm of Kostyshyna (2012). For each gain process, after x_t is realised:
+## 18. Endogenous gain (`gain.rule = 'koz'`)
+Kostyshyna, Özden and Zhang (2024, "Endogenous Credibility and Wage-Price Spirals", Bank of
+Canada Staff Working Paper 2024-14), eq. (9), the adaptive
+step-size algorithm of Kostyshyna (2012). For each gain process, after x_t is realized:
 
     gamma_t = P[ gamma_{t-1} + mu * Rg_{t-1} * FE_t ]
     Rg_t    = (1 - gamma_{t-1}) * Rg_{t-1} + FE_t
@@ -905,28 +904,27 @@ revert the gain. With `beliefs.update = 'fixed'` the gain is frozen.
 the learning state (history, inversion, forecast, density draws, evaluation origins, the
 Ramsey continuation) carries the gain. `'constant'` keeps its old two-argument form too.
 
-**Options and the choices behind them** (each flagged in FEATURES):
+**Options and the choices behind them:**
 - Signed error: the paper's text says the gain rises when errors keep their sign and falls
   when they alternate, which squared errors cannot do.
 - `gain.koz.error`: `'rls'` (default), the PLM's one-step residual v_t - phi_{t-1}' z_{t-1},
   the error of the RLS update itself; or `'forecast'`, the BR agents' expectation error
   x_t - f^BR_{t-1} (a two-step error under `beliefs.info = 'lagged'`; auxiliary equations
   use their residual).
-- `gain.koz.bounds` [0.001 0.25]: Kostyshyna (2012) projects the gain onto an interval; KOZ
-  give none. A `gain_bound` event is logged in each period a bound binds; Rg is not
+- `gain.koz.bounds` [0.001 0.25]: Kostyshyna (2012) projects the gain onto an interval; Kostyshyna, Özden and
+  Zhang give none. A `gain_bound` event is logged in each period a bound binds; Rg is not
   projected.
 - `gain.koz.error_scale` [1]: mu is scale dependent, and FE enters both equations, so mu
-  effectively scales with error_scale squared. The round 1-2 SW07 KOZ scenarios used 4
-  (quarterly to annualised percent, the units assumption behind the old chi = 8, which
-  the user withdrew on 2026-10-18: IJCB's data are quarterly, chi = 0.51).
-- `gain.koz.structure`: `'common'` (default; KOZ footnote 7, one process for every PLM
+  effectively scales with error_scale squared: a scale of 4 (annualized percent) works like
+  a 16 times larger mu.
+- `gain.koz.structure`: `'common'` (default; their footnote 7, one process for every PLM
   equation, driven by the error of `gain.koz.master`, default the first learning variable; a
   list = the mean of the scaled errors) or `'per_variable'` (one process per PLM equation,
   auxiliary ones included, each driven by its own error).
 - `gain.koz.Rg0` [0]: the derivative of the initial estimate with respect to the gain; the
   paper is silent. `gain.koz.gamma0` [[] = `gain.value`]; `gain.koz.mu` [0.001], >= 0
   (mu = 0 reproduces the constant gain bit for bit).
-- KOZ Table 1's "R0 = 0.001" is the initial RLS moment matrix (0.001 x I), not Rg_0. It needs
+- Their Table 1's "R0 = 0.001" is the initial RLS moment matrix (0.001 x I), not Rg_0. It needs
   no new option: `beliefs.init.method = 'user'` with only `beliefs.init.values.<x>.R` set
   keeps the RE-moment phi and replaces R.
 
@@ -934,11 +932,10 @@ Ramsey continuation) carries the gain. `'constant'` keeps its old two-argument f
 `res.learning.<x>` and `learning.csv`; `gain_bound` events; the final state in
 `res.state.gain`. Constant-gain runs record no `gain_R`. Tests: `tests/test_gain.m`.
 
-## 19. RE information set (`expectations.re_info`, as built 2026-10-19)
+## 19. RE information set (`expectations.re_info`)
 
-User request 2026-10-19: the learners have a t and a t-1 information set (`beliefs.info`),
-but the RE fixed point uses period-t information only; add an RE version with t-1
-information.
+The learners have a t and a t-1 information set (`beliefs.info`), while the RE fixed point
+uses period-t information only; `'lagged'` gives the RE agents t-1 information.
 
 **Definition.** `'current'` (default, unchanged): the RE expectation of a learning
 variable x is E_t x_{t+1}. `'lagged'`: it is E_{t-1} x_{t+1}, formed with information up
@@ -955,7 +952,7 @@ and the source of the RE-moment initial beliefs (the loaded model at n1 = 1).
 **Construction.** `hetlearn.extend_model(spec, plm, 're_info', 'lagged')` writes its own
 file, `generated/<name>_ext_<plmtag>_relag.model` with `_relag_meta.mat` (generator
 version 5; meta fields `re_info`, `re_chain`, `collapse_lagged_sets`). The default files
-keep version 4 and are byte-identical to the pre-change output (test T6a). The lagged file
+keep version 4 and are byte-identical to the output without the option (test T6a). The lagged file
 equals the default one except inside each `!if br_x` block:
 
 ```
@@ -1015,7 +1012,7 @@ I - C_z is an error.
   scenario, since the coefficients depend on the learning set, and checks the IRFs of the
   anchored and model-consistent models against each other (< 1e-10;
   `info.re_info_check`).
-- Alternative, not built (for the user to decide): map z_{t-1} to the aggregate
+- Alternative, not built: map z_{t-1} to the aggregate
   expectation that entered the economy, x_exp1_t = n1 x_exp1_RE_t + n2 x_exp1_BR_t. With one
   learning variable, x_exp1_RE_t = (k + C_s s_{t-1} + C_z n2 x_exp1_BR_t) / (1 - C_z n1):
   the RE agents would then know and use the learners' forecast in their own. Both versions
@@ -1045,7 +1042,7 @@ with information up to t-1:
 - `'filtered'`: H.predicted.x_exp1_RE(t) = E[x_exp1_RE_t | data to t-1] = E[x_{t+1} | data to
   t-1] (x_exp1_RE_t is a function of the t-1 state), the filter's two-step prediction of
   x_{t+1} (test 5.1e-13 against IRIS `'ahead', 2` on the reference). H.filtered.x_exp1_RE(t)
-  would use data dated t. The learners' data and the realised values stay x_{t|t}
+  would use data dated t. The learners' data and the realized values stay x_{t|t}
   (`hetlearn.engine.history_db`).
 - `history.realtime`: unchanged logic (filter on data to the origin); the 'filtered' history
   is the same with or without it (test 0).
@@ -1062,7 +1059,7 @@ adds `re_info`, the learning set and `re_variant`; default variants keep the PLM
 grouping), the projection facility and the endogenous gain (model-independent). Blocked:
 `policy.mode = 'ramsey'` with `'lagged'` (`hetlearn:options:unsupported` in
 `load_options`): the Ramsey plan with predetermined RE expectations, and the anchored
-variant under it (already an open design question, see sec. 13 and the README), has not
+variant under it (an open design question, sec. 13), has not
 been derived or tested. Also errors: `'lagged'` with an empty learning set
 (`hetlearn:options:value`) and learning variables with leads of 2 or more.
 
