@@ -1,6 +1,6 @@
-# hetlearn user guide
+# HetLearn user guide
 
-`hetlearn` is a MATLAB toolbox on IRIS 20230622 (MATLAB R2025a) for forecasts and scenarios with
+HetLearn is a MATLAB toolbox on IRIS 20230622 (MATLAB R2025a) for forecasts and scenarios with
 two kinds of agents: rational-expectations (RE) agents and adaptive learners, who forecast with a
 perceived law of motion (PLM) updated by recursive least squares (RLS) and whose population shares
 switch on past forecast errors, after Özden (2025, International Journal of Central Banking (IJCB)
