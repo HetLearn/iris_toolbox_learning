@@ -7,7 +7,7 @@ reports quantiles of every observable and of the learning states.
 |---|---|---|
 | `density.enabled` | `false` | Switch on |
 | `density.shocks` | cellstr | Shocks to draw (required when enabled) |
-| `density.sigma` | `'calibrated'`, `'smoothed'` | The model's `std_<shock>`, or the sample standard deviation of the RE-smoothed shocks over `sigma_range` |
+| `density.sigma` | `'calibrated'`, `'smoothed'` | The model's `std_<shock>`, or the sample standard deviation of the shocks smoothed by the rational expectations (RE) model over `sigma_range` |
 | `density.sigma_range` | `[]` | `[]` = the filter range |
 | `density.method` | `'normal'`, `'bootstrap'` | Normal draws, or resampled whole quarters of smoothed shocks |
 | `density.demean` | `true` | Bootstrap: demean the pool first |
@@ -23,7 +23,7 @@ reports quantiles of every observable and of the learning states.
 The draws come on top of the scenario's own shocks and conditions. With learning, each draw
 re-runs the quarter-by-quarter forecast, so beliefs, gains and shares respond to the drawn
 shocks; the projection facility applies in each draw. An RE scenario without conditions takes
-the fast path, one linear simulation per draw. On SW07, 500 draws take about 30 seconds under
+the fast path, one linear simulation per draw. In the Smets and Wouters (2007) model, 500 draws take about 30 seconds under
 RE and 4-6 minutes with learning.
 
 ## Examples
@@ -60,7 +60,7 @@ cfg.density.ndraws = 200;
 
 | Output | Content |
 |---|---|
-| `res.density` | Quantiles, means, standard deviations and point forecasts of every summarised series, draw information, events |
+| `res.density` | Quantiles, means, standard deviations and point forecasts of every summarized series, draw information, events |
 | `results/<id>/density.mat` | The same, saved apart from `results.mat`; every draw too with `keep_draws = true` |
 | `results/<id>/density_quantiles.csv` | variable, date, quantile, value_model, value_report |
 | `results/<id>/density_events.csv` | One row per draw: draw, status, projection_plm, projection_alm, projection_alm_shares, explosive_events, rls_missing, shares_nan, gain_bound, max_abs, message |
@@ -75,5 +75,5 @@ q(strcmp(q.variable, 'pinfobs') & q.quantile == 0.95, :)
 ## In the project
 
 Application 5 runs 500 draws for mark-up shocks and for demand shocks. With mark-up shocks the
-average 90% inflation band is 14.59 pp with learning against 4.76 pp under RE; with demand shocks
-the two are about the same (1.16 and 1.18 pp). See [Application 5](../applications/app5-density.md).
+average 90% inflation band is 14.59 percentage points (pp) with learning against 4.76 pp under RE;
+with demand shocks the two are about the same (1.16 and 1.18 pp). See [Application 5](../applications/app5-density.md).
