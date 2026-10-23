@@ -14,7 +14,7 @@ function run_dynare_check()
 %     endo       cellstr of those variables, shocks  cellstr of the shocks
 %     steady     struct of steady-state values by variable
 %     dynare_version, created
-%   Run once (2026-10-19); test_re_info T2 compares the toolbox against the file.
+%   Run once; test_re_info T2 compares the toolbox against the file.
 %   Dynare's matlab/ folder: the environment variable HETLEARN_DYNARE_DIR, else
 %   dynare-4.6.1/matlab next to the project folder, else an error.
 
