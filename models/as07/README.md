@@ -6,7 +6,7 @@ estimate on US data for 1983Q1-2002Q4: an Euler equation, a Phillips curve and a
 with smoothing, technology-growth and government-spending shocks, a policy shock, and three
 observables (per capita output growth, CPI inflation, federal funds rate) with measurement
 errors. Equations and measurement come from the book's replication code; the parameters are
-the published posterior means. Nothing is estimated or sampled in this package. This is the third model of the `hetlearn` portfolio (template `models/ijcb3/`) and
+the published posterior means. Nothing is estimated or sampled in this package. This is the third model of the HetLearn portfolio (template `models/ijcb3/`) and
 a model for application 1: the forecast from the 2022Q2 inflation peak, RE against learning on
 inflation with anchored RE agents (`scenarios/as07/app1_peak/`).
 
@@ -19,7 +19,7 @@ inflation with anchored RE agents (`scenarios/as07/app1_peak/`).
 | `as07_params.m` | published posterior means (Herbst-Schorfheide Ch. 4 slides); 5-95% intervals and priors in comments; measurement errors from `sysmat.m` |
 | `estimation/hs2016/` | the book's replication files, unchanged, as provenance for the equations, the measurement and the data: `DSGE-Estimation.zip` (folder "DSGE Estimation": `Mfiles/`, `LRE/`, `Matfiles/`, `Optimization Routines/`, `us.txt`, `ReadMe.txt`, `Candidate.m`, `MetropolisHastings.m`, figures) and, in `book_data/`, `README`, `dsge1_data.csv`, `dsge1_great_rec_data.csv` from `book-data.zip`. Source: https://web.sas.upenn.edu/schorf/companion-web-site-bayesian-estimation-of-dsge-models/. The package does not use `Matfiles/` |
 | `data/` | `build_database.m` -> `as07_database.csv/.mat`, `us_txt_match.csv`; FRED raw file in `raw/`; `README.md` |
-| `validation/` | `check_model.m` (IRIS and the book's code, no hetlearn engine) -> `RESULTS.txt`, `irfs.csv`, `smoothed_history.csv` |
+| `validation/` | `check_model.m` (IRIS and the book's code, no HetLearn engine) -> `RESULTS.txt`, `irfs.csv`, `smoothed_history.csv` |
 
 The book's code is not on the MATLAB path (`setup_paths` does not add `models/`).
 `check_model.m` adds `hs2016/Mfiles` and `hs2016/LRE` and removes them on exit, so the book's
