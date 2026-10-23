@@ -27,7 +27,7 @@ function db = history_db(o, H)
 %   for lagged models), not x_{t|t}, which would use data dated t: every
 %   <x>_exp1_RE series of db is taken from H.predicted. The learners' data and
 %   the realised values stay x_{t|t}. Under 'smoothed' nothing changes.
-%   Phase P4 (DESIGN_br_extensions 1.4): the anchored diagnostic reference
+%   Generalized anchor: the anchored diagnostic reference
 %   <x>_DEg_RE (E_{t-1} x_{t+2}, a function of the t-1 state) is taken from
 %   H.predicted as well, and the target of the 're_mean' types, <x>_feRE = x -
 %   <x>_exp1_RE{-1}, is rebuilt from x_{t|t} and those predictions, so it is the
@@ -40,7 +40,7 @@ end
 if ~isfield(H, 'filtered') || ~isstruct(H.filtered) || isempty(fieldnames(H.filtered))
     error('hetlearn:engine:history', ...
         ['history.re_states = ''filtered'' needs the filtered databank H.filtered of ' ...
-        'hetlearn.re_filter (written since 2026-10-19).']);
+        'hetlearn.re_filter.']);
 end
 db = H.filtered;
 if ~(isfield(o, 'expectations') && isfield(o.expectations, 're_info') && strcmp(o.expectations.re_info, 'lagged'))
