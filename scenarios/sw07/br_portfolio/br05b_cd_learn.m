@@ -3,8 +3,8 @@ function cfg = br05b_cd_learn()
 %
 %   cfg = br05b_cd_learn()
 %
-%   As a1_learn, with docs/DESIGN_br_extensions.md mechanism 5 and the 05b
-%   row of section 3: the inflation expectation of both types (RE and
+%   As a1_learn, with rule 5b of the portfolio (docs/USER_GUIDE.md
+%   section 7.7): the inflation expectation of both types (RE and
 %   learners) is multiplied by m^h (geometric profile, h = 2 under t-1
 %   information); the other expectations are unchanged. m = 0.94 is
 %   Meggiorini and Milani's estimate with Euler-equation learning (US
