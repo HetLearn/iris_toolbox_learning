@@ -1,10 +1,10 @@
-# hetlearn
+# HetLearn
 
 > **Disclaimer.** This is a Claude-assisted project. The code, tests and documentation were
 > developed with Anthropic's Claude, in particular Claude Opus 5.5, under the author's direction
 > and review.
 
-`hetlearn` is a MATLAB toolbox, built on the IRIS Toolbox for macroeconomic modeling (release
+HetLearn is a MATLAB toolbox, built on the IRIS Toolbox for macroeconomic modeling (release
 20230622), for forecasts and policy scenarios in dynamic stochastic general equilibrium (DSGE)
 models where not everyone has rational expectations. Expectations of selected forward-looking
 variables are a mix of two groups of agents:
@@ -19,7 +19,7 @@ forecast errors, following Özden (2025, *International Journal of Central Banki
 The toolbox takes a linear IRIS model file and a database, writes the
 heterogeneous-expectations version of the model, learns beliefs and shares over the history,
 and runs a scenario forward one quarter at a time with the beliefs and shares updating as it
-goes.
+goes. Its functions are in the MATLAB package `hetlearn` (for example `hetlearn.run`).
 
 ![Application 1: forecast from the 2022Q2 inflation peak](assets/figures/fig_app1.png){ .figure }
 
@@ -108,7 +108,7 @@ the method and the toolbox:
 
 @misc{hetlearn,
   author       = {{\"O}zden, Tolga},
-  title        = {hetlearn: a {MATLAB} toolbox for heterogeneous expectations in {IRIS} models},
+  title        = {{HetLearn}: a {MATLAB} toolbox for heterogeneous expectations in {IRIS} models},
   year         = {2026},
   howpublished = {\url{https://github.com/tolgaozden/iris_toolbox_learning}}
 }
