@@ -9,8 +9,7 @@ function make_reference()
 %   tests/reference/tsw07_switch_pinf_fast.mat: the same scenario with the
 %   default engine.step = 'fast'; compared exactly by test_re_states S1 (first
 %   made 2026-10-19 with the code before history.re_states existed).
-%   Re-run only after a deliberate change of the engine or the defaults, and
-%   say so in README_PIPELINE.md.
+%   Re-run only after a deliberate change of the engine or the defaults.
 
 here = fileparts(mfilename('fullpath'));
 tests = fileparts(here);
