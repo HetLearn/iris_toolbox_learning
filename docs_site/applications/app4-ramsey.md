@@ -1,7 +1,8 @@
 # Application 4: Ramsey policy against the Taylor rule
 
 **Question.** From the 2022Q2 peak, what would optimal policy under commitment do instead of
-the Taylor rule, under RE and with learners, for four sets of loss weights?
+the Taylor rule, under rational expectations (RE) and with learners, for four sets of loss
+weights?
 
 ## The loss
 
@@ -13,9 +14,10 @@ L = \sum_{h=1}^{H} \delta^{h}\left(\hat\pi_h^2 + \lambda_y x_h^2 + \lambda_r \ha
 + \lambda_{\Delta r}(\Delta \hat r_h)^2\right),
 \]
 
-where for SW07 \(\hat\pi = 4\pi\) and \(\hat r = 4r\) are annualised deviations from the steady
-state, \(x = y - y^f\) is the output gap and \(\delta = \bar\beta\gamma\) is the discount of the SW07
-Phillips curve. The targets come from `spec.policy.targets` in `models/sw07/model_spec.m`:
+where for the Smets and Wouters (2007) model (SW07) \(\hat\pi = 4\pi\) and \(\hat r = 4r\) are
+annualized deviations from the steady state, \(x = y - y^f\) is the output gap and
+\(\delta = \bar\beta\gamma\) is the discount of the SW07 Phillips curve. The targets come from
+`spec.policy.targets` in `models/sw07/model_spec.m`:
 
 ```matlab
 spec.policy = struct( ...
@@ -39,7 +41,8 @@ cfg.expectations.re_info = 'current';   % Ramsey policy needs period-t RE inform
 end
 ```
 
-The Ramsey runs switch the rule off and set the weights:
+Every app-4 file sets period-t RE information, the project's only deviation from its
+baseline. The Ramsey runs switch the rule off and set the weights:
 
 ```matlab
 function cfg = a4_ramsey_balanced_re()
@@ -67,14 +70,10 @@ agents, `cfg.expectations.re_variant = 'model_consistent'`: the RE Ramsey benchm
 run_applications('app4')      % about 2.5 minutes
 ```
 
-!!! warning "Two restrictions"
-    Ramsey policy is not supported with `expectations.re_info = 'lagged'`, so every app-4 file
-    sets `'current'`; this is the only place where the project deviates from its baseline. And
-    anchored RE agents keep forecasting with the RE solution under the Taylor rule even when
-    the planner follows the Ramsey plan, so `a4_ramsey_<w>_re` are not RE Ramsey plans. Use the
-    `_re_mc` runs as the RE benchmark. In the `_learn` runs the anchored RE agents also keep
-    the Taylor-rule forecast, so the learning Ramsey loss is not a clean gain from optimal
-    policy.
+!!! warning "The RE benchmark"
+    Anchored RE agents keep the Taylor-rule forecast under a Ramsey plan, so the `_re_mc` runs
+    are the RE benchmark and the learning Ramsey loss is not a clean gain from optimal policy
+    ([Monetary policy](../options/policy.md#anchored-re-agents-and-ramsey-policy)).
 
 ## Results
 
@@ -106,7 +105,7 @@ Balanced weights, averages 2022Q3-2026Q2:
 - With learners the planner raises the rate sharply at the start: 10.83% in 2022Q3 against
   3.24% under the rule (RE: 4.40% against 2.46%).
 - Under learning the planner treats the current beliefs and shares as permanent and
-  re-optimises every quarter, honouring past commitments.
+  re-optimizes every quarter, honoring past commitments.
 
 Each run also writes `results/<id>/loss.csv` with the contribution of each target.
 
@@ -125,5 +124,5 @@ cfg.policy.loss_horizon = [];        % [] = forecast.horizon
 hetlearn.run(cfg);
 ```
 
-`policy.loss` is replaced as a whole: a target you leave out gets weight 0. All options:
+`policy.loss` is replaced as a whole: a target left out gets weight 0. All options:
 [Monetary policy](../options/policy.md).
