@@ -66,7 +66,7 @@ function [S, out, ev] = update_learning(ctx, S, t, getVal, fRE, fBR, first, A)
 %   moves the gain state to the end of t with the errors of (3), whatever
 %   the projection facility did with the candidates.
 %
-%   N agent types (ctx.nt, docs/DESIGN_br_extensions.md 1.1-1.2): fRE is then
+%   N agent types (ctx.nt): fRE is then
 %   the struct F.<x>.<type> of hetlearn.engine.ntypes('forecasts', ...) and
 %   fBR is ignored. (1) FE^k_t(x) = (x_t - f^k_{t-1}(x))^2 for every type
 %   (out.FE.<x>.<type>); per share group the population types' sums over G go
@@ -79,7 +79,7 @@ function [S, out, ev] = update_learning(ctx, S, t, getVal, fRE, fBR, first, A)
 %   S.gain.<type> (its errors: its residuals and its signed forecast errors),
 %   then the projection facility on the keyed system and the ALM check as
 %   before. (4) Each type's gain update; its events name the keyed targets.
-%   Phase P4: fRE holds the forecasts as they enter the aggregate (after the
+%   Forecast transforms: fRE holds the forecasts as they enter the aggregate (after the
 %   transforms; fitness and errors use them), fBR the second output of
 %   hetlearn.engine.ntypes('forecasts') (forecasts before the transforms).
 
@@ -258,9 +258,9 @@ end
 
 % =========================================================================
 function [S, out, ev] = update_nt(ctx, S, t, getVal, F, first, A, X)
-% End-of-period update with N agent types (DESIGN_br_extensions 1.1-1.2). F: the forecasts as they
+% End-of-period update with N agent types. F: the forecasts as they
 % enter the aggregate (fitness); X: the second output of hetlearn.engine.ntypes('forecasts') (forecasts
-% before the transforms; phase P4), [] = F itself.
+% before the transforms), [] = F itself.
 o = ctx.opts;
 nt = ctx.nt;
 sys = ctx.sys;
