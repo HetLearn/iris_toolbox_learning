@@ -28,15 +28,15 @@ function meta = extend_model(spec, plm, varargin)
 %     'force'     regenerate even if nothing changed (default false)
 %     'validate'  run the collapse test of DESIGN 3.4 (default true)
 %     'types'     N agent types (hetlearn.agent_types(...).gen): the N-type
-%                 writer, generator version 6 (DESIGN_br_extensions 1.1);
-%                 version 8 with an 're_mean' type (phase P4: the target
+%                 writer, generator version 6;
+%                 version 8 with an 're_mean' type (the target
 %                 x_feRE = x - x_exp1_RE{-1}). With transforms the RE type's
 %                 anchored expression also runs over the states they add
 %                 (anchor_extra: memory states of diagnostic expectations in
 %                 !if blocks, the anchored diagnostic reference x_DEg_RE{-1})
 %     'transforms'  expectations.transforms as normalised by
-%                 hetlearn.load_options (needs 'types'; phase P3,
-%                 DESIGN_br_extensions 1.3): generator version 7. In the
+%                 hetlearn.load_options (needs 'types'): generator
+%                 version 7. In the
 %                 learning branch x_exp1 = sum_k n_k_x*T_k(x_exp1_<k>) (the
 %                 type forecasts x_exp1_<k> stay untransformed), outside it
 %                 x_exp1 = T(x{+1}); scope entries 'x@<label>' write a copy
@@ -47,8 +47,8 @@ function meta = extend_model(spec, plm, varargin)
 %                 (the collapse test runs at them); see tf_setup. Kinds
 %                 'multiplier', 'diagnostic', 'myopia_anchoring' (the
 %                 kinds 'partial_adjustment' and 'wedge', the level types
-%                 and the rule terms self, mean, dn, re1 were removed on
-%                 2026-10-22, docs/BR_audit.txt).
+%                 and the rule terms self, mean, dn, re1 are not
+%                 supported).
 %
 %   Files written (in <folder>/generated/)
 %     <name>_ext_<plmtag>.model       the extended model
@@ -141,10 +141,10 @@ function meta = extend_model(spec, plm, varargin)
 %   See also hetlearn.plm.build_system, hetlearn.plm.forecast_expr,
 %   hetlearn.re_anchor_coefficients.
 
-GENERATOR_VERSION = 4;     % 2 (2026-10-18): anchored-RE block, derived regressors, VAR PLMs; 3: spec.policy (Ramsey wrap);
+GENERATOR_VERSION = 4;     % 2: anchored-RE block, derived regressors, VAR PLMs; 3: spec.policy (Ramsey wrap);
                            % 4: br_info_current toggle (beliefs.info), leads detected on the active !if branches
-GENERATOR_VERSION_RELAG = 5;   % files with the lagged RE information block only (re_info = 'lagged', DESIGN 19,
-                               % 2026-10-19: <name>_ext_<tag>_relag.model); the default files stay at version 4
+GENERATOR_VERSION_RELAG = 5;   % files with the lagged RE information block only (re_info = 'lagged', DESIGN 19:
+                               % <name>_ext_<tag>_relag.model); the default files stay at version 4
 ANCHOR_TOGGLE = 're_anchored';
 INFO_TOGGLE = 'br_info_current';   % global !if switch of the BR information set (beliefs.info, DESIGN 4.2)
 POLICY_TOGGLE = 'ramsey';  % global !if switch of the Ramsey wrap (DESIGN 13)
@@ -153,8 +153,8 @@ ip = inputParser;
 ip.addParameter('force', false);
 ip.addParameter('validate', true);
 ip.addParameter('re_info', 'current');
-ip.addParameter('types', []);      % N agent types (DESIGN_br_extensions 1.1): generator version 6, see ntype_generate
-ip.addParameter('transforms', []); % forecast transforms (DESIGN_br_extensions 1.3, phase P3): N-type writer, version 7
+ip.addParameter('types', []);      % N agent types: generator version 6, see ntype_generate
+ip.addParameter('transforms', []); % forecast transforms: N-type writer, version 7
 ip.parse(varargin{:});
 ntypes = ip.Results.types;
 tforms = ip.Results.transforms;
@@ -248,7 +248,7 @@ sys = hetlearn.plm.build_system(plm, fwd, [S.tvars, derNames]);
 assignKey = struct_key(assign);
 pol = policy_setup(spec, code, masked, S, POLICY_TOGGLE);     % spec.policy (DESIGN 13)
 if ~isempty(ntypes)
-    % N agent types (DESIGN_br_extensions 1.1): own writer and files; the two-type code below is not used
+    % N agent types: own writer and files; the two-type code below is not used
     B = struct('spec', spec, 'assign', assign, 'srcFile', srcFile, 'srcHash', srcHash, 'code', code, ...
         'preparsed', preparsed, 'S', S, 'occ', occ, 'fwd', {fwd}, 'maxLead', maxLead, 'pol', pol, ...
         'assignKey', assignKey, 'force', force, 'validate', doValidate, 'anchorToggle', ANCHOR_TOGGLE, ...
@@ -1875,7 +1875,7 @@ end
 
 
 % =========================================================================
-% N agent types (docs/DESIGN_br_extensions.md 1.1, phase P2, 2026-10-20)
+% N agent types (docs/USER_GUIDE.md section 7.1)
 % =========================================================================
 function meta = ntype_generate(B, types)
 % Extended model of an N-type population, generator version 6: for each
@@ -1885,7 +1885,7 @@ function meta = ntype_generate(B, types)
 % parameters (alpha_x__<k>, beta_x__<k>, ...; hetlearn.plm.build_system with
 % a suffix) and rule constants (<p>__<k>). The br_<x>, re_anchored and
 % br_info_current switches keep their meaning (every type inherits
-% expectations.re_variant / beliefs.info since 2026-10-22). Files
+% expectations.re_variant / beliefs.info). Files
 % <name>_ext_n<hash>.model and _meta.mat, hash over the resolved types
 % (types is hetlearn.agent_types(...).gen).
 GENERATOR_VERSION = 6;
@@ -1924,7 +1924,7 @@ allVar = [S.tvars, derNames];
 % ---- per type: variables, PLM systems, rules ----------------------------------------
 G = struct('name', {}, 'kind', {}, 'variant', {}, 'info', {}, 'vars', {}, 'plm', {}, 'rule', {}, ...
     'sys', {}, 'key', {}, 'rules', {});
-p4kinds = false;          % re_mean types (phase P4): generator version 8
+p4kinds = false;          % re_mean types: generator version 8
 for i = 1:numel(types)
     t = types(i);
     g = struct('name', t.name, 'kind', t.kind, 'variant', char_or(t.variant), 'info', char_or(t.info), ...
@@ -1963,7 +1963,7 @@ for i = 1:numel(types)
             g.key = sprintf('%s:rule:%s:%s:%s:%s', t.name, g.info, strjoin(g.vars, ','), ...
                 regexprep(char(ex), '\s', ''), strjoin(pn, ','));
         case 're_mean'
-            % RE forecast plus a learned mean of its error (mechanism 23, phase P4): x_exp1_<k> = x_exp1_RE +
+            % RE forecast plus a learned mean of its error (the intercept-only type): x_exp1_<k> = x_exp1_RE +
             % alpha_<x>_feRE__<k>, the mean-only PLM of the generated target x_feRE = x - x_exp1_RE{-1}
             zv = strcat(g.vars, '_feRE');
             bv = struct();
@@ -1988,14 +1988,14 @@ for i = 1:numel(fwd)
     x = fwd{i};
     byx.(x) = find(arrayfun(@(g) any(strcmp(g.vars, x)), G));
 end
-% forecast transforms (DESIGN_br_extensions 1.3, phase P3): resolved against the model here; the
+% forecast transforms: resolved against the model here; the
 % factors are parameters set by hetlearn.load_model, so the file depends on their structure only
 TF = tf_setup(B, G, byx);
 if TF.has
     GENERATOR_VERSION = max(GENERATOR_VERSION, 7);
     B.occ = TF.occ;                % equation copies: x{+1} of their equations -> x_exp1__<tag>
 end
-% the RE type's anchored expression of each forward variable (phase P4, DESIGN_br_extensions 1.4): the
+% the RE type's anchored expression of each forward variable (generalized anchor): the
 % original states plus the states that transforms add and that exist in both the anchor economy and
 % the anchored one (memory states of diagnostic expectations outside the learning set), each written
 % only in the branches where it exists; with a diagnostic transform on the lagged RE type, its
@@ -2082,7 +2082,7 @@ if TF.has
     fileKey = [fileKey '|transforms:' TF.key];
 end
 if ~isempty(AX.key)
-    fileKey = [fileKey '|anchor:' AX.key];     % extra anchored terms (phase P4): own text
+    fileKey = [fileKey '|anchor:' AX.key];     % extra anchored terms of the generalized anchor: own text
 end
 h = md5hex(unicode2native(fileKey, 'UTF-8'));
 tag = ['n' h(1:8)];
@@ -2139,7 +2139,7 @@ else
     refFile = B.srcFile;
 end
 anchor = anchor_states(refFile, spec, assign, fwd, B.anchorToggle, B.validate);
-% phase P4 (DESIGN_br_extensions 1.4): the RE type's anchored expression over the original states and
+% generalized anchor: the RE type's anchored expression over the original states and
 % the extra terms of anchor_extra, and the anchored diagnostic reference. All are parameters that
 % hetlearn.load_model sets; the RE limit has them at 0 (extra).
 anchor.xstates = struct();
@@ -2253,13 +2253,13 @@ meta.rule_params = ruleParams;        % model parameter name -> value
 meta.re_info = reInfo;                % information set of the RE type
 meta.re_chain = reChain;              % by variable with a lagged RE chain: {x_REt1, x_REt2}
 meta.chain_mode = chainMode;
-% phase P4 (DESIGN_br_extensions 1.4)
+% generalized anchor
 meta.anchor_xstates = anchor.xstates; % by variable: states of the RE type's anchored expression (original + extra)
 meta.anchor_xconds = anchor.xconds;   % their !if conditions ('' = always written)
 meta.anchor_deg = anchor.deg;         % by variable: parameters of the anchored diagnostic reference x_DEg_RE
 meta.anchor_extra = extra;            % parameter lists beyond anchor_params (0 at the RE limit)
 if TF.has
-    meta.transforms = TF.meta;        % forecast transforms (phase P3): structure, parameter roles, identity values
+    meta.transforms = TF.meta;        % forecast transforms: structure, parameter roles, identity values
 end
 meta.collapse_lagged_sets = {};
 if exist(metaFile, 'file') == 2
@@ -2287,11 +2287,11 @@ function txt = make_block_ntype(G, byx, fwd, maxLead, tag, spec, S, derived, anc
 % Expectation block of an N-type file. With the two types RE and BR it has
 % the lines of make_block / make_block_lagged in the same order, with the
 % shares n_RE_x, n_BR_x and the parameters alpha_x__BR, beta_x__BR.
-% Forecast transforms (TF.has, phase P3): x_exp1 = sum_k n_k_x*T_k(x_exp1_k)
+% Forecast transforms (TF.has): x_exp1 = sum_k n_k_x*T_k(x_exp1_k)
 % in the learning branch and x_exp1 = T(x{+1}) outside it, equation copies
 % x_exp1__<tag> beside x_exp1, diagnostic reference chains, and the factors
-% as parameters (tf_* helpers below). Without transforms the text is that of
-% phase P2.
+% as parameters (tf_* helpers below). Without transforms the text is the plain
+% N-type block.
 if nargin < 14 || isempty(TF)
     TF = struct('has', false);
 end
@@ -2303,7 +2303,7 @@ L{end+1} = '% ==================================================================
 L{end+1} = ['% hetlearn expectation block (hetlearn.extend_model), N agent types, tag ' tag];
 L{end+1} = ['% Types: ' strjoin(desc, '; ')];
 if TF.has
-    L{end+1} = ['% Forecast transforms (DESIGN_br_extensions 1.3): ' strjoin(TF.desc, '; ')];
+    L{end+1} = ['% Forecast transforms: ' strjoin(TF.desc, '; ')];
 end
 L{end+1} = ['% Source: ' strrep(spec.model_file, '\', '/') '. Do not edit; regenerate instead.'];
 L{end+1} = '% =====================================================================';
@@ -2398,7 +2398,7 @@ if anchor.ok
     for i = 1:numel(fwd)
         x = fwd{i};
         pn = anchor.params.(x);
-        xs = anchor.xstates.(x);         % original states, then the extra terms of phase P4
+        xs = anchor.xstates.(x);         % original states, then the extra terms of the generalized anchor
         if lagged
             L{end+1} = sprintf('    "Anchored RE forecast of %s{+1} with information up to t-1, constant" %s', x, pn{1}); %#ok<AGROW>
             for j = 1:numel(xs)
@@ -2527,7 +2527,7 @@ end
 function L = re_type_lines(nm, x, g, anchor, ch, inlineChain)
 % x_exp1_RE of the RE type: anchored (re_anchored = true) or model-consistent, with period-t or t-1
 % information (the lagged chain x_REt2{-1}). The anchored expression runs over the original states and
-% the extra terms of phase P4 (anchor.xstates, conditional ones in !if blocks); the RE type of a
+% the extra terms of the generalized anchor (anchor.xstates, conditional ones in !if blocks); the RE type of a
 % variable with an anchored diagnostic reference also writes x_DEg_RE (anchor.deg).
 L = {};
 lagged = ~strcmp(g.info, 'current');
@@ -2538,7 +2538,7 @@ if anchor.ok
         anL = [anL, anchor_lines([x '_DEg_RE'], anchor.deg.(x), anchor.xstates.(x), anchor.xconds.(x), true, '')];
     end
 end
-an = strjoin(anL, [newline '            ']);   % one line unless phase P4 terms are present
+an = strjoin(anL, [newline '            ']);   % one line unless extra anchored terms are present
 if ~lagged
     mc = sprintf('%s = %s{+1};', nm, x);
     extra = {};
@@ -2612,7 +2612,7 @@ end
 
 % =========================================================================
 function [maxdiff, infoDiff, sets] = collapse_test_nt(spec, assign, meta)
-% Collapse test of an N-type file (DESIGN_br_extensions 1.7). Every share on
+% Collapse test of an N-type file (technical appendix, "The collapse test"). Every share on
 % the RE type (n_RE_x = 1, the other shares 0), beliefs 0, rule constants at
 % their values, forecast transforms at their identity values: the tests of
 % collapse_test (RE information 'current') or collapse_test_lagged ('lagged')
@@ -2740,7 +2740,7 @@ end
 
 function se = nt_srf(me, el, meta) %#ok<INUSD>
 % IRFs of an N-type model to the shocks el of the reference model (40 periods); the generated file
-% declares no shocks of its own (the wedge shocks were removed on 2026-10-22)
+% declares no shocks of its own
 if ~isequal(get(me, 'eList'), el)
     error('hetlearn:extend_model:collapseFailed', 'Shock lists differ between reference and extended model.');
 end
@@ -2750,7 +2750,7 @@ end
 
 function Z = ntype_re_limit(meta)
 % Parameters of the RE limit of an N-type file: n_RE_x = 1 and every other share 0, belief and
-% anchored parameters 0, rule constants at their values; forecast transforms (phase P3) at their
+% anchored parameters 0, rule constants at their values; forecast transforms at their
 % identity values (the collapse test).
 Z = struct();
 if isfield(meta, 'transforms') && ~isempty(meta.transforms)
@@ -2781,7 +2781,7 @@ for i = 1:numel(f)
         Z.(pn{j}) = 0;
     end
 end
-if isfield(meta, 'anchor_extra')          % phase P4: the anchored diagnostic reference
+if isfield(meta, 'anchor_extra')          % generalized anchor: the anchored diagnostic reference
     f = fieldnames(meta.anchor_extra);
     for i = 1:numel(f)
         pn = meta.anchor_extra.(f{i});
@@ -2798,7 +2798,7 @@ end
 
 
 % =========================================================================
-% Generalised anchor in the generated text (docs/DESIGN_br_extensions.md 1.4, phase P4, 2026-10-21)
+% Generalized anchor in the generated text (docs/USER_GUIDE.md section 7.5)
 % =========================================================================
 function AX = anchor_extra(TF, fwd, byx, G)
 % Extra terms of the RE type's anchored expression of each forward variable x: the states that the
@@ -2887,7 +2887,7 @@ end
 
 
 % =========================================================================
-% Forecast transforms (docs/DESIGN_br_extensions.md 1.3, phase P3, 2026-10-21)
+% Forecast transforms (docs/USER_GUIDE.md section 7.3)
 % =========================================================================
 function TF = tf_setup(B, G, byx)
 % expectations.transforms resolved against the model (TF.has = false without transforms).
@@ -2909,8 +2909,8 @@ function TF = tf_setup(B, G, byx)
 % information (TF.deferred; refused by hetlearn.load_model under period-t information). Errors
 % (hetlearn:extend_model:transforms): a diagnostic transform after another transform, a transform
 % that acts on nothing, scope entries that are not forward-looking or whose equation is not found.
-% Kinds: 'multiplier', 'diagnostic', 'myopia_anchoring' ('partial_adjustment' and 'wedge' were
-% removed on 2026-10-22).
+% Kinds: 'multiplier', 'diagnostic', 'myopia_anchoring' ('partial_adjustment' and 'wedge' are
+% not supported).
 TF = struct('has', false, 'occ', B.occ);
 X = B.transforms;
 if isempty(X)
@@ -3020,8 +3020,8 @@ for i = 1:nX
         ex = [' minus ' strjoin(excl, ',')];
     end
     t.desc = sprintf('tf%d %s (types %s, scope %s%s)', i, t.kind, ty, scTxt, ex);
-    % the key keeps its 2026-10-21 form (an empty 'shock=' entry, a field of the removed wedges), so the
-    % generated files of the kept variants keep their names
+    % the key keeps its earlier form (an empty 'shock=' entry, a field of the unsupported wedges), so the
+    % generated files of the seven variants keep their names
     parts{i} = sprintf('%d:%s[types=%s;scope=%s;exclude=%s;shock=]', i, t.kind, ty, scTxt, strjoin(excl, ','));
     T(i) = t;
 end
@@ -3208,8 +3208,8 @@ for q = 1:numel(ch)
     end
     why = '';
     if strcmp(T(i).kind, 'diagnostic') && ~strcmp(g.kind, 're')
-        why = ['the reference forecast of learned and rule types is not built (phase P3 builds the ' ...
-            'model-consistent references)'];
+        why = ['the reference forecast of learned and rule types is not built (only the ' ...
+            'model-consistent references are)'];
     end
     if ~isempty(why)
         keep(q) = false;
@@ -3289,7 +3289,7 @@ end
 
 function e = tf_expr(TF, ch, base, x, br, g, ref)
 % the transformed expectation: base through the transforms ch; ref (optional) replaces the diagnostic
-% reference (the anchored x_DEg_RE{-1}, phase P4)
+% reference (the anchored x_DEg_RE{-1}, generalized anchor)
 if nargin < 7
     ref = '';
 end
@@ -3426,7 +3426,7 @@ for c = 1:numel(tags)
         ref = '';
         if anchoredVersion && strcmp(g.kind, 're') && isempty(g.variant) && ~isempty(ch)
             if strcmp(g.info, 'lagged') && isfield(TF, 'deg_vars') && any(strcmp(TF.deg_vars, x))
-                ref = [x '_DEg_RE{-1}'];      % the anchored reference E_{t-2} x_{t+1} (phase P4)
+                ref = [x '_DEg_RE{-1}'];      % the anchored reference E_{t-2} x_{t+1}
             else
                 ch = ch(~strcmp({TF.list(ch).kind}, 'diagnostic'));     % period-t information: refused by load_model
             end
