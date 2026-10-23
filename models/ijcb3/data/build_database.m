@@ -21,7 +21,7 @@ function [d, S] = build_database()
 %            where it is a straight line between the 2019Q4 and 2020Q4 values.
 %            Through 2019Q4 the gap is the regression's own residual (IJCB's
 %            construction on this vintage); from 2020Q1 it is out of sample.
-%            Percent of trend output. User decision 2026-10-18 (README.md).
+%            Percent of trend output (README.md).
 %   pinfobs  CPI inflation, 100 x dlog CPIAUCSL (quarterly average), % q/q,
 %            not annualised (IJCB's units, README.md "Units").
 %   robs     federal funds rate, FEDFUNDS (quarterly average) / 4, % per
