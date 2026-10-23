@@ -1,8 +1,8 @@
-# Application 2: replay of the backed-out shocks
+# Application 2: replay of the RE-smoothed shocks
 
-**Question.** The RE smoother says which shocks hit the economy in 2022Q3-2026Q2. Feed those
-same shocks, quarter by quarter, into the economy with learners. How far does the result move
-from what actually happened?
+**Question.** The rational expectations (RE) smoother says which shocks hit the economy in
+2022Q3-2026Q2. Feed those same shocks, quarter by quarter, into the economy with learners. How
+far does the result move from what actually happened?
 
 Under RE the replay must give back the data exactly: that is a check on the machinery. Under
 learning the same shocks meet different expectations, so the paths differ.
@@ -42,17 +42,16 @@ run_applications('app2')
 |---|---:|---:|---:|
 | Average inflation 2022Q3-2026Q2 (%) | 3.21 | 4.64 | 3.21 |
 
-- **RE replay = data.** `a2_re` reproduces all seven observables to 5.9e-13 (check C1 of
-  `checks_v3.txt`).
-- **The learning replay misses the data**: RMS gap 1.62 pp for inflation, 1.22 pp for the
-  policy rate, 0.83 pp for output growth and 0.71 pp for consumption growth.
-- **Most of the miss is in the first year.** The inflation gap is +2.60 pp in 2022Q3 and
-  peaks at +2.81 pp in 2022Q4; 62% of the squared inflation gap falls in 2022Q3-2023Q2. After
-  2023Q2 the largest gap is 1.79 pp.
+The RE replay `a2_re` reproduces all seven observables to 5.9e-13. The learning replay misses
+the data: the root-mean-square gap is 1.62 percentage points (pp) for inflation, 1.22 pp for
+the policy rate, 0.83 pp for output growth and 0.71 pp for consumption growth. Most of the miss
+is in the first year. The inflation gap is +2.60 pp in 2022Q3 and peaks at +2.81 pp in 2022Q4;
+62% of the squared inflation gap falls in 2022Q3-2023Q2, and after 2023Q2 the largest gap is
+1.79 pp.
 
-In words: the shocks that bring inflation down under RE are not enough when learners
-extrapolate the peak. To match the data with learners in the economy, the shocks themselves
-must differ; Application 6 backs them out with the learning model.
+The shocks that bring inflation down under RE are not enough when learners extrapolate the
+peak. To match the data with learners in the economy, the shocks themselves must differ;
+[Application 6](app6-history.md) backs them out with the learning model.
 
 ## Variations
 
