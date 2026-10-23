@@ -4,9 +4,9 @@ function R = test_options()
 %   R = test_options()   returns a struct array of checks (name, pass, msg).
 %
 %   28 checks: defaults, removed and unknown options, enumerations and ranges, merge
-%   order, free-form subtrees; BR1-BR4 the bounded-rationality options as cut to the
-%   seven kept portfolio variants on 2026-10-22 (docs/BR_audit.txt): defaults, the
-%   kept variants and their scenario files load, malformed and removed settings are
+%   order, free-form subtrees; BR1-BR4 the bounded-rationality options of the
+%   seven further expectation rules: defaults, the
+%   seven rules and their scenario files load, malformed and removed settings are
 %   rejected, Ramsey and the inversion refuse the N-type path.
 
 R = struct('name', {}, 'pass', {}, 'msg', {});
@@ -32,7 +32,7 @@ catch err
     R = add(R, 'opt: defaults match DESIGN 6.3 (anchored RE, projection.facility = plm_alm)', false, err.message);
 end
 
-% removed options (2026-10-18): a helpful error naming projection.facility
+% options that are no longer supported: a helpful error naming projection.facility
 removed = {'projection', 'on_failure', 'keep_previous'; 'projection', 'max_root', 0.99; ...
     'projection', 'method', 'shrink'; 'projection', 'scope', 'system'; ...
     'switching', 'error_scale', 'innovation_variance'; 'switching', 'error_scale_ref', ''};
@@ -44,7 +44,7 @@ for i = 1:size(removed, 1)
     catch err
         full = sprintf('%s.%s', removed{i, 1:2});
         ok = strcmp(err.identifier, 'hetlearn:options:removed') ...
-            && contains(err.message, sprintf('Option "%s" was removed on 2026-10-18', full)) ...
+            && contains(err.message, sprintf('Option "%s" is no longer supported', full)) ...
             && contains(err.message, 'projection.facility (''plm_alm'' | ''alm'' | ''none'')');
         R = add(R, nm, ok, err.message);
     end
@@ -76,14 +76,14 @@ catch err
 end
 
 % the real config/master_options.m is found and merges (the test copy tests/scenarios/master_options.m,
-% which shadows it during the tests, is taken off the path for this check, 2026-10-20)
+% which shadows it during the tests, is taken off the path for this check)
 ts = fullfile(fileparts(mfilename('fullpath')), 'scenarios');
 onp = any(strcmpi(strsplit(path, pathsep), ts));
 try
     if onp
         rmpath(ts);
     end
-    % the live baseline sets expectations.re_info = 'lagged' (2026-10-20), which needs a learning set
+    % the live baseline sets expectations.re_info = 'lagged', which needs a learning set
     o = hetlearn.load_options(struct('id', 'x', 'expectations', struct('variables', {{'pinf'}})));
     live = which('master_options');
     if onp
@@ -97,7 +97,7 @@ catch err
     end
     R = add(R, 'opt: config/master_options.m loads', false, err.message);
 end
-% model_params (2026-10-20): '' by default, a function name, or an error for a bad name
+% model_params: '' by default, a function name, or an error for a bad name
 try
     o = hetlearn.load_options(struct('model_params', "sw07_params_original"), struct());
     d = hetlearn.defaults();
@@ -156,18 +156,17 @@ catch err
     R = add(R, 'opt: free-form subtrees merge unvalidated; strings converted', false, err.message);
 end
 
-% bounded-rationality extensions (docs/DESIGN_br_extensions.md; option schema of phase P0, 2026-10-20,
-% cut to the seven kept portfolio variants on 2026-10-22, docs/BR_audit.txt)
+% bounded-rationality extensions (the seven further expectation rules, docs/USER_GUIDE.md section 7)
 R = br_schema(R);
 end
 
 
 % -------------------------------------------------------------------------
 function R = br_schema(R)
-% BR1 defaults off and idempotent; BR2 the seven kept portfolio variants (written out here and read
+% BR1 defaults off and idempotent; BR2 the seven portfolio variants (written out here and read
 % from their scenario files) and the RE/BR pair spelled out pass validation and load; BR3 bad values,
-% and the options, kinds, fields and values removed on 2026-10-22, are rejected by the validation; BR4
-% Ramsey and the inversion with the N-type path stop with hetlearn:options:unsupported (phase P6).
+% and the options, kinds, fields and values that are no longer supported, are rejected by the
+% validation; BR4 Ramsey and the inversion with the N-type path stop with hetlearn:options:unsupported.
 nm = 'opt BR1: BR options present and off by default; load_options(struct()) passes and is idempotent';
 try
     d = hetlearn.defaults();
@@ -193,7 +192,7 @@ end
 FLEX = {'invef', 'pkf', 'rkf', 'cf', 'labf'};
 T = @(varargin) struct(varargin{:});
 c = struct('expectations', struct('mode', 'switching', 'variables', {{'pinf'}}));
-V = {};      % {name, cfg}: the settings of the kept variants (docs/DESIGN_br_extensions sec. 3)
+V = {};      % {name, cfg}: the settings of the seven rules (docs/USER_GUIDE.md section 7.7)
 x = c; x.expectations.transforms = struct('kind', 'multiplier', 'types', 'all', 'value', 0.94, 'scope', 'learning', ...
     'exclude', {FLEX});
 V(end+1, :) = {'br05b', x};
@@ -224,14 +223,14 @@ for i = 1:size(V, 1)
         bad{end+1} = sprintf('%s: %s %s', V{i, 1}, err.identifier, err.message); %#ok<AGROW>
     end
 end
-% the scenario files: scenarios/sw07/br_portfolio holds exactly the seven kept variants, and each loads
+% the scenario files: scenarios/sw07/br_portfolio holds exactly the seven variants, and each loads
 keep = {'br05b_cd_learn', 'br07_myopia_anchoring', 'br10_diagnostic', 'br19_target_believers', ...
     'br23_intercept_only', 'br24_mean_only', 'br26_experience'};
 pf = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'scenarios', 'sw07', 'br_portfolio');
 f = dir(fullfile(pf, 'br*.m'));
 have = sort(regexprep({f.name}, '\.m$', ''));
 if ~isequal(have, sort(keep))
-    bad{end+1} = sprintf('scenarios/sw07/br_portfolio holds {%s}, not the seven kept variants', strjoin(have, ', '));
+    bad{end+1} = sprintf('scenarios/sw07/br_portfolio holds {%s}, not the seven variants', strjoin(have, ', '));
 end
 for i = 1:numel(keep)
     if exist(fullfile(pf, [keep{i} '.m']), 'file') ~= 2
@@ -243,7 +242,7 @@ for i = 1:numel(keep)
         bad{end+1} = sprintf('%s.m: %s %s', keep{i}, err.identifier, err.message); %#ok<AGROW>
     end
 end
-R = add(R, sprintf(['opt BR2: %d configurations (the kept portfolio variants %s written out, RE/BR spelled out) ' ...
+R = add(R, sprintf(['opt BR2: %d configurations (the portfolio variants %s written out, RE/BR spelled out) ' ...
     'and the %d scenario files of scenarios/sw07/br_portfolio pass validation and load'], size(V, 1), ...
     strjoin(V(1:end-1, 1)', ', '), numel(keep)), isempty(bad), strjoin(bad, ' | '));
 
@@ -252,7 +251,7 @@ idT = {'hetlearn:options:types'};
 idX = {'hetlearn:options:transforms'};
 idV = {'hetlearn:options:value'};
 rm = 'hetlearn:options:removed';                 % a helpful error for a removed name is also accepted
-idU = {'hetlearn:options:unknown', rm};          % options removed on 2026-10-22: unknown fields
+idU = {'hetlearn:options:unknown', rm};          % options that are no longer supported: unknown fields
 x = c; x.expectations.types = T('name', 'A', 'kind', 'heuristic');
 E(end+1, :) = {'unknown kind', x, idT};
 x = c; x.expectations.types = T('name', 'A', 'kind', 'plm', 'gainn', 0.1);
@@ -271,7 +270,7 @@ x = c; x.expectations.types = T('name', 'A', 'kind', 'rule');
 E(end+1, :) = {'rule type without rule', x, idT};
 x = c; x.expectations.types = {T('name', 'RE', 'kind', 're'), T('name', 'L1', 'kind', 'level')};
 E(end+1, :) = {'kind level (removed)', x, [idT, {rm}]};
-% the per-type fields removed on 2026-10-22 (every type inherits the global settings)
+% the per-type fields that are no longer supported (every type inherits the global settings)
 gone = {'variant', 'model_consistent'; 'info', 'current'; 'plm', 'ar2'; 'update', 'fixed'; ...
     'gain', struct('value', 0.01); 'variables', {'pinf'}; 'cost', 0.1; 'base', 'RE'; 'k', 1};
 for i = 1:size(gone, 1)
@@ -329,10 +328,10 @@ for i = 1:size(E, 1)
         end
     end
 end
-R = add(R, sprintf(['opt BR3: %d malformed BR settings and settings removed on 2026-10-22 rejected by the ' ...
+R = add(R, sprintf(['opt BR3: %d malformed BR settings and settings no longer supported rejected by the ' ...
     'validation (types, transforms, value, unknown option)'], size(E, 1)), isempty(bad), strjoin(bad, ' | '));
 
-% BR4 (phase P6): stages without the N-type path stop with hetlearn:options:unsupported, naming the options
+% BR4: stages without the N-type path stop with hetlearn:options:unsupported, naming the options
 U = {};      % {name, cfg, expected word in the message ('' = loads)}
 tb = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm'), T('name', 'TB', 'kind', 'rule', 'rule', '0')};
 cd10 = struct('kind', 'diagnostic', 'types', {{'RE'}}, 'value', 0.44, 'scope', 'all', 'exclude', {FLEX});
