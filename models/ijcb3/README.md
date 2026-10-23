@@ -90,7 +90,7 @@ RMSEs (1.4-2.5 for short-run expectations), the shadow-rate trough in Fig. 2 (co
 "an annual rate of -4 percent") and the 2.5 percent line in Fig. 3 are in annual terms: the
 paper annualises for presentation.
 
-The user confirmed the quarterly units on 2026-10-18. SW07, whose data are also in percent per
+The data are in quarterly units, as IJCB's. SW07, whose data are also in percent per
 quarter, now uses χ = 0.51 as well; the earlier χ = 8 (0.51 x 16) rested on the annualised
 reading. `i1_learn.m` sets 0.51 explicitly, so this package does not depend on the master
 options.
@@ -110,7 +110,7 @@ The database also holds `ffr` (FEDFUNDS/4 in every quarter), `elb` (dummy), `yob
 (the plain full-sample Hamilton gap) and `yobs_fullsample` (covid-adjusted regressors with a
 full-sample regression). None of them is an observable.
 
-Output gap (user decisions 2026-10-18). The plain Hamilton gap at t+8 is the error of a
+Output gap. The plain Hamilton gap at t+8 is the error of a
 projection made at t, so the 2020Q2 lockdown trough comes back eight quarters later: the plain
 gap is +9.0 in 2022Q2, the application-1 origin. `yobs` takes its coefficients from IJCB's own
 sample (gap dates 1957Q1-2019Q4, no covid quarters) and applies them at every date, with the
@@ -176,7 +176,7 @@ depend on the data.
 
 ## Open issues
 
-Decided 2026-10-18: the output gap is the Hamilton gap with IJCB-sample coefficients and
+The output gap is the Hamilton gap with IJCB-sample coefficients and
 covid-adjusted regressors (Data), and χ = 0.51 applies in IJCB's quarterly units (Units).
 
 1. HE trends. r̄_T - π̄ = -0.32% per quarter (-1.3% a year), so the RE forecast converges to
