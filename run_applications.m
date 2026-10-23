@@ -24,7 +24,7 @@ function L = run_applications(groups, varargin)
 %   part adds one row to results/run_log.csv: logged, group, id, status
 %   (ok | error), runtime_s, events, message.
 %
-%   GROUPS (in dependency order; times measured on 2026-10-18, plus about 15 s to start MATLAB)
+%   GROUPS (in dependency order; measured times, plus about 15 s to start MATLAB)
 %   group  folder             what it runs                                                time
 %   app1   app1_peak          a1_re, a1_learn: forecast from the 2022Q2 peak            ~30 s
 %   app2   app2_replay        a2_re, a2_learn: replay of the RE-smoothed shocks          ~10 s
@@ -43,10 +43,10 @@ function L = run_applications(groups, varargin)
 %   var2   var2_plm           v2_ar2, v2_ar1nc, v2_reg, v2_var3, v2_var12: other PLMs    ~70 s
 %   var3   var3_allvars       v3_all (the baseline facility 'alm'), v3_all_plm_alm,      ~35 s
 %                             v3_all_alm: learning on all 12 variables under each
-%                             facility (v3_all_alm = v3_all since 2026-10-21;
-%                             v3_all_plm_alm replaced v3_all_none on 2026-10-20)
+%                             facility (v3_all_alm = v3_all, since the baseline
+%                             facility is 'alm')
 %   var4   var4_gain          v4_const, v4_const_full: constant gain 0.05 against the    ~10 s
-%                             baseline KOZ gain (replaced v4_koz, v4_koz_full on 2026-10-20)
+%                             baseline KOZ gain
 %   eval   eval               recursive real-time evaluation of e01_re ... e10_allvars:  ~2.7 hours
 %                             origins 1990Q1-2024Q2, horizon 8, benchmark e01_re, in
 %                             6 parts of 23 origins per variant, then the merge (per
@@ -54,9 +54,9 @@ function L = run_applications(groups, varargin)
 %                             variables 41 min; 4 parallel sessions: about 47 min)
 %   all    every group above in this order
 %
-%   Baseline since 2026-10-20 (config/master_options.m): published SW07 parameters, KOZ gain
+%   Baseline (config/master_options.m): published SW07 parameters, KOZ gain
 %   from 0.05, chi 2, memory 0.8, RE and learners on t-1 information, filtered RE states,
-%   facility 'alm' (since 2026-10-21; 'none' on 2026-10-20); app 4 runs with RE information
+%   facility 'alm'; app 4 runs with RE information
 %   'current' (Ramsey + 'lagged' is not supported). A run that stops is logged as an error.
 %
 %   Evaluation outputs: results/eval_sw07_v3/parts/eval_<variant>_p<k>/ (one folder
