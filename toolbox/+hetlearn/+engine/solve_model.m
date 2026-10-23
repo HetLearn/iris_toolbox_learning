@@ -35,7 +35,7 @@ function [m, ok, msg, si] = solve_model(m, spec)
 %   for models without leads. Models with leads are unchanged: ok = false
 %   and the projection facility applies (hetlearn.engine.facility).
 %
-%   Caches in the model's user data (B2, 2026-10-18):
+%   Caches in the model's user data:
 %     hetlearn_maxlead  get(m,'maxLead'), computed once per model object (the
 %                       lead structure does not depend on parameters)
 %     hetlearn_sspace   after every successful IRIS solve, the state-space
