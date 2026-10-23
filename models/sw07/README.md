@@ -32,8 +32,8 @@ m = assign(m, sw07_params());
 - Filter/smoother over 1965Q1-2026Q2 reproduces the data from the smoothed states to
   8.3e-14 (quarters with data). Smoothed output gap y - yf: 2022Q2 -1.88, 2026Q2 -4.72
   (percent; -1.97 and -4.69 with the covid quarters in the data).
-- Covid quarters: every observable is NaN in 2020Q1-2020Q3 (user decision 2026-10-19,
-  `data/build_database.m`); the parameters are still the swX1 mode, estimated with them.
+- Covid quarters: every observable is NaN in 2020Q1-2020Q3
+  (`data/build_database.m`); the parameters are still the swX1 mode, estimated with them.
 
 ## Known quirks
 
