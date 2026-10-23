@@ -17,8 +17,8 @@ function cfg = i1_learn()
 %     switching.memory    0.62    omega [0.49, 0.74] (IJCB's text rounds it to 0.6)
 %     switching.intensity 0.51    chi   [0.38, 0.66]
 %   chi applies as IJCB estimated it, with no rescaling: IJCB's data are in
-%   percent per quarter, and so are the package data (confirmed by the
-%   user, 2026-10-18; models/ijcb3/README.md, "Units"). SW07 uses 0.51 too.
+%   percent per quarter, and so are the package data
+%   (models/ijcb3/README.md, "Units"). SW07 uses 0.51 too.
 %
 %   Other IJCB features stay at the defaults (see i1_re.m): learners use
 %   t-1 data ('lagged'; IJCB uses t-timing), an AR(1) PLM for inflation
