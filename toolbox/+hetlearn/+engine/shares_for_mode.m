@@ -14,14 +14,14 @@ function n1m = shares_for_mode(ctx, S)
 %            'fixed_shares'  1 - shares.fixed_n2 (scalar, or fixed_n2.<x>)
 %            'switching'     n1_{t-1} of the variable's share group
 %          The engine always sets n2_<x> = 1 - n1_<x>.
-%          Exception (projection facility, DESIGN 4.4; user decision
-%          2026-10-18): when the ALM check at the end of t-1 kept the
+%          Exception (projection facility, DESIGN 4.4): when the ALM
+%          check at the end of t-1 kept the
 %          previous quarter's model shares, S.n1m_keep holds them and they
 %          are returned instead, for this one quarter (update_learning clears
 %          S.n1m_keep before the next check, which tries the mode shares
 %          again). The discrete-choice shares S.n1 are not affected.
 %
-%   N agent types (ctx.nt, docs/DESIGN_br_extensions.md 1.1): n1m.<x> is a
+%   N agent types (ctx.nt): n1m.<x> is a
 %   row vector of model shares over ctx.nt.byvar.<x>.types (the share
 %   parameters ctx.nt.byvar.<x>.share_names, RE first):
 %            'rational'      1 on the RE type
