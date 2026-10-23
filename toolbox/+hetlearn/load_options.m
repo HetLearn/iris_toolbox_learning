@@ -40,7 +40,7 @@ function opts = load_options(cfg, master)
 %     switching.intensity >= 0, shares.init_n2 in [0,1],
 %     forecast.horizon positive integer); model_params '' or a valid
 %     function name (that the package folder has it is checked by
-%     hetlearn.load_model, 2026-10-20);
+%     hetlearn.load_model);
 %     cross-field: 'fixed_shares' needs shares.fixed_n2, 'universal'
 %     needs shares.master, 'training_ols' needs beliefs.init.training_range,
 %     history.re_states = 'filtered' needs history.mode = 're_smoother'
@@ -60,17 +60,16 @@ function opts = load_options(cfg, master)
 %     is an error. Names and expressions are checked against the model by
 %     hetlearn.extend_model / hetlearn.plm.build_system.
 %
-%   Bounded-rationality extensions (docs/DESIGN_br_extensions.md, schema of
-%   phase P0, 2026-10-20, cut to the seven kept portfolio variants on
-%   2026-10-22, docs/BR_audit.txt; every option defaults to off)
+%   Bounded-rationality extensions (the further expectation rules,
+%   docs/USER_GUIDE.md section 7; every option defaults to off)
 %     expectations.types: a struct array or a cell array of structs,
-%     normalised to a 1xN struct array with the fields name, kind, rule
+%     normalized to a 1xN struct array with the fields name, kind, rule
 %     (missing ones []); unknown fields, names that are not letters and
 %     digits or not unique, an unknown kind ('re' | 'plm' | 'rule' |
 %     're_mean'), a rule on a type that is not a rule type or a rule type
 %     without one, bad rule expressions, a type 'RE' of another kind and an
 %     're' type not named RE are errors (hetlearn:options:types).
-%     expectations.transforms: normalised the same way (fields kind, types,
+%     expectations.transforms: normalized the same way (fields kind, types,
 %     scope, exclude, value; types [] = 'all', scope [] = 'learning'); kind
 %     ('multiplier' | 'diagnostic' | 'myopia_anchoring'), types (names of
 %     the population, 'RE' always allowed), scope entries ('x' or
@@ -87,13 +86,13 @@ function opts = load_options(cfg, master)
 %     shares.init or shares.fixed): policy.mode = 'ramsey' and history.mode
 %     = 'inversion'. Density forecasts, hetlearn.evaluate and the Kalman
 %     history take N types; hetlearn.decompose refuses Kalman results.
-%     Options removed on 2026-10-22 (switching.inertia, .costs, .fitness,
+%     Options that are no longer supported (switching.inertia, .costs, .fitness,
 %     intensity 'model:<rule>', beliefs.update 'sac' | 'kf', beliefs.kf,
 %     gain.rule 'decreasing', gain.decreasing, the type kind 'level' and
 %     the type fields variant, info, plm, update, gain, base, k, variables,
 %     cost, the transform kinds 'partial_adjustment' and 'wedge' and the
 %     fields profile and factor) raise hetlearn:options:removed; in a
-%     merged tree saved before the cut they are dropped when they hold
+%     merged tree saved by an earlier version they are dropped when they hold
 %     their old default (off) values, so saved res.cfg trees still load.
 %
 %   See also hetlearn.defaults.
@@ -123,25 +122,25 @@ end
 
 % -------------------------------------------------------------------------
 function removed_option(full)
-% Options removed on 2026-10-18 (user decision: the projection facility is
-% the only stabilising device): a helpful error instead of "Unknown option".
+% Options that are no longer supported (the projection facility is the only
+% stabilizing device): a helpful error instead of "Unknown option".
 proj = {'projection.on_failure', 'projection.max_root', 'projection.method', 'projection.scope'};
 swi = {'switching.error_scale', 'switching.error_scale_ref'};
 if any(strcmp(full, proj))
-    error('hetlearn:options:removed', ['Option "%s" was removed on 2026-10-18: use projection.facility ' ...
+    error('hetlearn:options:removed', ['Option "%s" is no longer supported: use projection.facility ' ...
         '(''plm_alm'' | ''alm'' | ''none'').'], full);
 elseif any(strcmp(full, swi))
-    error('hetlearn:options:removed', ['Option "%s" was removed on 2026-10-18: switching uses the ' ...
-        'unscaled squared errors, and the only stabilising device is projection.facility ' ...
+    error('hetlearn:options:removed', ['Option "%s" is no longer supported: switching uses the ' ...
+        'unscaled squared errors, and the only stabilizing device is projection.facility ' ...
         '(''plm_alm'' | ''alm'' | ''none'').'], full);
 end
 end
 
 
 function drop = removed_br_option(full, val)
-% Bounded-rationality options removed on 2026-10-22 (docs/BR_audit.txt: only the seven kept portfolio
-% variants' machinery stays). A merged tree saved before the cut (res.cfg) holds them at their old
-% defaults: those are dropped (drop = true). Any other value is an error naming the removal.
+% Bounded-rationality options that are no longer supported (only the machinery of the seven further
+% expectation rules stays). A merged tree saved by an earlier version (res.cfg) holds them at their
+% old defaults: those are dropped (drop = true). Any other value is an error naming the option.
 old = struct('switching_inertia', 0, 'switching_costs', [], 'switching_fitness', 'normalized', ...
     'beliefs_kf', struct('gamma', [], 's2', 're_moments'), 'gain_decreasing', struct('n0', 1));
 key = strrep(full, '.', '_');
@@ -153,8 +152,8 @@ if isequal(val, old.(key))
     drop = true;
     return
 end
-error('hetlearn:options:removed', ['Option "%s" was removed on 2026-10-22 with the bounded-rationality ' ...
-    'variants that used it (docs/BR_audit.txt): switching has no inertia, costs or unnormalized fitness, ' ...
+error('hetlearn:options:removed', ['Option "%s" is no longer supported: ' ...
+    'switching has no inertia, costs or unnormalized fitness, ' ...
     'beliefs.update is ''rls'' or ''fixed'', and gain.rule has no ''decreasing'' rule.'], full);
 end
 
@@ -185,7 +184,7 @@ function base = merge(base, over, path)
 FREE = {'beliefs.init.values', 'beliefs.plm.by_var', 'beliefs.plm.derived', 'gain.by_var', ...
     'shares.fixed_n2', 'shocks.add', 'report'};
 REPLACE = {'conditions', 'policy.loss', ...
-    'expectations.types', 'expectations.transforms', 'shares.init', 'shares.fixed'};   % BR (P0)
+    'expectations.types', 'expectations.transforms', 'shares.init', 'shares.fixed'};   % BR options
 if ~isstruct(over) || ~isscalar(over)
     error('hetlearn:options:type', 'Option "%s" must be a scalar struct.', strip_path(path));
 end
@@ -197,7 +196,7 @@ for i = 1:numel(f)
     val = over.(name);
     if ~isfield(base, name)
         if removed_br_option(full, val)
-            continue        % removed on 2026-10-22, at its old default (a merged tree saved before the cut)
+            continue        % no longer supported, at its old default (a merged tree saved by an earlier version)
         end
         removed_option(full);
         error('hetlearn:options:unknown', 'Unknown option "%s".', full);
@@ -315,7 +314,7 @@ o.compare_with = tocell(o.compare_with, 'compare_with');
 if isfield(o.report, 'variables')
     o.report.variables = tocell(o.report.variables, 'report.variables');
 end
-% bounded-rationality extensions (DESIGN_br_extensions, schema of phase P0)
+% bounded-rationality extensions (the further expectation rules)
 if isstring(o.switching.intensity) && isscalar(o.switching.intensity)
     o.switching.intensity = char(o.switching.intensity);
 end
@@ -327,9 +326,9 @@ end
 
 % -------------------------------------------------------------------------
 function T = normalise_types(T)
-% expectations.types (DESIGN_br_extensions 1.1): -> 1xN struct array with the fields name, kind, rule.
-% The fields removed on 2026-10-22 are dropped when empty (a merged tree saved before the cut has them
-% at []), an error otherwise.
+% expectations.types: -> 1xN struct array with the fields name, kind, rule. The fields that are no
+% longer supported are dropped when empty (a merged tree saved by an earlier version has them at []),
+% an error otherwise.
 F = {'name', 'kind', 'rule'};
 OLD = {'variant', 'info', 'plm', 'update', 'gain', 'base', 'k', 'variables', 'cost'};
 T = drop_removed_fields(T, OLD, 'expectations.types', ...
@@ -346,8 +345,8 @@ end
 
 
 function X = normalise_transforms(X)
-% expectations.transforms (DESIGN_br_extensions 1.3): -> 1xN struct array, defaults filled in. The
-% fields removed on 2026-10-22 are dropped at their old defaults (profile [] or 'geometric', factor []),
+% expectations.transforms: -> 1xN struct array, defaults filled in. The fields that are no longer
+% supported are dropped at their old defaults (profile [] or 'geometric', factor []),
 % an error otherwise.
 F = {'kind', 'types', 'scope', 'exclude', 'value'};
 X = drop_old_profile(X);
@@ -369,7 +368,7 @@ end
 
 
 function X = drop_old_profile(X)
-% the multiplier profile (removed 2026-10-22): [] or 'geometric' is dropped, 'flat' and 'hyperbolic' are errors
+% the multiplier profile (no longer supported): [] or 'geometric' is dropped, 'flat' and 'hyperbolic' are errors
 C = struct_cells(X);
 if isempty(C)
     return
@@ -380,8 +379,8 @@ for i = 1:numel(C)
     end
     pr = C{i}.profile;
     if ~(isempty(pr) || ((ischar(pr) || isstring(pr)) && strcmp(char(pr), 'geometric')))
-        error('hetlearn:options:removed', ['Option "expectations.transforms(%d).profile" = ''%s'' was removed on ' ...
-            '2026-10-22 (docs/BR_audit.txt): a multiplier is m^h, the geometric profile.'], i, char(pr));
+        error('hetlearn:options:removed', ['Option "expectations.transforms(%d).profile" = ''%s'' is not supported: ' ...
+            'a multiplier is m^h, the geometric profile.'], i, char(pr));
     end
     C{i} = rmfield(C{i}, 'profile');
 end
@@ -390,7 +389,7 @@ end
 
 
 function X = drop_removed_fields(X, OLD, name, what)
-% fields removed on 2026-10-22: dropped when empty, an error when one holds a value
+% fields that are no longer supported: dropped when empty, an error when one holds a value
 C = struct_cells(X);
 if isempty(C)
     return
@@ -399,8 +398,8 @@ for i = 1:numel(C)
     f = intersect(fieldnames(C{i}), OLD);
     for j = 1:numel(f)
         if ~isempty(C{i}.(f{j}))
-            error('hetlearn:options:removed', ['Option "%s(%d).%s" was removed on 2026-10-22 with %s ' ...
-                '(docs/BR_audit.txt: only the seven kept portfolio variants'' machinery stays).'], name, i, f{j}, what);
+            error('hetlearn:options:removed', ['Option "%s(%d).%s" is no longer supported ' ...
+                '(also unsupported: %s).'], name, i, f{j}, what);
         end
     end
     C{i} = rmfield(C{i}, f);
@@ -549,8 +548,8 @@ if strcmp(o.expectations.re_info, 'lagged')
     end
 end
 if any(strcmp(o.beliefs.update, {'sac', 'kf'}))
-    error('hetlearn:options:removed', ['beliefs.update = ''%s'' was removed on 2026-10-22 with the ' ...
-        'bounded-rationality variants that used it (docs/BR_audit.txt); use ''rls'' or ''fixed''.'], o.beliefs.update);
+    error('hetlearn:options:removed', ['beliefs.update = ''%s'' is not supported; ' ...
+        'use ''rls'' or ''fixed''.'], o.beliefs.update);
 end
 enum(o.beliefs.update, {'rls', 'fixed'}, 'beliefs.update');
 enum(o.beliefs.info, {'lagged', 'current'}, 'beliefs.info');
@@ -595,8 +594,8 @@ if ~isstruct(o.beliefs.init.values)
     error('hetlearn:options:type', 'Option "beliefs.init.values" must be a struct.');
 end
 if strcmp(o.gain.rule, 'decreasing')
-    error('hetlearn:options:removed', ['gain.rule = ''decreasing'' was removed on 2026-10-22 with the ' ...
-        'bounded-rationality variant that used it (docs/BR_audit.txt, variant 17).']);
+    error('hetlearn:options:removed', ['gain.rule = ''decreasing'' is not supported: ' ...
+        'the toolbox has no decreasing-gain rule.']);
 end
 fn(o.gain.rule, 'gain');
 num(o.gain.value, @(x) x > 0 && x <= 1, 'gain.value', 'in (0, 1]');
@@ -639,7 +638,7 @@ end
 fn(o.switching.rule, 'switching');
 if ischar(o.switching.intensity)
     error('hetlearn:options:removed', ['switching.intensity = ''%s'': model-implied intensities ' ...
-        '(''model:<rule>'') were removed on 2026-10-22 (docs/BR_audit.txt, variant 27); give a number >= 0.'], ...
+        '(''model:<rule>'') are not supported; give a number >= 0.'], ...
         o.switching.intensity);
 end
 num(o.switching.intensity, @(x) x >= 0, 'switching.intensity', '>= 0');
@@ -651,7 +650,7 @@ end
 if strcmp(o.history.mode, 'hetero_filter')
     error('hetlearn:options:notImplemented', ['history.mode = ''hetero_filter'' is a planned hook and is ' ...
         'not implemented: the Kalman history of the heterogeneous-expectations model is history.mode = ' ...
-        '''kalman'' (docs/DESIGN_br_extensions.md sec. 5, phase P1).']);
+        '''kalman''.']);
 end
 enum(o.history.mode, {'re_smoother', 'inversion', 'kalman'}, 'history.mode');
 enum(o.history.re_states, {'smoothed', 'filtered'}, 'history.re_states');
@@ -680,7 +679,7 @@ num(o.forecast.horizon, @(x) x >= 1 && x == round(x), 'forecast.horizon', 'a pos
 if ~isstruct(o.conditions)
     error('hetlearn:options:type', 'Option "conditions" must be a struct array.');
 end
-% bounded-rationality extensions (DESIGN_br_extensions, schema of phase P0)
+% bounded-rationality extensions (the further expectation rules)
 validate_types(o);
 validate_transforms(o);
 validate_by_type(o);
@@ -690,7 +689,7 @@ end
 
 % -------------------------------------------------------------------------
 function validate_ntype_stages(o)
-% Stages that do not take the N-type engine path (docs/DESIGN_br_extensions.md sec. 6, phase P6):
+% Stages that do not take the N-type engine path (docs/USER_GUIDE.md section 7.8):
 % policy.mode = 'ramsey' and history.mode = 'inversion' with N agent types, forecast transforms,
 % shares.init or shares.fixed stop here, naming the options involved
 if ~(strcmp(o.policy.mode, 'ramsey') || strcmp(o.history.mode, 'inversion'))
@@ -713,20 +712,19 @@ end
 what = strjoin(c, ' and ');
 if strcmp(o.policy.mode, 'ramsey')
     error('hetlearn:options:unsupported', ['policy.mode = ''ramsey'' with %s is not supported: the Ramsey wrap ' ...
-        'of the N-type model and its rule model have not been built (docs/DESIGN_br_extensions.md sec. 6, P6). ' ...
+        'of the N-type model and its rule model have not been built. ' ...
         'Use policy.mode = ''rule''.'], what);
 end
 error('hetlearn:options:unsupported', ['history.mode = ''inversion'' with %s is not supported: the inversion ' ...
-    'reads the two-type forecasts from the model (docs/DESIGN_br_extensions.md sec. 6, P6). Use history.mode = ' ...
+    'reads the two-type forecasts from the model. Use history.mode = ' ...
     '''re_smoother'' or ''kalman''.'], what);
 end
 
 
 % -------------------------------------------------------------------------
 function validate_types(o)
-% expectations.types (DESIGN_br_extensions 1.1); model-dependent checks (forward-looking variables,
-% mode semantics) are left to the engine. Kinds and fields as cut on 2026-10-22: every type inherits
-% its information set, PLM, update and gain (docs/DESIGN_br_extensions.md, note of 2026-10-22)
+% expectations.types; model-dependent checks (forward-looking variables, mode semantics) are left to
+% the engine. Every type inherits its information set, PLM, update and gain from the global options
 T = o.expectations.types;
 if isempty(T)
     return
@@ -749,8 +747,8 @@ for i = 1:numel(T)
     t = T(i);
     p = sprintf('expectations.types(%d) (''%s'')', i, t.name);
     if ischar(t.kind) && strcmp(t.kind, 'level')
-        error('hetlearn:options:removed', ['Option "%s.kind" = ''level'' was removed on 2026-10-22 with the ' ...
-            'level-k variants (docs/BR_audit.txt, variants 1a and 1b).'], p);
+        error('hetlearn:options:removed', ['Option "%s.kind" = ''level'' is not supported: ' ...
+            'the toolbox has no level-k types.'], p);
     end
     if ~(ischar(t.kind) && any(strcmp(t.kind, kinds)))
         error(ID, 'Option "%s.kind" must be one of: %s.', p, strjoin(kinds, ', '));
@@ -760,8 +758,8 @@ for i = 1:numel(T)
             '(name the other type differently).'], p);
     end
     if strcmp(t.kind, 're') && ~strcmp(t.name, 'RE')
-        error(ID, ['Option "%s": kind ''re'' is the RE type, named RE; a second RE type was removed on ' ...
-            '2026-10-22 (docs/BR_audit.txt, variant 18).'], p);
+        error(ID, ['Option "%s": kind ''re'' is the RE type, named RE; a second RE type is ' ...
+            'not supported.'], p);
     end
     if strcmp(t.kind, 'rule')
         check_rule(t.rule, [p '.rule'], ID);
@@ -805,7 +803,7 @@ end
 
 % -------------------------------------------------------------------------
 function validate_transforms(o)
-% expectations.transforms (DESIGN_br_extensions 1.3; kinds as cut on 2026-10-22); equation labels and
+% expectations.transforms; equation labels and
 % variables are checked against the model by the generator
 X = o.expectations.transforms;
 if isempty(X)
@@ -818,8 +816,8 @@ for i = 1:numel(X)
     x = X(i);
     p = sprintf('expectations.transforms(%d)', i);
     if ischar(x.kind) && any(strcmp(x.kind, {'partial_adjustment', 'wedge'}))
-        error('hetlearn:options:removed', ['Option "%s.kind" = ''%s'' was removed on 2026-10-22 with the ' ...
-            'bounded-rationality variants that used it (docs/BR_audit.txt).'], p, x.kind);
+        error('hetlearn:options:removed', ['Option "%s.kind" = ''%s'' is not supported; ' ...
+            'the kinds are ''multiplier'', ''diagnostic'' and ''myopia_anchoring''.'], p, x.kind);
     end
     if ~(ischar(x.kind) && any(strcmp(x.kind, kinds)))
         error(ID, 'Option "%s.kind" must be one of: %s.', p, strjoin(kinds, ', '));
@@ -878,7 +876,7 @@ end
 
 % -------------------------------------------------------------------------
 function validate_by_type(o)
-% shares.init, shares.fixed: structs by type name (DESIGN_br_extensions 1.1-1.2); every type forecasts
+% shares.init, shares.fixed: structs by type name; every type forecasts
 % every learning variable, so the shares of all types sum to 1
 ID = 'hetlearn:options:value';
 pop = population(o);
