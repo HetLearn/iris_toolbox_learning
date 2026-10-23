@@ -1,4 +1,4 @@
-hetlearn technical appendix
+HetLearn technical appendix
 ===========================
 
 Files
