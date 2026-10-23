@@ -63,7 +63,7 @@ function H = re_filter(spec, opts, varargin)
 %   bytes and the filter range. With 'end': refilter_rt_<end>_<hash>.mat,
 %   hash over the same items but the clipped data values instead of the file
 %   bytes, so a data change after the end date does not touch it. A cache
-%   without .filtered (written before 2026-10-19) is not used: the filter is
+%   without .filtered (written by an earlier version) is not used: the filter is
 %   run again and the file rewritten under the same name (.cached = false).
 %   Lagged RE information: the extended model text (the _relag file) and the
 %   assign struct (learning-set toggles) in the key separate its caches from
@@ -139,7 +139,7 @@ if ~ip.Results.force && exist(cacheFile, 'file') == 2
         H.end_date = H.range(end);
         return
     end
-    % a cache written before 2026-10-19 has no filtered databank: filter
+    % a cache written by an earlier version has no filtered databank: filter
     % again (same inputs, same key; the smoothed history is unchanged) and
     % rewrite the file below
 end
