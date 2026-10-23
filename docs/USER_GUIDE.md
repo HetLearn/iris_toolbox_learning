@@ -39,9 +39,8 @@ The README gives the short layout; this table adds who writes each file.
 | `results/<id>/` | Output of one scenario run (5.1) | Written by each run (overwritten) |
 | `results/run_log.csv` | One row per run, decomposition and evaluation part | Appended by `run_applications` |
 | `results/eval_sw07_v3/` | The project's forecast evaluation: parts and merged tables (5.3) | Written by `run_applications('eval')` |
-| `results/summary_v3/build_summary_v3.m` | Summary tables and checks of the SW07 runs, read by the report builder | By hand |
-| `results/summary_v3/FINDINGS_v3.md` | Results memo; its numbers come from `key_numbers.csv` | By hand |
-| `reports/build_report_v3.py`, `build_br_app1_report.py`, `build_br_portfolio_report.py`, `build_estimation_report.py` | Builders of the HTML reports (Python 3 with pandas); the HTML they write is not versioned | By hand |
+| `results/summary_v3/build_summary_v3.m` | Summary tables and checks of the SW07 runs | By hand |
+| `reports/build_estimation_report.py` | Builder of the HTML report of the estimation module (Python 3 with pandas); the HTML it writes is not versioned | By hand |
 | `estimation/` | A separate Bayesian estimation module (5.5) | By hand |
 | `toolbox/+hetlearn/` | The toolbox | Not edited for a scenario or model change |
 | `toolbox/iris_patches/+model/Insertable.m` | Shadow copy of one IRIS file so that IRIS 20230622 optimal policy runs on R2025a; the IRIS installation is untouched | Not edited |
@@ -346,7 +345,7 @@ It writes `results/eval_my_eval/`. `hetlearn.evaluate_tables` rebuilds the table
 
 ### 3.6 Add a model package
 
-The website's page on a new model (`docs_site/your-own-model.md`) takes a model file to a first
+The website's page on a new model (`docs_site/adding-a-model.md`) takes a model file to a first
 run: the package contract `model_spec.m`, the generated toggles, the collapse test, the first
 scenarios and the limits. The two template packages show what SW07 does not:
 
