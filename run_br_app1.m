@@ -8,7 +8,7 @@ function out = run_br_app1(cmd, varargin)
 %   run_br_app1('csv')            write results/br_portfolio/app1_*.csv from the saved runs
 %   ids = run_br_app1('ids')      the 9 ids in report order (references first)
 %
-%   The variants (portfolio cut to seven on 2026-10-22 after docs/BR_audit.txt): 5b cognitive
+%   The seven variants (docs/USER_GUIDE.md section 7.7): 5b cognitive
 %   discounting on the learning set, 7 myopia and anchoring, 10 diagnostic expectations,
 %   19 target believers, 23 intercept learning on the RE forecast error, 24 mean-only
 %   learners, 26 constant gain 0.018.
@@ -16,8 +16,8 @@ function out = run_br_app1(cmd, varargin)
 %   Run from the project root (it calls setup_paths if IRIS is not started). Each run is
 %   hetlearn.run(feval(id)) and saves results/<id>/ like any scenario (the references
 %   overwrite results/a1_re/ and results/a1_learn/ with the same runs). Every run inherits
-%   the baseline's projection facility (config/master_options.m: 'alm' since 2026-10-21,
-%   'none' on 2026-10-20); its events (projection_alm, projection_alm_shares) are recorded.
+%   the baseline's projection facility (config/master_options.m: 'alm');
+%   its events (projection_alm, projection_alm_shares) are recorded.
 %   A run that still has no model solution stops with hetlearn:engine:noSolution or
 %   :almUnstable and saves nothing: that stop is the result, and the status file records the
 %   error, its period and the stage (a message that names no stage: history up to the
@@ -28,7 +28,7 @@ function out = run_br_app1(cmd, varargin)
 %   with the beliefs and shares in force, so that run has the same path and shares up to
 %   the last quarter that solves; the tables use it for the shares at the origin and the
 %   path up to the stop, flagged complete = 0.
-%   Sessions: the 9 runs took about two minutes in total on 2026-10-21, so one session is
+%   Sessions: the 9 runs take about two minutes in total, so one session is
 %   enough. To split them, run the references first (the variants compare with them), then
 %   give each session its own variants.
 %
@@ -114,10 +114,8 @@ end
 
 
 function V = variant_table()
-% Report order: the references, then the families of the design (research notes of the
-% literature review) in the order of docs/DESIGN_br_extensions.md section 3. Since 2026-10-22
-% only the seven variants that docs/BR_audit.txt keeps; the names follow its labelling advice
-% (the name of 26 is set from its gain in describe).
+% Report order: the references, then the seven variants grouped by family (docs/USER_GUIDE.md
+% section 7.7); the name of 26 is set from its gain in describe.
 F = {'ref', 'References'; 'disc', 'Discounting and horizons'; 'info', 'Information frictions'; ...
     'learn', 'Learning variants'; 'dist', 'Belief distortions'};
 C = {
