@@ -46,7 +46,7 @@ function [res, F] = core(ctx, m, H)
 %   hetlearn.engine.state_init; hetlearn.engine.history (history.mode =
 %   'kalman': hetlearn.engine.kalman_history, whose filtered history then
 %   replaces the RE-smoothed one, so the forecast starts from the filtered
-%   state at the origin, DESIGN_br_extensions 5, D12);
+%   state at the origin; (technical appendix, "The Kalman history"));
 %   hetlearn.engine.build_shocks (with 'inversion' the backed-out history
 %   then replaces the RE-smoothed one over [history.inversion.start,
 %   origin], variables and shocks); reference runs for 'delta' conditions
@@ -68,7 +68,7 @@ if ~isfield(ctx, 'quiet')
     ctx.quiet = false;
 end
 invMode = strcmp(o.history.mode, 'inversion');
-kalMode = strcmp(o.history.mode, 'kalman');     % time-varying Kalman filter of the ALM (DESIGN_br_extensions 5)
+kalMode = strcmp(o.history.mode, 'kalman');     % time-varying Kalman filter of the ALM
 
 % ---- dates -----------------------------------------------------------------------
 if isempty(o.forecast.origin)
