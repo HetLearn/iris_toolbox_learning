@@ -5,7 +5,7 @@ IJCB 21(1), sec. 2.1, eqs. (1)-(2): a hybrid IS curve, a hybrid Phillips curve a
 rule with smoothing, three shocks and three US observables (output gap, CPI inflation, federal
 funds rate). Parameters are the posterior means of IJCB's heterogeneous-expectations (HE)
 model. IJCB's ELB regime switching and its inflation-expectations observables are left out.
-This is the second model of the `hetlearn` portfolio, built on the `models/sw07/` template, and
+This is the second model of the HetLearn portfolio, built on the `models/sw07/` template, and
 the model of application 1: a forecast from the 2022Q2 inflation peak, RE against learning
 (`scenarios/ijcb3/app1_peak/`).
 
@@ -68,7 +68,7 @@ where it gives two regime-specific values, the package takes the Taylor-regime o
 r̄_E, η_r,E, the ATSIX measurement-error std devs (0.11, 0.08) and the regime-switching
 parameters Φ1 (0.10) and Φ2 (0.16).
 
-Learning parameters (HE column; hetlearn options, set in `i1_learn.m`): gain γ = 0.0585
+Learning parameters (HE column; HetLearn options, set in `i1_learn.m`): gain γ = 0.0585
 (0.0584-0.0587), memory ω = 0.62 (0.49-0.74), intensity of choice χ = 0.51 (0.38-0.66).
 
 ## Units: percent per quarter
