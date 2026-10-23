@@ -1,5 +1,5 @@
 function make_br_freeze()
-%MAKE_BR_FREEZE  Freeze the references of tests/test_br_regression.m (docs/DESIGN_br_extensions.md 1.7, phase P0).
+%MAKE_BR_FREEZE  Freeze the references of tests/test_br_regression.m .
 %
 %   make_br_freeze()
 %
@@ -16,7 +16,7 @@ function make_br_freeze()
 %
 %   Runs (default engine.step 'fast' unless named): tsw07_peak_re; tsw07_switch_pinf ('fast' and
 %   'iris'); the baseline tsw07_a1_re and tsw07_a1_learn ('fast' and 'iris'); the 2019Q4 IRF runs
-%   of DESIGN_br_extensions sec. 4: for the baseline and the RE(t-1) benchmark, no shock and +1 sd
+%   (impulse responses from 2019Q4): for the baseline and the RE(t-1) benchmark, no shock and +1 sd
 %   of each of the seven SW07 shocks in 2020Q1, and for the baseline also -1 sd (the
 %   nonlinearity diagnostic). 30 runs, about 1.5 minutes (4.5 MB).
 %
@@ -27,7 +27,7 @@ function make_br_freeze()
 %   shocked 2019Q4 run differs from its unshocked run over the horizon. Also printed: the max
 %   difference from results/a1_re and results/a1_learn when those exist (information only).
 %
-%   Run it only on the code to be frozen (first made 2026-10-20 with the code before phase P1),
+%   Run it only on the code to be frozen (first made with the code before the N-type extensions),
 %   at the default thread count, from a session where tests/scenarios is on the path (run_tests
 %   adds it).
 
