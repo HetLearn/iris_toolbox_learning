@@ -1,7 +1,8 @@
 # Shares and switching
 
-In mode `'switching'` the shares of RE agents and learners move each quarter with their
-recent forecast performance (Özden 2025, eqs. 14-15).
+In mode `'switching'` the shares of rational expectations (RE) agents and learners move each
+quarter with their recent forecast performance (Özden 2025, eqs. 14-15). In the code and the
+outputs the learners carry the suffix BR, for bounded rationality.
 
 | Option | Values (default first) | Meaning |
 |---|---|---|
@@ -15,21 +16,22 @@ recent forecast performance (Özden 2025, eqs. 14-15).
 
 ## The rule
 
-For each share group \(G\) (one learning variable, or the master list), with \(F^i_{v,t-1}\)
-type \(i\)'s forecast of \(v_t\) made in t-1:
+For each share group \(G\) (one learning variable, or the master list), with \(f^i_{v,t-1}\)
+type \(i\)'s forecast of \(v_t\) made in t-1, \(i \in \{RE, BR\}\):
 
 \[
-FE^i_t = \sum_{v \in G}\left(v_t - F^i_{v,t-1}\right)^2, \qquad
-U^i_t = \omega U^i_{t-1} - (1-\omega) FE^i_t ,
+FE^i_t = \sum_{v \in G}\left(v_t - f^i_{v,t-1}\right)^2, \qquad
+\zeta^i_t = \omega\, \zeta^i_{t-1} - (1-\omega) FE^i_t ,
 \]
 
 \[
-n_{1,t} = \frac{\exp(\chi U^{RE}_t)}{\exp(\chi U^{RE}_t) + \exp(\chi U^{BR}_t)}, \qquad
+n_{1,t} = \frac{\exp(\chi\, \zeta^{RE}_t)}{\exp(\chi\, \zeta^{RE}_t) + \exp(\chi\, \zeta^{BR}_t)}, \qquad
 n_{2,t} = 1 - n_{1,t}.
 \]
 
-The shares computed at the end of t are in force in t+1. Initial fitness: \(U^{RE}_0 = 0\) and
-\(U^{BR}_0\) such that \(n_{2,0}\) = `shares.init_n2`.
+\(\zeta^i_t\) is the fitness of type \(i\). The shares computed at the end of t are in force in
+t+1 ([Timing and information](timing.md#the-order-of-events-in-quarter-t)). Initial fitness:
+\(\zeta^{RE}_0 = 0\) and \(\zeta^{BR}_0\) such that \(n_{2,0}\) = `shares.init_n2`.
 
 - \(\chi = 0\) gives equal shares whatever the errors; a large \(\chi\) sends almost everyone to
   the type with the better recent record.
@@ -37,9 +39,9 @@ The shares computed at the end of t are in force in t+1. Initial fitness: \(U^{R
 
 !!! warning "Units of the intensity of choice"
     \(\chi\) multiplies squared forecast errors, so its meaning depends on the units of the model
-    variables. SW07 and the data of Özden (2025) are in percent per quarter, so the estimate
-    0.51 applies as published. With annualised variables, divide \(\chi\) by 16 for the same
-    switching.
+    variables. The Smets and Wouters (2007) model and the data of Özden (2025) are in percent
+    per quarter, so the estimate 0.51 applies as published. With annualized variables, \(\chi\)
+    divided by 16 gives the same switching.
 
 ## Examples
 
@@ -70,7 +72,7 @@ cfg.shares.fixed_n2 = struct('pinf', 0.3, 'w', 0.6);
 
 By default each learning variable has its own share, driven by its own errors. As in Özden
 (2025), where one share is driven by the summed squared errors of inflation and the output
-gap, you can use one share for all learning variables:
+gap, one share can serve all learning variables:
 
 ```matlab
 cfg = a1_learn(); cfg.id = 'a1_universal';
@@ -84,16 +86,16 @@ Every master variable must be a learning variable (error `hetlearn:engine:master
 
 ## Share names in the outputs
 
-Type 1 is the RE agents, type 2 the learners; the shares sum to 1.
+Share 1 is the RE agents', share 2 the learners'; the shares sum to 1.
 
 | Name | Where | Meaning |
 |---|---|---|
 | `n1_<x>`, `n2_<x>` | model parameters | RE and learners' shares of x's expectation in the model |
 | `n1`, `n2` | `res.learning.<x>` | Discrete-choice shares computed at the end of each quarter |
 | `n1_model` | `res.learning.<x>` | RE share actually in the model that quarter (= `n1` of the quarter before, unless the projection facility kept the shares) |
-| `zetaRE`, `zetaBR` | `res.learning.<x>` | Fitness \(U^{RE}\), \(U^{BR}\) |
-| `FE_RE`, `FE_BR` | `res.learning.<x>` | Squared one-step errors |
-| `fRE`, `fBR` | `res.learning.<x>` | The one-step forecasts |
+| `zetaRE`, `zetaBR` | `res.learning.<x>` | Fitness \(\zeta^{RE}\), \(\zeta^{BR}\) |
+| `FE_RE`, `FE_BR` | `res.learning.<x>` | Squared one-step errors \(FE^{RE}\), \(FE^{BR}\) |
+| `fRE`, `fBR` | `res.learning.<x>` | The one-step forecasts \(f^{RE}\), \(f^{BR}\) |
 
 ```matlab
 res = hetlearn.run(a1_learn(), 'save', false);
@@ -109,7 +111,7 @@ model uses the fixed shares.
 
 With no shocks over the forecast, both types' errors shrink and both fitness measures decay
 toward zero, so the shares drift back toward 0.5 by construction. There is no cost term that
-would favour one type. In Application 1 the learners' share falls from its peak of 0.685
+would favor one type. In Application 1 the learners' share falls from its peak of 0.685
 toward 0.516 by 2026Q2 for this reason.
 
 ## More than two types
