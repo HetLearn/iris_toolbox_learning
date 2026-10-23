@@ -1,5 +1,5 @@
 % nk3.model: 3-equation hybrid New Keynesian model (Ozden 2025, IJCB, eq. 1)
-% Test model for hetlearn. Leads are written in MIXED notations on purpose:
+% Test model for HetLearn. Leads are written in MIXED notations on purpose:
 %   y{+1}, pie{1}, pie[+1], y(+1), r{t+1}, and a 2-step lead pie{+2}.
 % No time subscript inside a comment or a label may be rewritten.
 
