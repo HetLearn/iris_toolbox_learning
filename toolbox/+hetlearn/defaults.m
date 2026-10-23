@@ -1,5 +1,5 @@
 function o = defaults()
-%DEFAULTS  Full hetlearn option tree with default values (DESIGN sec. 6.3).
+%DEFAULTS  Full HetLearn option tree with default values (DESIGN sec. 6.3).
 %
 %   o = hetlearn.defaults()
 %
