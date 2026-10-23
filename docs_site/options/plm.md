@@ -1,11 +1,12 @@
 # Perceived laws of motion (PLMs)
 
-A PLM is the learners' forecasting model: a linear regression of a variable on lags of
-itself or of other variables, whose coefficients they re-estimate each quarter.
+A perceived law of motion (PLM) is the learners' forecasting model: a linear regression of a
+variable on lags of itself or of other variables, whose coefficients they re-estimate each
+quarter by recursive least squares.
 
 | Option | Values (default first) | Meaning |
 |---|---|---|
-| `beliefs.plm.default` | `'ar1'`, `'ar2'`, `'ar1_noconst'`, `'var1'` | PLM of every learning variable without its own entry; `'var1'` = one VAR(1) over the learning set |
+| `beliefs.plm.default` | `'ar1'`, `'ar2'`, `'ar1_noconst'`, `'var1'` | PLM of every learning variable without its own entry; `'var1'` = one vector autoregression, VAR(1), over the learning set |
 | `beliefs.plm.by_var.<x>` | a shorthand (`'ar1'`, `'ar2'`, `'ar1_noconst'`) or `struct('regressors', {...}, 'constant', true)` | PLM of one variable. An entry for a variable that does not learn sets its auxiliary PLM |
 | `beliefs.plm.derived.<name>` | text | A regressor defined as a linear expression in model variables, e.g. `'y - yf'`; it becomes a model variable |
 | `beliefs.plm.var` | `struct('variables', {{}}, 'lags', 1, 'constant', true)` | A VAR PLM over a cellstr of variables or `'learning'` (the learning set) |
@@ -15,12 +16,12 @@ itself or of other variables, whose coefficients they re-estimate each quarter.
 A PLM equation for variable \(v\) is
 
 \[
-v_t = \alpha_v + \sum_j \beta_{v,j}\, u_{j,t-l_j} + \varepsilon_t, \qquad l_j \ge 1 .
+v_t = \alpha_v + \sum_j \beta_{v,j}\, u_{j,t-l_j} + e_{v,t}, \qquad l_j \ge 1 ,
 \]
 
-With `beliefs.info = 'lagged'` the learners see data up to t-1, so for the one-step-ahead
-forecast of \(x_{t+1}\) they iterate the PLMs forward from t-1, replacing every unobserved
-regressor by its own PLM forecast. For the AR(1):
+with \(e_{v,t}\) the PLM error. With `beliefs.info = 'lagged'` the learners see data up to t-1,
+so for the one-step-ahead forecast of \(x_{t+1}\) they iterate the PLMs forward from t-1,
+replacing every unobserved regressor by its own PLM forecast. For the AR(1):
 \(\alpha + \beta(\alpha + \beta x_{t-1})\). With `'current'` they iterate from t:
 \(\alpha + \beta x_t\).
 
@@ -65,15 +66,15 @@ cfg = a1_learn(); cfg.id = 'a1_mean_only';
 cfg.beliefs.plm.by_var.pinf = struct('regressors', {{}}, 'constant', true);
 ```
 
-Run any of them with `hetlearn.run(cfg)`.
+Each of them runs with `hetlearn.run(cfg)`.
 
 ## Rules
 
-- **Regressors are lags.** Write them as `name{-k}` with k >= 1.
+- **Regressors are lags.** They are written as `name{-k}` with k >= 1.
 - **Auxiliary PLMs.** A regressor that is not itself a learning variable gets an auxiliary PLM
-  (an AR(1) with constant by default), learned by the same RLS, so the learners can iterate
-  the system forward. In `v2_reg`, `ygap` and `r` get auxiliary AR(1)s. Set an auxiliary PLM
-  with a `by_var` entry for that variable.
+  (an AR(1) with constant by default), learned by the same recursive least squares, so the
+  learners can iterate the system forward. In `v2_reg`, `ygap` and `r` get auxiliary AR(1)s.
+  A `by_var` entry for that variable sets its auxiliary PLM.
 - **VARs.** VAR members that do not learn become auxiliary VAR equations; only the learning
   variables' expectations use the VAR forecast. VAR members take no `by_var` entry.
 - **`'var1'`** builds a VAR(1) over the whole learning set. It cannot be combined with
@@ -85,11 +86,12 @@ Run any of them with `hetlearn.run(cfg)`.
   by its largest root.
 - **Generated files.** The default AR(1) PLM uses `generated/<name>_ext_ar1.model`; any other
   PLM spec gets its own file, tagged with a hash of the spec (`<name>_ext_p<8 hex>.model`), and
-  its own RE filter cache.
+  its own rational expectations (RE) filter cache.
 
 ## In the project
 
-Model variant 2 runs Application 1 with each PLM. Averages over 2022Q3-2026Q2:
+Model variant 2 runs Application 1 with each PLM in the Smets and Wouters (2007) model (SW07).
+Averages over 2022Q3-2026Q2:
 
 | PLM for inflation | Scenario | Inflation (%) | Rate (%) | Output growth (%) | Share 2022Q2 | Peak share | Largest root 2022Q2 | Mean root 1966-2022 |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
@@ -103,7 +105,8 @@ Model variant 2 runs Application 1 with each PLM. Averages over 2022Q3-2026Q2:
 
 ![Perceived laws of motion](../assets/figures/fig_plm.png){ .figure }
 
-*Inflation, the learners' share and the largest root of the PLM, four PLMs.*
+*Inflation, the learners' share and the largest root of the PLM, four PLMs; the reference line
+marks a root of 1.*
 
 Every PLM has a largest root at or above 1 at the 2022Q2 origin, so none has a finite
 perceived mean there. PLMs that include the output gap and the policy rate (`v2_reg`,
