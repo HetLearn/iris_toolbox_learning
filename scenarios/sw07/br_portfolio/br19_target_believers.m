@@ -3,8 +3,8 @@ function cfg = br19_target_believers()
 %
 %   cfg = br19_target_believers()
 %
-%   As a1_learn, with docs/DESIGN_br_extensions.md mechanism 19 and the 19
-%   row of section 3: a third inflation type, target believers (TB), always
+%   As a1_learn, with rule 19 of the portfolio (docs/USER_GUIDE.md
+%   section 7.7): a third inflation type, target believers (TB), always
 %   forecasts the steady state (0 in deviations); its share is the
 %   credibility of the target. Switching as the baseline (chi 2, memory 0.8)
 %   from 1/3 each. Writes compare_a1_learn.csv and compare_a1_re.csv.
