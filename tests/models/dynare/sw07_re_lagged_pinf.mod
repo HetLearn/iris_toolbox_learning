@@ -3,7 +3,7 @@
 // usmodel.mod) with every E_t pinf(+1) replaced by EXPECTATION(-1)(pinf(+1)), the
 // expectation formed with information up to t-1 (four terms: the value of capital,
 // the consumption Euler equation, the price and the wage Phillips curves). Every
-// other expectation stays E_t. Written by hand, independent of hetlearn and IRIS.
+// other expectation stays E_t. Written by hand, independent of HetLearn and IRIS.
 // Parameter values: the line @#include "sw07_params.inc" is filled from
 // models/sw07/sw07_params.m by tests/models/dynare/run_dynare_check.m, which runs
 // this file in C:\dynare_work\re_info_check\ (Dynare fails on OneDrive paths) and
