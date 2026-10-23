@@ -2,9 +2,9 @@
 
     "C:\\Program Files\\Python314\\python.exe" scenarios/build_index.py
 
-Python 3, standard library only; reads the .m files as text (nothing is run). Since 2026-10-18
-(track H1) the scenario files sit in subfolders (base, app1_peak ... app6_history,
-var1_re_variant ... var4_gain, eval); the round 1-2 files are in archive/2026-10-18_rounds1-2/.
+Python 3, standard library only; reads the .m files as text (nothing is run). The scenario
+files sit in subfolders (base, app1_peak ... app6_history, var1_re_variant ... var4_gain,
+eval, br_portfolio).
 Columns:
   folder       subfolder of scenarios/sw07/ that holds the file
   id           cfg.id set in the file (else the file name)
