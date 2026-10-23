@@ -2,7 +2,8 @@
 
 Before the forecast starts, the agents learn over the history, from `beliefs.init.date` to
 the forecast origin. Most model variables are not observed, so the toolbox needs estimates of
-the past states. `history.mode` decides where they come from.
+the past states. `history.mode` decides where they come from. RE stands for rational
+expectations.
 
 | Option | Values (default first) | Meaning |
 |---|---|---|
@@ -18,7 +19,7 @@ the past states. `history.mode` decides where they come from.
 
 The RE model is filtered and smoothed once over the whole sample (`hetlearn.re_filter`, cached
 in `models/<name>/generated/refilter_*.mat`). Each history quarter, the RE agents' forecasts,
-the learners' data and the realised values in the forecast errors are read from that output;
+the learners' data and the realized values in the forecast errors are read from that output;
 beliefs and shares are updated, and the model with the new beliefs is solved only to apply the
 projection facility. The data are not re-explained by the learning model. This is the mode of
 every application except 6.
@@ -30,7 +31,7 @@ cfg = a1_learn();                         % history.mode = 're_smoother' (defaul
 ## `'inversion'`: back out the history with the learning model
 
 One quarter at a time, from `history.inversion.start`, the learning model in force that
-quarter explains the data: the observables are exogenised, the shocks endogenised, and then
+quarter explains the data: the observables are exogenized, the shocks endogenized, and then
 beliefs and shares are updated on the resulting states. The history is real time by
 construction (quarter t uses data up to t). It needs at least as many shocks as observables.
 
@@ -51,10 +52,11 @@ cfg.history.inversion.start = qq(1985, 1);           % start later; the RE smoot
 cfg.history.inversion.shocks = {'ea', 'eb', 'eg', 'eqs', 'em', 'epinf', 'ew'};   % SW07: all seven
 ```
 
-Under the RE model the inversion equals the RE smoother (to 2e-13 for SW07). In quarters where
-every observable is missing (SW07, 2020Q1-Q3) there is nothing to exogenise, so from 2020 on the
-inverted RE history no longer equals the smoother. The backed-out model parameters of each
-quarter are kept in the result, and `hetlearn.decompose` uses them.
+Under the RE model the inversion equals the RE smoother (to 2e-13 for the Smets and Wouters
+(2007) model, SW07). In quarters where every observable is missing (SW07, the COVID-19 quarters
+2020Q1-2020Q3) there is nothing to exogenize, so from 2020 on the inverted RE history no longer
+equals the smoother. The backed-out model parameters of each quarter are kept in the result,
+and `hetlearn.decompose` uses them.
 
 In the project, the inversion reproduces the seven SW07 observables over 1966Q1-2026Q2 to
 4e-15, and the learners' share at the end of 2022Q2 is 0.811 against 0.591 on the filtered RE
@@ -87,22 +89,17 @@ cfg.history.kalman.init = 'smoothed';               % start at beliefs.init.date
 ```
 
 What the agents see in the Kalman history: a forecast made in t with data to t-1 uses the
-prediction \(x_{t|t-1}\); a forecast with period-t data uses \(x_{t|t}\); realised values and PLM
-regressors are the filtered values as they were when each quarter was filtered, not revised
-later. Before `beliefs.init.date` the model is the RE limit. The forecast starts from the
-filtered state at the origin.
+prediction \(x_{t|t-1}\); a forecast with period-t data uses \(x_{t|t}\); realized values and
+regressors of the perceived laws of motion are the filtered values as they were when each
+quarter was filtered, not revised later. Before `beliefs.init.date` the model is the RE limit.
+The forecast starts from the filtered state at the origin.
 
 A saved run writes `results/<id>/kalman_errors.csv`: date, number of observables, the
 log-likelihood contribution, and the error, prediction and variance of each observable.
 
-In the project, over 1966Q1-2026Q2:
-
-| | RE(t-1), `a6_kalman_re` | Learning, `a6_kalman_learn` |
-|---|---:|---:|
-| One-step RMSE, inflation (% q/q) | 0.371 | 0.309 |
-| Log likelihood | −2182.12 | −1839.75 |
-
-The seven [further expectation rules](further-expectation-rules.md#results) are compared the
+In the project the learning model fits inflation better than the RE model one quarter ahead,
+with a higher likelihood ([Application 6](../applications/app6-history.md#the-kalman-history));
+the seven [further expectation rules](../applications/app7-rules.md#results) are compared the
 same way.
 
 ## No learning over the history
@@ -113,8 +110,8 @@ cfg.history.learn = false;                % initial beliefs and shares apply at 
 ```
 
 With `history.learn = false` the beliefs at the origin are the initial beliefs (RE moments by
-default), and the share is `shares.init_n2`. Combine it with `beliefs.init.method = 'user'` to
-impose beliefs at the origin ([Initial beliefs](initial-beliefs.md#impose-beliefs-at-the-origin)).
+default), and the share is `shares.init_n2`. Combined with `beliefs.init.method = 'user'` it
+imposes beliefs at the origin ([Initial beliefs](initial-beliefs.md#impose-beliefs-at-the-origin)).
 `'inversion'` and `'kalman'` need `history.learn = true`.
 
 ## Which mode to use
