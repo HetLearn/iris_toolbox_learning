@@ -22,7 +22,7 @@ function P = ijcb3_params()
 % errors of the ATSIX short- and long-run expectations); Phi1 0.10 [0.06, 0.15]
 % and Phi2 0.16 [0.07, 0.31] (policy-regime switching).
 %
-% HE learning and switching parameters. They are hetlearn options, not model
+% HE learning and switching parameters. They are HetLearn options, not model
 % parameters, and are set in scenarios/ijcb3/app1_peak/i1_learn.m:
 %   gamma, constant gain (eq. 13)          0.0585  [0.0584, 0.0587]   -> gain.value
 %   omega, memory (eq. 14)                 0.62    [0.49, 0.74]       -> switching.memory
