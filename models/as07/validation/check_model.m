@@ -1,5 +1,5 @@
 function R = check_model()
-% CHECK_MODEL  IRIS-only validation of the as07 package (no hetlearn engine calls).
+% CHECK_MODEL  IRIS-only validation of the as07 package (no HetLearn engine calls).
 %
 %   R = check_model()
 %
