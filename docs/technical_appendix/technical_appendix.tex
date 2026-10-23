@@ -3,6 +3,7 @@
 % Standalone article. Compile with pdflatex + bibtex (see README.txt).
 % =====================================================================
 \documentclass[11pt,a4paper]{article}
+\PassOptionsToPackage{obeyspaces,spaces}{url}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
@@ -18,12 +19,17 @@
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage[authoryear,round]{natbib}
+\usepackage{url}
 \usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
 
 % ---- inline code: option names, file names, MATLAB identifiers --------------------------
-% \detokenize prints underscores, braces and quotes literally. Do not put %, # or a
-% backslash inside \code{...}.
-\DeclareRobustCommand{\code}[1]{\texttt{\detokenize{#1}}}
+% \code{...} prints its argument literally and can break at punctuation and spaces.
+% \codem{...} prints the same but cannot break: use it in headings, inside \texorpdfstring
+% and inside math. Do not put %, # or a backslash inside either command.
+\DeclareUrlCommand{\code}{\urlstyle{tt}}
+\makeatletter\g@addto@macro{\UrlBreaks}{\do\:}\makeatother   % break error ids at colons
+\DeclareRobustCommand{\codem}[1]{\texttt{\detokenize{#1}}}
+\setlength{\emergencystretch}{2em}
 
 % ---- cfg examples ---------------------------------------------------------------------
 \lstdefinestyle{cfg}{language=Matlab,
@@ -69,8 +75,9 @@
 
 \title{\textbf{hetlearn: technical appendix}\\[4pt]
 \large Heterogeneous expectations with adaptive learning and switching\\ in IRIS models}
-\author{Repository \code{iris_toolbox_learning}, toolbox \code{toolbox/+hetlearn}}
-\date{Checked against the code on 22 October 2026 (IRIS 20230622, MATLAB R2025a)}
+\author{Tolga \"Ozden\thanks{Code and documentation:
+  \url{https://github.com/tolgaozden/iris_toolbox_learning}, released under the MIT License.}}
+\date{Version of 23 October 2026. Tested with IRIS 20230622 and MATLAB R2025a.}
 
 \begin{document}
 \maketitle
@@ -78,8 +85,8 @@
 \begin{abstract}
 \noindent
 This appendix documents the mathematics, the assumptions and every user-facing option of the
-\code{hetlearn} toolbox. The toolbox takes a linear (or, untested, nonlinear) IRIS model with
-forward-looking terms and replaces each one-step expectation by a population mix of rational
+\code{hetlearn} toolbox. The toolbox takes a linear IRIS model (nonlinear models have a code path but
+no test) with forward-looking terms and replaces each one-step expectation by a population mix of rational
 (RE) agents and adaptive learners whose shares switch on past forecast performance, as in
 \citet{ozden2025}. It writes the extended model file, runs a history stage (learning on the RE
 smoother, the filtered RE states, an inversion of the learning model, or a time-varying Kalman
@@ -87,8 +94,8 @@ filter), and then forecasts quarter by quarter with the beliefs and shares in fo
 projection facility. On top of the forecast stage sit conditional forecasts, Ramsey policy,
 density forecasts, shock decompositions and a recursive real-time forecast evaluation. Each
 option is given with its equations, the assumptions behind it, its default, its allowed values,
-its interactions with other options and a short configuration example. Every equation was
-checked against the source file named next to it.
+its interactions with other options and a short configuration example. Each equation names the
+file that implements it.
 \end{abstract}
 
 \tableofcontents
@@ -109,17 +116,45 @@ IRIS-readable database, the observables and a filter range. The toolbox
         explicit expectation variable, and gives every forward-looking variable an expectation
         block that mixes an RE forecast and a learners' forecast (Section~\ref{sec:generator});
   \item runs an RE Kalman filter and smoother over the data (Section~\ref{sec:history});
-  \item lets the learners form beliefs over the history, by recursive least squares on a
-        perceived law of motion (PLM), while the population shares follow a discrete-choice
+  \item lets the learners form beliefs over the history, by recursive least squares (RLS) on
+        a perceived law of motion (PLM), the reduced-form forecasting rule they estimate, while the population shares follow a discrete-choice
         rule on past squared forecast errors (Sections~\ref{sec:plm}--\ref{sec:switching});
   \item forecasts one quarter at a time from a forecast origin: in each quarter the model is
-        solved with the beliefs and shares in force, simulated for one period, and the beliefs
-        and shares are updated with the new data point (Section~\ref{sec:forecast}).
+        solved with the beliefs and shares in force and simulated for that quarter only, and the
+        beliefs and shares are updated with the new data point (Section~\ref{sec:forecast}).
 \end{enumerate}
 
 The learning and switching block follows \citet{ozden2025}, equations (12)--(16) and
-Appendix~D of that paper. The endogenous gain follows \citet{koz2024}, eq.~(9), which applies the
-adaptive step-size algorithm of \citet{kostyshyna2012}.
+Appendix~D of that paper. The endogenous gain follows \citet*[eq.~9]{koz2024}, hereafter KOZ, who apply the
+adaptive step-size algorithm of \citet{kostyshyna2012}; the gain rule \code{'koz'} is named after
+them.
+
+\subsection{Public functions}\label{sec:functions}
+
+The toolbox is used through these functions; \code{help hetlearn.<name>} gives the full text of each.
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{8.4cm}>{\raggedright\arraybackslash}p{6.6cm}}
+\toprule
+Call & Purpose \\
+\midrule
+\endhead
+\code{res = hetlearn.run(cfg, ...)} & one scenario; options \code{'save'}, \code{'results_dir'}, \code{'quiet'}, \code{'model'} (preloaded), \code{'filter'} (an RE filter output) \\
+\code{T = hetlearn.run_files(names, ...)} & runs scenario functions in order; a failure is reported and the next one runs \\
+\code{T = hetlearn.compare(ids, vars, range)} & levels \code{<var>__<id>} and differences \code{<var>__<id>_minus_<id1>} of saved runs \\
+\code{D = hetlearn.decompose(res, vars, range, opts)} & Section~\ref{sec:decompose} \\
+\code{E = hetlearn.evaluate(name, variants, origins, opts)} & Section~\ref{sec:evaluate} \\
+\code{T = hetlearn.evaluate_tables(errors, opts)} & tables from saved errors \\
+\code{o = hetlearn.defaults()} & the option tree \\
+\code{opts = hetlearn.load_options(cfg, master)} & merge and validate \\
+\code{spec = hetlearn.load_spec(name)} & package contract \\
+\code{[d, file] = hetlearn.load_database(spec)} & the package database \\
+\code{[m, info] = hetlearn.load_model(spec, opts)} & generate, load, assign, solve the extended model \\
+\code{H = hetlearn.re_filter(spec, opts, ...)} & RE filter and smoother; \code{'force'}, \code{'end'}, \code{'model'} \\
+\code{meta = hetlearn.extend_model(spec, plm, ...)} & the generator \\
+\code{[A, info] = hetlearn.re_anchor_coefficients(spec, P, ...)} & anchored coefficients \\
+\code{t = hetlearn.find_peak(db, name, from, to)} & date of a series' maximum in a window \\
+\bottomrule
+\end{longtable}
 
 \subsection{Scope of this appendix}
 
@@ -130,14 +165,14 @@ learning, switching and every stage built on them. It leaves out two parts of th
   \item the bounded-rationality extensions of \code{docs/DESIGN_br_extensions.md}: the options
         \code{expectations.types}, \code{expectations.transforms}, \code{shares.init},
         \code{shares.fixed}, the type kinds \code{'rule'} and \code{'re_mean'}, and the N-type
-        paths of the engine (\code{+engine/ntypes.m}). A later chapter will document the kept
-        rules. Every one of these options is off by default, and a run that sets none of them
+        paths of the engine (\code{+engine/ntypes.m}). A later chapter will document the
+        further expectation rules. Every one of these options is off by default, and a run that sets none of them
         takes the two-type code described here;
-  \item the Bayesian estimation module (\code{estimation/}, package \code{+hlest}), which runs
-        against a frozen copy of the toolbox and is not used by any scenario.
+  \item the Bayesian estimation module (\code{estimation/}, package \code{+hlest}), which has
+        its own copy of the toolbox and no scenario uses it.
 \end{itemize}
 
-The time-varying Kalman history (\code{history.mode = 'kalman'}) was built with the
+The time-varying Kalman history (\code{history.mode = 'kalman'}) belongs to the
 extensions but works with two types, so Section~\ref{sec:kalman} documents its two-type form.
 
 \subsection{How an option is documented}
@@ -150,30 +185,65 @@ Each option has its own entry with the same fields:
         scenarios; those values are noted where they differ, but the entries document the
         toolbox defaults.
   \item[Values] the values \code{hetlearn.load_options} accepts (\code{load_options.m}).
-  \item[Math] the equations the option selects or parameterises.
+  \item[Math] the equations the option selects or parameterizes.
   \item[Assumptions] what the option takes as given about agents, information or the model.
   \item[Interactions] other options that change its effect, combinations that are errors, and
         options it makes irrelevant.
   \item[Code] the files that implement it. Paths are relative to \code{toolbox/+hetlearn/};
         \code{+engine/forecast.m} is the function \code{hetlearn.engine.forecast}.
-  \item[Example] two lines of a scenario's \code{cfg}.
+  \item[Example] one or two lines of a scenario's \code{cfg}.
 \end{optspec}
 
 Appendix~\ref{app:index} lists every option with its default and the section that documents it.
+
+\subsection{Option precedence and merging}\label{sec:precedence}
+
+\code{opts = hetlearn.load_options(cfg, master)} (\code{load_options.m}) builds the option tree in
+three layers: the defaults of \code{hetlearn.defaults()}, then \code{config/master_options.m}, then
+the scenario's \code{cfg}, each layer overriding the previous one field by field.
+\code{master_options()} is found on the path or in \code{<root>/config/}; the optional second argument replaces it (the tests use their own
+\code{tests/scenarios/master_options.m}). Rules:
+\begin{itemize}[nosep]
+  \item the merge is recursive; a field that does not exist in the defaults is
+        \code{hetlearn:options:unknown}, naming the full path (typos are caught);
+  \item \emph{replaced as a whole}: \code{conditions} and \code{policy.loss} (a loss struct
+        without \code{dr} gives \code{dr} weight 0);
+  \item \emph{free-form}, merged without name checks: \code{beliefs.init.values},
+        \code{beliefs.plm.by_var}, \code{beliefs.plm.derived} (must hold strings),
+        \code{gain.by_var}, \code{shares.fixed_n2} (as a struct), \code{shocks.add},
+        \code{report};
+  \item strings become char; a char where a cellstr is expected becomes a one-element cellstr
+        (\code{expectations.variables} other than \code{'all'}, \code{shares.master},
+        \code{compare_with}, \code{shocks.exclude}, \code{density.shocks},
+        \code{history.inversion.shocks}, \code{gain.koz.master}, \code{report.variables});
+  \item the removed options \code{projection.max_root}, \code{.method}, \code{.scope},
+        \code{.on_failure}, \code{switching.error_scale}, \code{.error_scale_ref} and the removed
+        bounded-rationality options raise \code{hetlearn:options:removed}, which names the
+        replacement. A saved \code{res.cfg} that still holds a removed field at
+        its old default value loads without error.
+\end{itemize}
+
+Validation errors: \code{hetlearn:options:type} (wrong type), \code{:value} (outside the
+enumeration or range, or a forbidden combination), \code{:missing} (a required companion option),
+\code{:unsupported} (combinations not derived or built), \code{:notImplemented}
+(\code{history.mode = 'hetero_filter'}). Checks that need the model (names of variables, shocks and
+targets) are made later by the generator, the PLM builder and the engine.
 
 \subsection{Conventions}
 
 \begin{itemize}[nosep]
   \item Quarters are IRIS dates. The forecast origin $T_0$ is the last quarter of data used;
         the horizon is $T_0+1,\dots,T_0+H$.
-  \item Model units are those of the package. In SW07 \citep{smets2007}, the main package of the
-        repository, and in the toy model, inflation and the policy rate are in percent per
-        quarter; reports multiply by \code{spec.report.scale} (4 annualises). Learning series are
-        always in model units.
-  \item ``Learners'' and ``BR agents'' (bounded rationality) mean the same agents; the
-        generated names use \code{BR}. Share names: $n_1$ is the RE share, $n_2 = 1-n_1$ the
+  \item Model units are those of the package. In the \citet{smets2007} model (SW07), the main
+        package of the repository, and in the toy model of the tests (\code{tests/toy_nk/}),
+        inflation and the policy rate are in percent per quarter; reports multiply by
+        \code{spec.report.scale} (4 annualizes). Learning series are always in model units.
+  \item The SW07 data, seven US observables over the filter range 1965Q1--2026Q2 with every
+        observable missing in 2020Q1--2020Q3, are described in \code{models/sw07/README.md}.
+  \item This appendix calls the adaptive agents learners; the generated names use \code{BR}
+        (bounded rationality) for them. Share names: $n_1$ is the RE share, $n_2 = 1-n_1$ the
         learners' share. Options give the learners' share (\code{shares.init_n2},
-        \code{shares.fixed_n2}).
+        \code{shares.fixed_n2}); Section~\ref{sec:sharenames} lists every share name.
   \item Tolerances quoted in this appendix are the ones the code checks.
 \end{itemize}
 
@@ -239,9 +309,10 @@ runs, the Ramsey loss continuation) runs the same sequence in quarter $t$
         quarter \citep[eq.~16]{ozden2025}.
   \item \emph{Solve.} If the parameters differ from those of the last solve, the model is
         assigned and solved through the projection facility (\code{+engine/facility.m},
-        call \code{'solve'}). Normally the ALM check at the end of $t-1$ has already solved
-        this model, and its solution is reused.
-  \item \emph{Simulate.} One period, $t$ only, from the databank holding everything up to
+        call \code{'solve'}). Normally the check of the actual law of motion (ALM, the model
+        with the beliefs and shares in force; Section~\ref{sec:facility}) at the end of $t-1$
+        has already solved this model, and its solution is reused.
+  \item \emph{Simulate.} A one-period simulation of quarter $t$ only, from the databank holding everything up to
         $t-1$, with the shocks of quarter $t$ and the conditions active in $t$
         (\code{+engine/step.m}).
   \item \emph{Read the forecasts.} $\fRE_t(x)$ and $\fBR_t(x)$ are read from the simulated
@@ -268,7 +339,7 @@ Two assumptions hold throughout:
 Two options date the information behind the two forecasts made in $t$:
 
 \begin{center}
-\begin{tabular}{lll}
+\begin{tabular}{>{\raggedright\arraybackslash}p{5.0cm}>{\raggedright\arraybackslash}p{4.0cm}>{\raggedright\arraybackslash}p{5.2cm}}
 \toprule
  & \code{'lagged'} & \code{'current'} \\
 \midrule
@@ -316,7 +387,7 @@ The model's own equations are not restricted otherwise: hybrid terms, lags of an
 substitutions, measurement equations, the model's own \code{!if} and \code{!switch} blocks,
 \code{!for}, \code{!import} and \code{!include} are all accepted (Section~\ref{sec:leads}).
 
-\subsection{The package contract: \texorpdfstring{\code{model_spec.m}}{model\_spec.m}}\label{sec:spec}
+\subsection{The package contract: \texorpdfstring{\codem{model_spec.m}}{model\_spec.m}}\label{sec:spec}
 
 A package is a folder \code{models/<name>/} (or any folder given by path) with a function
 \code{model_spec()} that returns a struct. \code{hetlearn.load_spec} evaluates it with the
@@ -348,7 +419,7 @@ ignored (\code{load_model.m}).
 
 \subsection{Package options}
 
-\subsubsection{\texorpdfstring{\code{model}}{model}}\label{opt:model}
+\subsubsection{\texorpdfstring{\codem{model}}{model}}\label{opt:model}
 \begin{optspec}
   \item[Default] \code{''} (must be set; \code{hetlearn:run:model} otherwise).
   \item[Values] a folder name under \code{models/}, or the path of any folder that holds a
@@ -366,9 +437,9 @@ cfg.model = fullfile('tests', 'toy_nk');  % any folder with a model_spec.m
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{model_params}}{model\_params}}\label{opt:model-params}
+\subsubsection{\texorpdfstring{\codem{model_params}}{model\_params}}\label{opt:model-params}
 \begin{optspec}
-  \item[Default] \code{''}: the package's \code{spec.params}. (SW07 project baseline:
+  \item[Default] \code{''}: the package's \code{spec.params}. (Project baseline:
         \code{'sw07_params_original'}.)
   \item[Values] \code{''}, or a valid MATLAB name of a parameter function that is a
         \code{.m} file in the package folder. Another name stops the load with
@@ -406,16 +477,16 @@ Code: \code{extend_model.m} (functions \code{mask_code}, \code{parse_structure},
   \item Leads are detected only on \emph{declared transition variables}, only inside
         \code{!transition_equations} (alias \code{!equations}) and \code{!substitutions}, and
         only in the dynamic part of an equation (the text before \code{!!}). A lead in a
-        measurement equation is normalised to IRIS notation but not replaced.
+        measurement equation is normalized to IRIS notation but not replaced.
   \item Comments (\texttt{\%}, \texttt{\%\{ \%\}}, the rest of a line after \code{...}) and
         quoted labels are never changed. IRIS 20230622 accepts only \texttt{\%} and
         \texttt{\%\{ \%\}}, so the delimiters \code{//}, \code{/*}, \code{*/} become
         \texttt{\%\%}, \texttt{\%\{}, \texttt{\%\}} with the comment text unchanged.
   \item Accepted lead notations, whitespace tolerant, for an integer $k\ge 1$:
         \code{x{+k}}, \code{x{k}}, \code{x{t+k}}, \code{x[+k]}, \code{x(+k)}. Non-IRIS lags
-        (\code{x[-k]}, \code{x{t-k}}, \code{x(-k)}) are normalised to \code{x{-k}}. Because IRIS
+        (\code{x[-k]}, \code{x{t-k}}, \code{x(-k)}) are normalized to \code{x{-k}}. Because IRIS
         cannot load the non-IRIS forms, a reference file \code{<name>_norm.model} with only the
-        subscripts normalised is written and used by the collapse test.
+        subscripts normalized is written and used by the collapse test.
   \item The pseudo-functions \code{diff}, \code{dot}, \code{roc}, \code{pct}, \code{difflog},
         \code{movsum}, \code{movprod}, \code{movavg}, \code{movgeom} with a lead inside or a
         forward window stop the generator (\code{hetlearn:extend_model:pseudoLead}), naming the
@@ -511,7 +582,7 @@ Switch & Set from & Effect when true \\
 \midrule
 \code{br_<x>} (one per $x\in\mathcal{F}$) & \code{expectations.variables} & $x$'s expectation is the RE/learner mix~\eqref{eq:agg}; false: $E_t x_{t+1}$ \\
 \code{re_anchored} (global) & \code{expectations.re_variant} & anchored RE forecast (Section~\ref{sec:anchored}) instead of \code{x{+1}} \\
-\code{br_info_current} (global) & \code{beliefs.info} & learners' forecast on period-$t$ data \\
+\code{br_info_current} (global) & \code{beliefs.info} & learners' forecast on data up to $t$ \\
 \code{ramsey} (global) & \code{policy.mode} & the Ramsey loss replaces the policy rule (Section~\ref{sec:policy}) \\
 \bottomrule
 \end{tabular}
@@ -549,7 +620,7 @@ File (in \code{generated/}) & Content \\
 \midrule
 \endhead
 \code{<name>_ext_<tag>.model} & the extended model (generator version 4) \\
-\code{<name>_ext_<tag>_meta.mat} & \code{meta}: source file and MD5, normalised PLM spec and key, $\mathcal{F}$, maximum leads, generated names, toggles, PLM system, states of the original model, anchored parameter names, policy section, collapse-test results, generator version \\
+\code{<name>_ext_<tag>_meta.mat} & \code{meta}: source file and MD5, normalized PLM spec and key, $\mathcal{F}$, maximum leads, generated names, toggles, PLM system, states of the original model, anchored parameter names, policy section, collapse-test results, generator version \\
 \code{<name>_ext_<tag>_relag.model}, \code{_relag_meta.mat} & the lagged RE file (version 5) \\
 \code{<name>_norm.model} & the source with subscripts in IRIS notation (only when needed) \\
 \bottomrule
@@ -557,7 +628,7 @@ File (in \code{generated/}) & Content \\
 
 The tag is \code{ar1} when every PLM equation is an AR(1) with constant on the own lag and there
 are no derived regressors; otherwise \code{p} followed by the first 8 hexadecimal digits of the
-MD5 of the normalised PLM spec. A cached file is reused only if the generator version, the
+MD5 of the normalized PLM spec. A cached file is reused only if the generator version, the
 source MD5, the PLM key, the \code{spec.assign} key and the policy key all match; otherwise it is
 rewritten.
 
@@ -578,18 +649,18 @@ $E_t x_{t+1}$. Every generated file must pass (\code{collapse_test} in \code{ext
 \end{enumerate}
 
 Each pass compares the impulse responses of every variable of the reference model to every
-shock over 40 periods; the largest absolute difference must be below $10^{-10}$
+shock over 40 quarters; the largest absolute difference must be below $10^{-10}$
 (\code{hetlearn:extend_model:collapseFailed} otherwise). The results are stored in
 \code{meta.collapse_maxdiff} (passes 1--3) and \code{meta.collapse_info_maxdiff} (pass 4). The
 lagged file has its own passes (Section~\ref{sec:reinfo}).
 
 \subsection{Generator call options}\label{opt:extend-model}
 
-\code{meta = hetlearn.extend_model(spec, plm, 'force', false, 'validate', true)}:
-\code{'force'} regenerates even when the cache matches; \code{'validate'} runs the collapse
-test (default true). \code{'re_info'} selects the lagged file and is set by
-\code{hetlearn.load_model}. A direct call with a VAR over \code{'learning'} gives every
-forward-looking variable the VAR, because the learning set is resolved only by
+\code{meta = hetlearn.extend_model(spec, plm, ...)} takes the call options \code{'force'}
+(default false), which regenerates the file even when the cache matches, and \code{'validate'}
+(default true), which runs the collapse test. \code{'re_info'} selects the lagged file and is set
+by \code{hetlearn.load_model}. A direct call with a vector autoregression (VAR) over
+\code{'learning'} gives every forward-looking variable the VAR, because the learning set is resolved only by
 \code{hetlearn.load_model} (Section~\ref{opt:beliefs-plm-var}).
 
 % =====================================================================
@@ -602,7 +673,7 @@ expectation~\eqref{eq:agg}.
 
 \subsection{Options}
 
-\subsubsection{\texorpdfstring{\code{expectations.mode}}{expectations.mode}}\label{opt:expectations-mode}
+\subsubsection{\texorpdfstring{\codem{expectations.mode}}{expectations.mode}}\label{opt:expectations-mode}
 \begin{optspec}
   \item[Default] \code{'rational'}.
   \item[Values] \code{'rational'}, \code{'learning'}, \code{'fixed_shares'}, \code{'switching'}.
@@ -610,10 +681,10 @@ expectation~\eqref{eq:agg}.
 \begin{equation}\label{eq:modes}
   n^m_{1,t} =
   \begin{cases}
-    1 & \text{\code{'rational'}}\\
-    0 & \text{\code{'learning'}}\\
-    1 - \bar n_2 & \text{\code{'fixed_shares'}, } \bar n_2 = \text{\code{shares.fixed_n2}}\\
-    n_{1,t-1} & \text{\code{'switching'}, the share of the variable's group}
+    1 & \text{\codem{'rational'}}\\
+    0 & \text{\codem{'learning'}}\\
+    1 - \bar n_2 & \text{\codem{'fixed_shares'}, } \bar n_2 = \text{\codem{shares.fixed_n2}}\\
+    n_{1,t-1} & \text{\codem{'switching'}, the share of the variable's group}
   \end{cases}
 \end{equation}
         In every mode the end-of-quarter update still computes the fitness and the
@@ -641,7 +712,7 @@ cfg.expectations.variables = {'pinf'};
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{expectations.variables}}{expectations.variables}}\label{opt:expectations-variables}
+\subsubsection{\texorpdfstring{\codem{expectations.variables}}{expectations.variables}}\label{opt:expectations-variables}
 \begin{optspec}
   \item[Default] \code{{}} (no learning variable: the run is RE whatever the mode).
   \item[Values] a cellstr of forward-looking transition variables, or \code{'all'} for every
@@ -656,8 +727,8 @@ cfg.expectations.variables = {'pinf'};
         candidates). $\mathcal{L}$ is ordered as declared in the model, not as listed. It
         defines the share groups (\code{shares.structure}), the default of
         \code{gain.koz.master}, the members of a VAR over \code{'learning'}, and, with
-        \code{expectations.re_info = 'lagged'}, the RE(t-1) model (an empty set is then an
-        error). With anchored RE and every forward-looking variable of maximum lead 1 in
+        \code{expectations.re_info = 'lagged'}, the RE(t-1) model of Section~\ref{sec:reinfo}
+        (an empty set is then an error). With anchored RE and every forward-looking variable of maximum lead 1 in
         $\mathcal{L}$, the model has no leads (Section~\ref{sec:backward}).
   \item[Code] \code{load_model.m} (\code{learning_vars}), \code{extend_model.m}.
   \item[Example]
@@ -677,10 +748,9 @@ With \code{re_anchored = false} the generated equation is \code{x_exp1_RE = x{+1
 \begin{equation}\label{eq:mc}
   \fRE_t(x) = E_t\bigl[x_{t+1} \,\big|\, \phi_{t-1},\, n^m_{t}\bigr],
 \end{equation}
-the rational forecast in the heterogeneous economy whose ALM IRIS solves in quarter $t$ with the
-beliefs and shares treated as permanent (anticipated utility). RE agents know the model, the
-learners' PLM coefficients and the shares; they do not anticipate that beliefs or shares will
-change. The economy is re-solved each quarter.
+the rational forecast in the heterogeneous economy whose ALM IRIS solves in quarter $t$, under
+the anticipated-utility assumption of Section~\ref{sec:timing}. RE agents know the model, the
+learners' PLM coefficients and the shares.
 
 \subsection{Anchored RE agents}\label{sec:anchored}
 
@@ -701,22 +771,23 @@ parameter \code{are_x__v} and an auxiliary lag \code{v{-k}} the parameter \code{
 The coefficients come from \code{hetlearn.re_anchor_coefficients}
 (\code{re_anchor_coefficients.m}, through \code{anchor_coefficients.m} with lag 0 and horizon 1)
 on the original model at \code{spec.params} (or \code{model_params}). They are checked by
-unit-perturbation simulation: one IRIS \code{simulate} of period $t+1$ with zero shocks from a
+unit-perturbation simulation: one IRIS \code{simulate} of quarter $t+1$ with zero shocks from a
 databank with $n_b+1$ columns, the state at 0 and at each unit vector, must return $k_x$ and
 $k_x + c_{x,j}$ (relative tolerance $10^{-9}$; \code{hetlearn:anchor:check}).
 \code{hetlearn.load_model} recomputes them at every load, so they follow the parameters.
 
 \paragraph{Assumptions.} Anchored agents believe the economy is the pure-RE economy and keep its
-reduced form; they do not internalise the learners or the shares. At $n_1=1$ the anchored model
+reduced form; they do not internalize the learners or the shares. At $n_1=1$ the anchored model
 is the RE model (collapse pass 3). The forecast~\eqref{eq:anchored} uses $s_t$, which holds
-period-$t$ values, so it is determined jointly with the other period-$t$ variables. Under Ramsey
+values dated $t$, so it is determined jointly with the other variables dated $t$. Under Ramsey
 policy the coefficients come from the rule-based RE model (Section~\ref{sec:policy}).
 
 \subsection{Existence and models without leads}\label{sec:backward}
 
 When every forward-looking variable is in $\mathcal{L}$, every maximum lead is 1 and the RE agents
 are anchored, the ALM has no leads (\code{get(m, 'maxLead') = 0}). A linear model without leads
-has a unique solution for any beliefs and shares whenever its period-$t$ system is nonsingular,
+has a unique solution for any beliefs and shares whenever its system in the variables dated $t$
+is nonsingular,
 possibly explosive. IRIS rejects explosive solutions even in purely backward models, so when IRIS
 fails on such a model, \code{+engine/solve_model.m} builds a backward system
 (\code{+engine/backward_simulate.m}) from \code{system(m)}:
@@ -724,12 +795,12 @@ fails on such a model, \code{+engine/solve_model.m} builds a backward system
   A\begin{bmatrix} x^f_{t+1} \\ x^b_t\end{bmatrix} + B\begin{bmatrix} x^f_t \\ x^b_{t-1}\end{bmatrix} + C + D\varepsilon_t = 0,
   \qquad F y_t + G x^b_t + H + J\varepsilon_t = 0,\\
   M = \bigl[B_{\cdot,1:n_f},\ A_{\cdot,n_f+1:n}\bigr],\qquad
-  \begin{bmatrix} x^f_t \\ x^b_t\end{bmatrix} = -M^{-1}\bigl(B_b x^b_{t-1} + C + D\varepsilon_t\bigr),\qquad
+  \begin{bmatrix} x^f_t \\ x^b_t\end{bmatrix} = -M^{-1}\bigl(B_b x^b_{t-1} + C + D\varepsilon_t\bigr),\\
   y_t = -F^{-1}\bigl(G x^b_t + H + J\varepsilon_t\bigr),
 \end{gather}
 with $B_b = B_{\cdot,n_f+1:n}$ and no leads meaning $A_{\cdot,1:n_f}=0$. The roots are the
 eigenvalues of $\Phi$, the rows of $-M^{-1}B_b$ that belong to $x^b$. What happens next depends on
-the projection facility (Section~\ref{sec:facility}): under \code{'none'} the period is simulated
+the projection facility (Section~\ref{sec:facility}): under \code{'none'} the quarter is simulated
 with this system and an \code{explosive} event records the largest root; under \code{'alm'} and
 \code{'plm_alm'} a backward system with a root above 1 in modulus is an unstable ALM. The backward
 system equals IRIS \code{simulate} whenever IRIS has a solution (\code{test_anchored} A3). A model
@@ -737,9 +808,9 @@ with a lead of two or more keeps \code{x_exp2 = x_exp1{+1}} and so keeps a lead.
 
 \subsection{Option}
 
-\subsubsection{\texorpdfstring{\code{expectations.re_variant}}{expectations.re\_variant}}\label{opt:expectations-re-variant}
+\subsubsection{\texorpdfstring{\codem{expectations.re_variant}}{expectations.re\_variant}}\label{opt:expectations-re-variant}
 \begin{optspec}
-  \item[Default] \code{'anchored'} (the baseline since 18 October 2026).
+  \item[Default] \code{'anchored'}.
   \item[Values] \code{'anchored'}, \code{'model_consistent'}.
   \item[Math] \code{'anchored'}: equation~\eqref{eq:anchored}; with
         \code{re_info = 'lagged'}, equation~\eqref{eq:anchoredlag}. \code{'model_consistent'}:
@@ -750,15 +821,15 @@ with a lead of two or more keeps \code{x_exp2 = x_exp1{+1}} and so keeps a lead.
         linear model with plain state names (\code{hetlearn:load_model:anchored});
         \code{'model_consistent'} works for any model IRIS solves. With anchored RE and every
         lead-1 forward-looking variable learning, the model has no leads
-        (Section~\ref{sec:backward}). Under Ramsey policy anchored agents keep the Taylor-rule
-        reduced form, so an RE Ramsey benchmark needs \code{'model_consistent'}. With many
+        (Section~\ref{sec:backward}). For an RE Ramsey benchmark see
+        Section~\ref{opt:policy-mode}. With many
         learning variables a model-consistent ALM can lose its stable solution: on SW07 with
         all twelve forward-looking variables learning, such a run completes only because the
         facility keeps the model shares (look for \code{projection_alm_shares} in
         \code{events.csv}). The RE filter of the history uses the scenario's variant (its own
         cache file).
-  \item[Code] \code{re_anchor_coefficients.m}, \code{anchor_coefficients.m},
-        \code{load_model.m}, \code{extend_model.m} (\code{anchor_states}, \code{anchor_expr}).
+  \item[Code] \code{extend_model.m} (\code{anchor_states}, \code{anchor_expr}),
+        \code{re_anchor_coefficients.m}, \code{anchor_coefficients.m}, \code{load_model.m}.
   \item[Example]
 \begin{lstlisting}
 cfg.expectations.re_variant = 'model_consistent';
@@ -809,14 +880,14 @@ not depend on the information set; the forecasts, and through them the fitness a
 do. Under \code{'current'} the error that enters fitness at $t$ compares $x_t$ with
 $\fBR_{t-1}(x) = \alpha_{t-2} + \beta_{t-2} x_{t-1}$ (AR(1)).
 
-\subsubsection{\texorpdfstring{\code{beliefs.info}}{beliefs.info}}\label{opt:beliefs-info}
+\subsubsection{\texorpdfstring{\codem{beliefs.info}}{beliefs.info}}\label{opt:beliefs-info}
 \begin{optspec}
   \item[Default] \code{'lagged'}.
   \item[Values] \code{'lagged'}, \code{'current'}.
   \item[Math] $k_{\max} = -1$ or $0$ in~\eqref{eq:recursion}.
   \item[Assumptions] \code{'lagged'}: learners observe data up to $t-1$ when they forecast in
         $t$. \code{'current'}: they observe $x_t$ and the other regressors dated $t$, as in
-        IJCB.
+        \citet{ozden2025}.
   \item[Interactions] the generated file holds both forms; \code{br_info_current} selects one
         (a file from generator version 3 or older with \code{'current'} is
         \code{hetlearn:load_model:info}). Under \code{gain.koz.error = 'forecast'} the error that
@@ -827,7 +898,6 @@ $\fBR_{t-1}(x) = \alpha_{t-2} + \beta_{t-2} x_{t-1}$ (AR(1)).
   \item[Example]
 \begin{lstlisting}
 cfg.beliefs.info = 'current';               % alpha + beta*x_t
-cfg.beliefs.plm.default = 'ar1';
 \end{lstlisting}
 \end{optspec}
 
@@ -856,7 +926,7 @@ predetermined in $t$.
 \paragraph{Anchored form.} Write the solution of the model-consistent lagged model at $n_1=1$ and
 zero beliefs as~\eqref{eq:sspace}, with $x^b = (s, z, o)$: $s$ the original model's states, $z$ the
 chain states $z_{x,t} = x^{(2)}_t$, $o$ any other state (PLM lags, derived regressors). Iterating
-two periods from the state at $t-1$,
+two quarters from the state at $t-1$,
 \begin{equation}
   E_{t-1}x_{t+1} = \K_x + \T_{x\cdot}\bigl(\K_b + \T_b x^b_{t-1}\bigr) = k + C_s s_{t-1} + C_z z_{t-1},
 \end{equation}
@@ -869,11 +939,11 @@ $f_t = k + C_s s_{t-1} + C_z f_t$, so
 \end{equation}
 a linear function of states dated $t-1$ and earlier (\code{re_anchor_coefficients.m},
 \code{lagged_coefficients}; a near-singular $I-C_z$, reciprocal condition below $10^{-12}$, is an
-error). The generated equation dates every state one period earlier:
+error). The generated equation dates every state one quarter earlier:
 \code{x_exp1_RE = are_x__const + sum_j are_x__<s_j>*s_j{-1}}, a lag-$k$ state becoming
 \code{v{-k-1}}. On the RE(t-1) path $z_{t-1}$ satisfies the same fixed point, so at $n_1 = 1$ the
 anchored and model-consistent lagged models coincide; \code{hetlearn.load_model} checks it at
-every load (IRFs of every common variable, 40 periods, below $10^{-10}$,
+every load (impulse responses of every common variable, 40 quarters, below $10^{-10}$,
 \code{info.re_info_check}). The coefficients depend on the learning set, so the model-consistent
 lagged model is loaded and solved for every anchored lagged scenario.
 
@@ -891,11 +961,11 @@ Under \code{history.re_states = 'smoothed'} the RE forecast of the history is th
 \code{x_exp1_RE} at $t$, which equals the two-step forecast from the smoothed state at $t-1$.
 Under \code{'filtered'} it is \code{H.predicted.x_exp1_RE(t)}
 $= E[x_{t+1}\mid\text{data to } t-1]$, the filter's two-step prediction
-(\code{+engine/history_db.m}); the learners' data and the realised values stay $x_{t|t}$.
+(\code{+engine/history_db.m}); the learners' data and the realized values stay $x_{t|t}$.
 
-\subsubsection{\texorpdfstring{\code{expectations.re_info}}{expectations.re\_info}}\label{opt:expectations-re-info}
+\subsubsection{\texorpdfstring{\codem{expectations.re_info}}{expectations.re\_info}}\label{opt:expectations-re-info}
 \begin{optspec}
-  \item[Default] \code{'current'}. (SW07 project baseline: \code{'lagged'}.)
+  \item[Default] \code{'current'}. (Project baseline: \code{'lagged'}.)
   \item[Values] \code{'current'}, \code{'lagged'}.
   \item[Math] \code{'current'}: $\fRE_t(x)$ from~\eqref{eq:mc} or~\eqref{eq:anchored}.
         \code{'lagged'}: from~\eqref{eq:chain} or~\eqref{eq:anchoredlag}.
@@ -970,7 +1040,7 @@ it an auxiliary AR(1). Setting \code{beliefs.plm.by_var.<u>} makes the two agree
 
 \subsection{Options}
 
-\subsubsection{\texorpdfstring{\code{beliefs.plm.default}}{beliefs.plm.default}}\label{opt:beliefs-plm-default}
+\subsubsection{\texorpdfstring{\codem{beliefs.plm.default}}{beliefs.plm.default}}\label{opt:beliefs-plm-default}
 \begin{optspec}
   \item[Default] \code{'ar1'}.
   \item[Values] \code{'ar1'}, \code{'ar2'}, \code{'ar1_noconst'}, \code{'var1'}.
@@ -997,7 +1067,7 @@ cfg.beliefs.plm.default = 'var1';           % VAR(1) over the learning set
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{beliefs.plm.by_var}}{beliefs.plm.by\_var}}\label{opt:beliefs-plm-by-var}
+\subsubsection{\texorpdfstring{\codem{beliefs.plm.by_var}}{beliefs.plm.by\_var}}\label{opt:beliefs-plm-by-var}
 \begin{optspec}
   \item[Default] \code{struct()} (no entries).
   \item[Values] \code{by_var.<v>} is a shorthand (\code{'ar1'}, \code{'ar2'},
@@ -1017,8 +1087,8 @@ cfg.beliefs.plm.default = 'var1';           % VAR(1) over the learning set
         regressor that is not a transition variable or has a lag below 1
         (\code{hetlearn:plm:regressor}), duplicate regressors, neither constant nor regressors
         (\code{hetlearn:plm:empty}), unknown fields (\code{hetlearn:plm:field}). The subtree is
-        free-form for \code{load_options} (names are checked against the model by the
-        builder). A regressor that is a forward-looking variable outside $\mathcal{L}$ may need
+        free-form (merged without name checks, Section~\ref{sec:precedence}); the builder checks
+        the names against the model. A regressor that is a forward-looking variable outside $\mathcal{L}$ may need
         its own entry (consistency check above).
   \item[Code] \code{+plm/build_system.m}.
   \item[Example]
@@ -1028,7 +1098,7 @@ cfg.beliefs.plm.by_var.r = 'ar2';           % auxiliary PLM of the regressor r
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{beliefs.plm.derived}}{beliefs.plm.derived}}\label{opt:beliefs-plm-derived}
+\subsubsection{\texorpdfstring{\codem{beliefs.plm.derived}}{beliefs.plm.derived}}\label{opt:beliefs-plm-derived}
 \begin{optspec}
   \item[Default] \code{struct()}.
   \item[Values] \code{derived.<name> = '<expression>'}: a non-empty string of current-dated
@@ -1054,7 +1124,7 @@ cfg.beliefs.plm.by_var.pinf = struct('regressors', {{'pinf{-1}', 'ygap{-1}'}}, '
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{beliefs.plm.var}}{beliefs.plm.var}}\label{opt:beliefs-plm-var}
+\subsubsection{\texorpdfstring{\codem{beliefs.plm.var}}{beliefs.plm.var}}\label{opt:beliefs-plm-var}
 \begin{optspec}
   \item[Default] \code{struct('variables', {{}}, 'lags', 1, 'constant', true)}: no VAR.
   \item[Values] \code{variables}: a cellstr of transition or derived variables, or
@@ -1093,7 +1163,7 @@ cfg.beliefs.plm.var = struct('variables', {{'pinf', 'ygap', 'r'}}, 'lags', 1, 'c
 
 \subsection{Recursive least squares}\label{sec:rls}
 
-After $x_t$ is realised, each PLM equation $v$ moves its beliefs by RLS \citep[eq.~13]{ozden2025},
+After $x_t$ is realized, each PLM equation $v$ moves its beliefs by RLS \citep[eq.~13]{ozden2025},
 \citep{evans2001}:
 \begin{align}
   R_{v,t} &= R_{v,t-1} + g_{v,t}\bigl(z_{v,t-1} z_{v,t-1}\transp - R_{v,t-1}\bigr), \label{eq:rlsR}\\
@@ -1104,32 +1174,30 @@ $R$ is updated first and $\phi$ uses the new $R_t$ (a linear solve, no inverse;
 The residual $e_{v,t} = v_t - \phi_{v,t-1}\transp z_{v,t-1}$ is stored (\code{S.fe_hist}) and is the
 error that drives a KOZ gain under \code{gain.koz.error = 'rls'}.
 
-\paragraph{Order inside the update} (\code{+engine/update_learning.m}). (1) Squared forecast
-errors, fitness and shares (Section~\ref{sec:switching}); (2) the forecasts made in $t$ are
-stored; (3) residuals and the gain of each equation, $g_{v,t}$, from the gain rule; the RLS
-candidates~\eqref{eq:rlsR}--\eqref{eq:rlsphi} from $\phi_{t-1}$, $R_{t-1}$; the PLM part of the
-projection facility (\code{'plm_alm'} only); the ALM check (\code{'alm'}, \code{'plm_alm'});
-(4) the update of the gain state, whatever the facility did.
+\paragraph{Order inside the update} (\code{+engine/update_learning.m}). The update runs step 5
+of Section~\ref{sec:timing} in the order listed there. The gain of each equation, $g_{v,t}$, comes
+from the gain state before this quarter's update and is computed before the RLS candidates; the
+gain state itself is updated last, whatever the projection facility did.
 
 \paragraph{Missing data.} An equation whose target or any regressor is not finite at $t$ keeps
 its beliefs and logs an \code{rls_missing} event. This happens only where the databank the
 stage reads holds a NaN; the smoothed and filtered RE histories, the inversion and the Kalman
 history fill quarters without data with model values.
 
-\paragraph{The first period.} At $t$ = \code{beliefs.init.date} there are no forecast errors
+\paragraph{The first quarter.} At $t$ = \code{beliefs.init.date} there are no forecast errors
 (the forecasts of $t-1$ were not made), so fitness and shares keep their initial values, but the
 RLS update uses the data of that quarter.
 
-\subsubsection{\texorpdfstring{\code{beliefs.update}}{beliefs.update}}\label{opt:beliefs-update}
+\subsubsection{\texorpdfstring{\codem{beliefs.update}}{beliefs.update}}\label{opt:beliefs-update}
 \begin{optspec}
   \item[Default] \code{'rls'}.
-  \item[Values] \code{'rls'}, \code{'fixed'}. (\code{'sac'} and \code{'kf'} were removed on
-        22 October 2026 and raise \code{hetlearn:options:removed}.)
+  \item[Values] \code{'rls'}, \code{'fixed'}. (The removed values \code{'sac'} and \code{'kf'}
+        raise \code{hetlearn:options:removed}.)
   \item[Math] \code{'rls'}: \eqref{eq:rlsR}--\eqref{eq:rlsphi}. \code{'fixed'}:
         $\phi_t = \phi_0$, $R_t = R_0$ for all $t$.
   \item[Assumptions] \code{'fixed'}: learners keep their initial rule; forecasts still move with
         the data and shares still switch.
-  \item[Interactions] with \code{'fixed'} no gain is computed, the gain state is frozen, and the
+  \item[Interactions] with \code{'fixed'} no gain is computed, the gain state stays unchanged, and the
         PLM part of the facility has nothing to check; the ALM check can still keep the
         previous model shares (the belief revert is skipped because nothing changed).
         \code{'fixed'} with \code{beliefs.init.method = 'user'} gives a run with given
@@ -1154,11 +1222,12 @@ carries the gain: the history, the inversion and its snapshots, the forecast, de
 evaluation origins and the Ramsey loss continuation. With \code{'constant'} the gain is
 $g_{v,t} = \gamma_0$ (or the \code{gain.by_var} value of the equation).
 
-\subsubsection{\texorpdfstring{\code{gain.rule}}{gain.rule}}\label{opt:gain-rule}
+\subsubsection{\texorpdfstring{\codem{gain.rule}}{gain.rule}}\label{opt:gain-rule}
 \begin{optspec}
-  \item[Default] \code{'constant'}. (SW07 project baseline: \code{'koz'}.)
+  \item[Default] \code{'constant'}. (Project baseline: \code{'koz'}.)
   \item[Values] \code{'constant'}, \code{'koz'}; the name must be a function in
-        \code{+gain/} (\code{'decreasing'} was removed on 22 October 2026).
+        \code{+gain/} (the removed rule \code{'decreasing'} raises
+        \code{hetlearn:options:removed}).
   \item[Math] \code{'constant'}: $g_{v,t} = \gamma_0$ (or the \code{by_var} value).
         \code{'koz'}: $g_{v,t} = \gamma_{p(v),t-1}$, equations~\eqref{eq:koz}.
   \item[Assumptions] see the entries below.
@@ -1173,10 +1242,10 @@ cfg.gain.value = 0.05;                      % start gain
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{gain.value}}{gain.value}}\label{opt:gain-value}
+\subsubsection{\texorpdfstring{\codem{gain.value}}{gain.value}}\label{opt:gain-value}
 \begin{optspec}
   \item[Default] \code{0.0585}, the posterior mean of the constant gain in
-        \citet[Table~1]{ozden2025}. (SW07 baseline: 0.05 as the KOZ start.)
+        \citet[Table~1]{ozden2025}. (Project baseline: 0.05 as the KOZ start.)
   \item[Values] a number in $(0, 1]$.
   \item[Math] $\gamma_0$ in \eqref{eq:rlsR}--\eqref{eq:rlsphi} under \code{'constant'}; the
         initial KOZ gain when \code{gain.koz.gamma0} is empty.
@@ -1191,7 +1260,7 @@ cfg.gain.value = 0.02;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{gain.by_var}}{gain.by\_var}}\label{opt:gain-by-var}
+\subsubsection{\texorpdfstring{\codem{gain.by_var}}{gain.by\_var}}\label{opt:gain-by-var}
 \begin{optspec}
   \item[Default] \code{struct()}.
   \item[Values] \code{by_var.<target> = g} with $g\in(0,1]$; \code{<target>} is a PLM target
@@ -1205,7 +1274,6 @@ cfg.gain.value = 0.02;
   \item[Code] \code{+gain/constant.m}, \code{+gain/koz.m}.
   \item[Example]
 \begin{lstlisting}
-cfg.gain.value = 0.0585;
 cfg.gain.by_var.pinf = 0.02;
 \end{lstlisting}
 \end{optspec}
@@ -1214,7 +1282,7 @@ cfg.gain.by_var.pinf = 0.02;
 
 \citet[eq.~9]{koz2024} let the gain follow the adaptive step-size algorithm of
 \citet{kostyshyna2012} \citep[see also][]{kushner2003}. For each gain process $p$, after $x_t$ is
-realised (\code{+gain/koz.m}):
+realized (\code{+gain/koz.m}):
 \begin{align}\label{eq:koz}
   \gamma_{p,t} &= \Pi_{[\underline{\gamma},\,\overline{\gamma}]}\Bigl(\gamma_{p,t-1} + \mu\, R^g_{p,t-1}\, e_{p,t}\Bigr),\\
   R^g_{p,t} &= (1-\gamma_{p,t-1})\, R^g_{p,t-1} + e_{p,t}, \notag
@@ -1230,12 +1298,12 @@ The driving error is signed and scaled,
   e_{p,t} = \frac{\sigma}{|D_p|}\sum_{d\in D_p} e_{d,t},\qquad
   e_{d,t} =
   \begin{cases}
-    v_{d,t} - \phi_{d,t-1}\transp z_{d,t-1} & \text{\code{error = 'rls'}}\\
-    x_{d,t} - \fBR_{t-1}(x_d) & \text{\code{error = 'forecast'}}
+    v_{d,t} - \phi_{d,t-1}\transp z_{d,t-1} & \text{\codem{error = 'rls'}}\\
+    x_{d,t} - \fBR_{t-1}(x_d) & \text{\codem{error = 'forecast'}}
   \end{cases}
 \end{equation}
 with $\sigma$ = \code{gain.koz.error_scale} and $D_p$ the drivers of process $p$. A missing error
-(the first period under \code{'forecast'}, missing data, or a missing error of any driver of the
+(the first quarter under \code{'forecast'}, missing data, or a missing error of any driver of the
 list) leaves $\gamma_p$ and $R^g_p$ unchanged. A bound that binds sets $\gamma$ to the bound and logs
 a \code{gain_bound} event; a non-finite update keeps the state and logs \code{gain_bound} too.
 
@@ -1249,7 +1317,7 @@ $\mu = 0$, $\gamma_{p,t} = \gamma_{p,0}$ and the run equals the constant rule bi
 \code{gain_R} is $R^g_t$ of the target's process; \code{res.state.gain} is the final state.
 Constant-gain runs record no \code{gain_R}.
 
-\subsubsection{\texorpdfstring{\code{gain.koz.mu}}{gain.koz.mu}}\label{opt:gain-koz-mu}
+\subsubsection{\texorpdfstring{\codem{gain.koz.mu}}{gain.koz.mu}}\label{opt:gain-koz-mu}
 \begin{optspec}
   \item[Default] \code{0.001}, the step size of \citet{kostyshyna2012} used by \citet{koz2024}.
   \item[Values] a finite number $\ge 0$.
@@ -1265,13 +1333,13 @@ cfg.gain.koz.mu = 0.0005;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{gain.koz.gamma0}}{gain.koz.gamma0}}\label{opt:gain-koz-gamma0}
+\subsubsection{\texorpdfstring{\codem{gain.koz.gamma0}}{gain.koz.gamma0}}\label{opt:gain-koz-gamma0}
 \begin{optspec}
   \item[Default] \code{[]}: \code{gain.value}, and under \code{'per_variable'}
         \code{gain.by_var.<target>} where set.
   \item[Values] \code{[]} or a number in $(0,1]$ inside the bounds.
   \item[Math] $\gamma_{p,0}$, the gain of the first RLS update.
-  \item[Assumptions] the paper starts the process at the estimated constant gain.
+  \item[Assumptions] KOZ start the process at their estimated constant gain.
   \item[Interactions] the initial gain (this value, or \code{gain.value} and the
         \code{by_var} values) must lie inside \code{gain.koz.bounds}
         (\code{hetlearn:options:value}).
@@ -1283,13 +1351,13 @@ cfg.gain.koz.gamma0 = 0.03;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{gain.koz.Rg0}}{gain.koz.Rg0}}\label{opt:gain-koz-rg0}
+\subsubsection{\texorpdfstring{\codem{gain.koz.Rg0}}{gain.koz.Rg0}}\label{opt:gain-koz-rg0}
 \begin{optspec}
   \item[Default] \code{0}.
   \item[Values] a finite number.
   \item[Math] $R^g_{p,0}$ in~\eqref{eq:koz}. With $R^g_0=0$ the first update leaves the gain
         unchanged and sets $R^g_1 = e_1$.
-  \item[Assumptions] the paper is silent; 0 states that the initial estimate does not depend on
+  \item[Assumptions] KOZ are silent; 0 states that the initial estimate does not depend on
         the gain. KOZ's Table~1 ``$R_0 = 0.001$'' is the RLS moment matrix, not $R^g_0$; it is set
         through \code{beliefs.init.values.<x>.R} (Section~\ref{opt:beliefs-init-values}).
   \item[Interactions] none beyond \code{'koz'}.
@@ -1301,7 +1369,7 @@ cfg.gain.koz.Rg0 = 0;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{gain.koz.bounds}}{gain.koz.bounds}}\label{opt:gain-koz-bounds}
+\subsubsection{\texorpdfstring{\codem{gain.koz.bounds}}{gain.koz.bounds}}\label{opt:gain-koz-bounds}
 \begin{optspec}
   \item[Default] \code{[0.001 0.25]}.
   \item[Values] \code{[lower, upper]} with $0 < \text{lower} \le \text{upper} \le 1$.
@@ -1318,15 +1386,15 @@ cfg.gain.koz.bounds = [0.005 0.15];
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{gain.koz.error}}{gain.koz.error}}\label{opt:gain-koz-error}
+\subsubsection{\texorpdfstring{\codem{gain.koz.error}}{gain.koz.error}}\label{opt:gain-koz-error}
 \begin{optspec}
   \item[Default] \code{'rls'}.
   \item[Values] \code{'rls'}, \code{'forecast'}.
   \item[Math] the case in~\eqref{eq:kozerr}: the one-step PLM residual (the error of the RLS
         update itself, KOZ eq.~8) or the learners' expectation error $x_t - \fBR_{t-1}(x)$.
-  \item[Assumptions] the paper does not say which error; the residual is the default.
+  \item[Assumptions] KOZ do not say which error; the residual is the default.
   \item[Interactions] \code{'forecast'} is a two-step error under \code{beliefs.info =
-        'lagged'}; it is missing in the first learning period. Auxiliary equations have no
+        'lagged'}; it is missing in the first learning quarter. Auxiliary equations have no
         expectation and use their residual. With \code{'common'} the master names PLM targets
         (\code{'rls'}) or learning variables (\code{'forecast'}).
   \item[Code] \code{+gain/koz.m}, \code{+engine/update_learning.m}.
@@ -1337,23 +1405,23 @@ cfg.gain.koz.error = 'forecast';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{gain.koz.error_scale}}{gain.koz.error\_scale}}\label{opt:gain-koz-error-scale}
+\subsubsection{\texorpdfstring{\codem{gain.koz.error_scale}}{gain.koz.error\_scale}}\label{opt:gain-koz-error-scale}
 \begin{optspec}
   \item[Default] \code{1} (model units, percent per quarter for SW07).
   \item[Values] a finite number $>0$.
   \item[Math] $\sigma$ in~\eqref{eq:kozerr}.
-  \item[Assumptions] KOZ's data are annualised; a factor of 4 converts quarterly to annualised
+  \item[Assumptions] KOZ's data are annualized; a factor of 4 converts quarterly to annualized
         percent and acts like a 16 times larger $\mu$.
   \item[Interactions] \code{gain.koz.mu}.
   \item[Code] \code{+gain/koz.m}.
   \item[Example]
 \begin{lstlisting}
 cfg.gain.rule = 'koz';
-cfg.gain.koz.error_scale = 4;               % annualised errors
+cfg.gain.koz.error_scale = 4;               % annualized errors
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{gain.koz.structure}}{gain.koz.structure}}\label{opt:gain-koz-structure}
+\subsubsection{\texorpdfstring{\codem{gain.koz.structure}}{gain.koz.structure}}\label{opt:gain-koz-structure}
 \begin{optspec}
   \item[Default] \code{'common'}.
   \item[Values] \code{'common'}, \code{'per_variable'}.
@@ -1372,7 +1440,7 @@ cfg.gain.koz.structure = 'per_variable';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{gain.koz.master}}{gain.koz.master}}\label{opt:gain-koz-master}
+\subsubsection{\texorpdfstring{\codem{gain.koz.master}}{gain.koz.master}}\label{opt:gain-koz-master}
 \begin{optspec}
   \item[Default] \code{''}: the first learning variable (the first PLM target if there is no
         learning variable).
@@ -1402,7 +1470,7 @@ RLS update uses that quarter's data.
 
 \subsection{Options}
 
-\subsubsection{\texorpdfstring{\code{beliefs.init.method}}{beliefs.init.method}}\label{opt:beliefs-init-method}
+\subsubsection{\texorpdfstring{\codem{beliefs.init.method}}{beliefs.init.method}}\label{opt:beliefs-init-method}
 \begin{optspec}
   \item[Default] \code{'re_moments'} \citep[sec.~3.1]{ozden2025}.
   \item[Values] \code{'re_moments'}, \code{'training_ols'}, \code{'user'}.
@@ -1432,8 +1500,8 @@ RLS update uses that quarter's data.
         \code{history.re_states} (smoothed or filtered); fewer usable rows than coefficients is
         \code{hetlearn:init:shortSample}. \code{'user'} reads \code{beliefs.init.values}. With
         \code{history.learn = false} the initial beliefs apply at the origin.
-  \item[Code] \code{+engine/state_init.m}, \code{+init/re_moments.m},
-        \code{+init/training_ols.m}, \code{+init/user.m}.
+  \item[Code] \code{+engine/state_init.m} and, in \code{+init/}, \code{re_moments.m},
+        \code{training_ols.m}, \code{user.m}.
   \item[Example]
 \begin{lstlisting}
 cfg.beliefs.init.method = 'training_ols';
@@ -1441,7 +1509,7 @@ cfg.beliefs.init.training_range = [qq(1966,1), qq(1979,4)];
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{beliefs.init.date}}{beliefs.init.date}}\label{opt:beliefs-init-date}
+\subsubsection{\texorpdfstring{\codem{beliefs.init.date}}{beliefs.init.date}}\label{opt:beliefs-init-date}
 \begin{optspec}
   \item[Default] \code{[]}: the first filter date plus 4 quarters (SW07: 1966Q1).
   \item[Values] an IRIS date with room for the PLM lags after the filter start and, with
@@ -1460,7 +1528,7 @@ cfg.history.learn = true;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{beliefs.init.values}}{beliefs.init.values}}\label{opt:beliefs-init-values}
+\subsubsection{\texorpdfstring{\codem{beliefs.init.values}}{beliefs.init.values}}\label{opt:beliefs-init-values}
 \begin{optspec}
   \item[Default] \code{struct()}.
   \item[Values] \code{values.<target>} with any of \code{.phi} (the full vector, in parameter
@@ -1481,7 +1549,7 @@ cfg.beliefs.init.values.pinf = struct('R', 0.001*eye(2));
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{beliefs.init.training_range}}{beliefs.init.training\_range}}\label{opt:beliefs-init-training-range}
+\subsubsection{\texorpdfstring{\codem{beliefs.init.training_range}}{beliefs.init.training\_range}}\label{opt:beliefs-init-training-range}
 \begin{optspec}
   \item[Default] \code{[]}.
   \item[Values] \code{[start, end]} or a date vector of target dates.
@@ -1489,7 +1557,7 @@ cfg.beliefs.init.values.pinf = struct('R', 0.001*eye(2));
         $t - l_j$.
   \item[Assumptions] the training sample is in the history the learners watch.
   \item[Interactions] required by \code{'training_ols'}, unused otherwise. It can overlap the
-        learning period, in which case the learners start from beliefs fitted on data they
+        quarters of the learning record, in which case the learners start from beliefs fitted on data they
         later learn from again.
   \item[Code] \code{+init/training_ols.m}.
   \item[Example]
@@ -1538,7 +1606,7 @@ model in force in $t$ did not see the errors of $t$.
 with $\bar n_2$ = \code{shares.init_n2}, so the logit~\eqref{eq:logit} returns $\bar n_2$ at the
 start. $\bar n_2 = 0$ gives $\zeta^{\BR}_0 = -\infty$ and $\bar n_2 = 1$ gives $+\infty$. With
 $\chi = 0$ both fitness values are 0 and a warning says the shares will be $1/2$ after the first
-period.
+quarter.
 
 \paragraph{Diagnostics outside switching.} The fitness and the shares are updated in every mode;
 outside \code{'switching'} they are recorded (\code{n1}, \code{n2}, \code{zetaRE},
@@ -1548,19 +1616,19 @@ outside \code{'switching'} they are recorded (\code{n1}, \code{n2}, \code{zetaRE
 the fitness of both predictors decays at rate $\omega$; the shares drift toward $1/2$ by
 construction (there is no cost term for RE).
 
-\paragraph{Units of $\chi$.} $\chi$ multiplies squared errors. IJCB estimates $\chi = 0.51$ on data
-in percent per quarter, the units of SW07, so it applies as estimated; for annualised data the same
-switching needs $\chi/16$. A published intensity $\beta$ of the unnormalised form
+\paragraph{Units of $\chi$.} $\chi$ multiplies squared errors. \citet{ozden2025} estimates $\chi = 0.51$ on data
+in percent per quarter, the units of SW07, so it applies as estimated; for annualized data the same
+switching needs $\chi/16$. A published intensity $\beta$ of the unnormalized form
 $U_t = \omega U_{t-1} - \FE_t$ corresponds to $\chi = \beta/(1-\omega)$ here.
 
 \subsection{Options}
 
-\subsubsection{\texorpdfstring{\code{switching.rule}}{switching.rule}}\label{opt:switching-rule}
+\subsubsection{\texorpdfstring{\codem{switching.rule}}{switching.rule}}\label{opt:switching-rule}
 \begin{optspec}
   \item[Default] \code{'discrete_choice'}.
   \item[Values] the name of a function \code{hetlearn.switching.<rule>} with the interface of
         \code{discrete_choice} (\code{[n1, zRE, zBR] = rule(FE_RE, FE_BR, zRE_prev,
-        zBR_prev, chi, omega)}, vectorised over share groups).
+        zBR_prev, chi, omega)}, vectorized over share groups).
   \item[Math] equations~\eqref{eq:fitness}--\eqref{eq:logit}.
   \item[Assumptions] agents choose the predictor with the higher past fitness with probability
         given by a logit.
@@ -1571,17 +1639,16 @@ $U_t = \omega U_{t-1} - \FE_t$ corresponds to $\chi = \beta/(1-\omega)$ here.
   \item[Example]
 \begin{lstlisting}
 cfg.switching.rule = 'discrete_choice';
-cfg.expectations.mode = 'switching';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{switching.intensity}}{switching.intensity}}\label{opt:switching-intensity}
+\subsubsection{\texorpdfstring{\codem{switching.intensity}}{switching.intensity}}\label{opt:switching-intensity}
 \begin{optspec}
-  \item[Default] \code{0.51}, IJCB's estimate on quarterly data. (SW07 baseline: 2.)
-  \item[Values] a number $\ge 0$. (Text values such as \code{'model:bma'} were removed on
-        22 October 2026.)
+  \item[Default] \code{0.51}, the estimate of \citet{ozden2025} on quarterly data. (Project
+        baseline: 2.)
+  \item[Values] a number $\ge 0$.
   \item[Math] $\chi$ in~\eqref{eq:logit} and~\eqref{eq:initfit}.
-  \item[Assumptions] $\chi = 0$: shares stay at $1/2$ after the first period; $\chi\to\infty$:
+  \item[Assumptions] $\chi = 0$: shares stay at $1/2$ after the first quarter; $\chi\to\infty$:
         everyone takes the better predictor.
   \item[Interactions] the units of the squared errors (above); \code{shares.init_n2} through
         \eqref{eq:initfit}.
@@ -1593,9 +1660,10 @@ cfg.switching.memory = 0.6;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{switching.memory}}{switching.memory}}\label{opt:switching-memory}
+\subsubsection{\texorpdfstring{\codem{switching.memory}}{switching.memory}}\label{opt:switching-memory}
 \begin{optspec}
-  \item[Default] \code{0.6} (IJCB sec.~4; Table~1 mean 0.62). (SW07 baseline: 0.8.)
+  \item[Default] \code{0.6} \citep[sec.~4; the Table~1 posterior mean is 0.62]{ozden2025}.
+        (Project baseline: 0.8.)
   \item[Values] a number in $[0, 1)$.
   \item[Math] $\omega$ in~\eqref{eq:fitness}.
   \item[Assumptions] fitness is an exponentially weighted average of past squared errors with
@@ -1605,11 +1673,10 @@ cfg.switching.memory = 0.6;
   \item[Example]
 \begin{lstlisting}
 cfg.switching.memory = 0.8;
-cfg.expectations.mode = 'switching';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{shares.init_n2}}{shares.init\_n2}}\label{opt:shares-init-n2}
+\subsubsection{\texorpdfstring{\codem{shares.init_n2}}{shares.init\_n2}}\label{opt:shares-init-n2}
 \begin{optspec}
   \item[Default] \code{0.5}.
   \item[Values] a number in $[0, 1]$.
@@ -1627,7 +1694,7 @@ cfg.expectations.mode = 'switching';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{shares.fixed_n2}}{shares.fixed\_n2}}\label{opt:shares-fixed-n2}
+\subsubsection{\texorpdfstring{\codem{shares.fixed_n2}}{shares.fixed\_n2}}\label{opt:shares-fixed-n2}
 \begin{optspec}
   \item[Default] \code{[]}.
   \item[Values] a number in $[0,1]$, or a struct by learning variable with values in $[0,1]$.
@@ -1646,7 +1713,7 @@ cfg.shares.fixed_n2 = struct('pinf', 0.3, 'w', 0.5);
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{shares.structure}}{shares.structure}}\label{opt:shares-structure}
+\subsubsection{\texorpdfstring{\codem{shares.structure}}{shares.structure}}\label{opt:shares-structure}
 \begin{optspec}
   \item[Default] \code{'per_variable'}.
   \item[Values] \code{'per_variable'}, \code{'universal'}.
@@ -1654,8 +1721,8 @@ cfg.shares.fixed_n2 = struct('pinf', 0.3, 'w', 0.5);
         its own fitness and share. \code{'universal'}: one group for all learning variables,
         $G = $ \code{shares.master}; every learning variable uses the group's share.
   \item[Assumptions] \code{'universal'}: an agent is RE or a learner for every variable at once,
-        and judges predictors by the summed squared errors of the master variables, as IJCB does
-        for inflation and the output gap.
+        and judges predictors by the summed squared errors of the master variables, as
+        \citet{ozden2025} does for inflation and the output gap.
   \item[Interactions] \code{'universal'} needs \code{shares.master}
         (\code{hetlearn:options:missing}). The recorded \code{FE_RE}, \code{FE_BR} stay each
         variable's own errors; the group sums drive the shares.
@@ -1667,7 +1734,7 @@ cfg.shares.master = {'pinf', 'y'};
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{shares.master}}{shares.master}}\label{opt:shares-master}
+\subsubsection{\texorpdfstring{\codem{shares.master}}{shares.master}}\label{opt:shares-master}
 \begin{optspec}
   \item[Default] \code{{}}.
   \item[Values] a name or a cellstr of learning variables.
@@ -1688,11 +1755,9 @@ cfg.shares.master = 'pinf';
 % =====================================================================
 
 Learning models can lose their stable solution. The projection facility is the toolbox's only
-stabilising device (user decision of 18 October 2026; partial updates, shrinking, a root
-threshold and error scaling were removed and their option names raise
-\code{hetlearn:options:removed}). It restricts beliefs in the spirit of \citet{marcet1989} and
-\citet{evans2001}. Terms: the PLM is the learners' forecasting rule~\eqref{eq:plm}; the ALM
-(actual law of motion) is the model with the beliefs and shares plugged in.
+stabilizing device (the earlier devices, partial updates, shrinking, a root threshold and error
+scaling, were removed; their option names raise \code{hetlearn:options:removed}). It restricts
+beliefs in the spirit of \citet{marcet1989} and \citet{evans2001}.
 
 \subsection{PLM blocks and their roots}\label{sec:blocks}
 
@@ -1712,9 +1777,9 @@ diagonal after a permutation, so its largest root is the largest block root.
 
 \subsection{The three settings}\label{sec:facilitysettings}
 
-\subsubsection{\texorpdfstring{\code{projection.facility}}{projection.facility}}\label{opt:projection-facility}
+\subsubsection{\texorpdfstring{\codem{projection.facility}}{projection.facility}}\label{opt:projection-facility}
 \begin{optspec}
-  \item[Default] \code{'plm_alm'}. (SW07 baseline: \code{'alm'}.)
+  \item[Default] \code{'plm_alm'}. (Project baseline: \code{'alm'}.)
   \item[Values] \code{'plm_alm'}, \code{'alm'}, \code{'none'}.
   \item[Math] at the end of $t$, after the RLS candidates $(\tilde\phi_t, \tilde R_t)$ are formed
         from $(\phi_{t-1}, R_{t-1})$ (\code{+engine/facility.m}):
@@ -1732,9 +1797,9 @@ diagonal after a permutation, so its largest root is the largest block root.
                 unique stable solution, or, for a model without leads, if the backward system's
                 largest root is at most 1. The check is skipped when every learners' model share
                 is 0.
-          \item \emph{Revert.} If the ALM is unstable and this period changed any belief, every
+          \item \emph{Revert.} If the ALM is unstable and this quarter changed any belief, every
                 belief ($\phi$ and $R$ of every PLM equation, auxiliary ones included) goes back to
-                its value before this period's update, $(\phi_{t-1}, R_{t-1})$, and the model is
+                its value before this quarter's update, $(\phi_{t-1}, R_{t-1})$, and the model is
                 solved again (event \code{projection_alm}). There is no search for the equation
                 that causes the instability.
           \item \emph{Keep the shares.} If the model is still unstable and the new model shares
@@ -1869,14 +1934,14 @@ scenario's \code{re_variant} and \code{beliefs.info}, and the policy rule: the R
 (the RE(t-1) model of $\mathcal{L}$). Ramsey scenarios are always filtered with the rule model.
 
 \paragraph{Outputs.} One call \code{filter(m, d, range, 'output', 'filter,smooth', 'meanOnly',
-true)} (\code{'pred,filter,smooth'} for lagged models) gives
+true)} (\code{'pred,filter,smooth'} for lagged models) gives the databanks the stages read:
 \begin{itemize}[nosep]
   \item \code{H.smooth}: $x_{t|T}$, two-sided, every transition and measurement variable and shock;
   \item \code{H.filtered}: $x_{t|t}$, one-sided (data up to $t$);
-  \item \code{H.predicted}: $x_{t|t-1}$, lagged models only;
-  \item \code{H.data} (the database, clipped in real time), \code{H.range}, \code{H.fit_error},
-        \code{H.hash}, \code{H.file}, \code{H.cached}, \code{H.realtime}, \code{H.end_date}.
+  \item \code{H.predicted}: $x_{t|t-1}$, lagged models only.
 \end{itemize}
+The other fields of \code{H} hold the database (clipped in real time), the range, the fit error
+and the cache information.
 Observed measurement variables equal the data in every output; where every observable is missing,
 the filtered value is the one-step prediction and the filtered shocks are 0.
 
@@ -1889,26 +1954,22 @@ them.
 \paragraph{Cache.} \code{generated/refilter_<hash>.mat}, with the hash over the extended model text,
 the parameter values, the assign struct (toggles), the database file bytes and the filter range;
 in real time \code{refilter_rt_<date>_<hash>.mat}, with the clipped data values in place of the file
-bytes, so a data change after the end date does not touch it. A cache written before the filtered
-databank existed (or a lagged cache without predictions) is filtered again and rewritten.
+bytes, so a data change after the end date does not touch it. A cache that lacks the filtered
+databank, or a lagged cache without predictions, is filtered again and rewritten.
 
 \subsection{Learning on the RE history}\label{sec:resmoother}
 
-With \code{history.mode = 're_smoother'} and \code{history.learn = true}, for
-$t = t_0,\dots,T_0$, with $D$ the history databank of \code{history.re_states}
-(\code{+engine/history.m}, \code{+engine/history_db.m}):
-\begin{enumerate}[nosep]
-  \item $\fRE_t(x) = D.\code{x_exp1_RE}(t)$;
-  \item $\fBR_t(x) = \mathcal{E}(x,1)$ of~\eqref{eq:recursion} with $\phi_{t-1}$ and the data
-        $D.u(t+k)$, $k\le k_{\max}$;
-  \item the end-of-period update (Section~\ref{sec:rls}) with the realised $x_t = D.x(t)$ (no
-        forecast errors at $t_0$), including the ALM check of the model of $t+1$ under
-        \code{'alm'} and \code{'plm_alm'} (Section~\ref{sec:wherecheck}).
-\end{enumerate}
-The model is not simulated here. \code{res.paths.x_exp1_BR} holds the learners' forecasts over the
+With \code{history.mode = 're_smoother'} and \code{history.learn = true}, the sequence of
+Section~\ref{sec:timing} runs for $t = t_0,\dots,T_0$ on the history databank $D$ of
+\code{history.re_states} (\code{+engine/history.m}, \code{+engine/history_db.m}), with three
+differences. Steps 2 and 3 are skipped: the model is never simulated, and it is solved only for
+the ALM check of step 5 under \code{'alm'} and \code{'plm_alm'} (Section~\ref{sec:wherecheck}).
+In step 4 the forecasts come from $D$: $\fRE_t(x) = D.\codem{x_exp1_RE}(t)$, and
+$\fBR_t(x) = \mathcal{E}(x,1)$ of~\eqref{eq:recursion} with $\phi_{t-1}$ and the data $D.u(t+k)$,
+$k\le k_{\max}$. In step 5 the realized value is $x_t = D.x(t)$. \code{res.paths.x_exp1_BR} holds the learners' forecasts over the
 record dates (NaN before $t_0$), not the zero-belief values of the RE filter.
 
-\subsubsection{\texorpdfstring{\code{history.mode}}{history.mode}}\label{opt:history-mode}
+\subsubsection{\texorpdfstring{\codem{history.mode}}{history.mode}}\label{opt:history-mode}
 \begin{optspec}
   \item[Default] \code{'re_smoother'}.
   \item[Values] \code{'re_smoother'}, \code{'inversion'}, \code{'kalman'}.
@@ -1917,8 +1978,8 @@ record dates (NaN before $t_0$), not the zero-belief values of the RE filter.
   \item[Math] Sections~\ref{sec:resmoother}, \ref{sec:inversion}, \ref{sec:kalman}.
   \item[Assumptions] \code{'re_smoother'}: the data are RE data, the agents' learning does not
         feed back into the history. \code{'inversion'}: the learning model explains the data
-        exactly through the endogenised shocks. \code{'kalman'}: the learning model explains the
-        data up to filtering uncertainty, period by period.
+        exactly through the endogenized shocks. \code{'kalman'}: the learning model explains the
+        data up to filtering uncertainty, quarter by quarter.
   \item[Interactions] \code{'inversion'} and \code{'kalman'} need \code{history.learn = true} and
         \code{history.re_states = 'smoothed'}; \code{history.realtime} applies to
         \code{'re_smoother'} only (Section~\ref{opt:history-realtime}); \code{hetlearn.decompose}
@@ -1932,17 +1993,17 @@ cfg.history.re_states = 'smoothed';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{history.re_states}}{history.re\_states}}\label{opt:history-re-states}
+\subsubsection{\texorpdfstring{\codem{history.re_states}}{history.re\_states}}\label{opt:history-re-states}
 \begin{optspec}
-  \item[Default] \code{'smoothed'}. (SW07 baseline: \code{'filtered'}.)
+  \item[Default] \code{'smoothed'}. (Project baseline: \code{'filtered'}.)
   \item[Values] \code{'smoothed'}, \code{'filtered'}.
   \item[Math] $D$ = \code{H.smooth} or \code{H.filtered}. Under \code{'filtered'}
         $\fRE_t(x) = x^{\RE}_{t+1|t}$, the filter's one-step prediction of the RE model, and
         $\FE^{\RE}_t$ is its squared one-step prediction error; the learners' data and the
-        realised $x_t$ are $x_{t|t}$. With \code{re_info = 'lagged'} the RE forecasts come from
+        realized $x_t$ are $x_{t|t}$. With \code{re_info = 'lagged'} the RE forecasts come from
         \code{H.predicted} instead (Section~\ref{sec:reinfo}).
   \item[Assumptions] \code{'smoothed'}: the RE forecast at $t$ uses states estimated with data
-        after $t$, which gives RE agents hindsight in the fitness race. \code{'filtered'} removes
+        after $t$, which gives RE agents hindsight in the fitness comparison. \code{'filtered'} removes
         it. For an observed variable the two coincide (filtered = smoothed = data); in a quarter
         without data the filtered value is the RE prediction, so $\FE^{\RE}_t = 0$ there.
   \item[Interactions] \code{'filtered'} with \code{'inversion'} or \code{'kalman'} is an error
@@ -1961,7 +2022,7 @@ cfg.history.realtime = true;                % fully real time
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{history.realtime}}{history.realtime}}\label{opt:history-realtime}
+\subsubsection{\texorpdfstring{\codem{history.realtime}}{history.realtime}}\label{opt:history-realtime}
 \begin{optspec}
   \item[Default] \code{false}. (\code{hetlearn.evaluate} sets it from \code{opts.realtime},
         default true.)
@@ -1982,7 +2043,7 @@ cfg.forecast.origin = qq(2015,1);
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{history.learn}}{history.learn}}\label{opt:history-learn}
+\subsubsection{\texorpdfstring{\codem{history.learn}}{history.learn}}\label{opt:history-learn}
 \begin{optspec}
   \item[Default] \code{true}.
   \item[Values] true, false.
@@ -2008,42 +2069,35 @@ With \code{history.mode = 'inversion'} the history is simulated one quarter at a
 learning model, as a forecast with conditions (\code{+engine/history.m}, function
 \code{inversion}). Let $t_s$ = \code{history.inversion.start}. Before $t_s$ the state is the
 RE-smoothed one; if $t_s > t_0$ the learners first learn on the RE-smoothed history over
-$[t_0, t_s-1]$ (Section~\ref{sec:resmoother}). For $t = t_s,\dots,T_0$:
+$[t_0, t_s-1]$ (Section~\ref{sec:resmoother}). For $t = t_s,\dots,T_0$ the sequence of
+Section~\ref{sec:timing} runs (stage \code{'inversion'}) with one difference: the simulation of
+step 3 exogenizes every observable that has data at $t$ at its data value and endogenizes the
+shocks of \code{history.inversion.shocks}. With $y^0_t$ the observables of the simulation with
+zero shocks and $M$ their response to the endogenized shocks,
+\begin{equation}\label{eq:inversion}
+  M\delta = y^{\text{obs}}_t - y^0_t,
+\end{equation}
+solved exactly (as many shocks as observables) or with minimum norm in standard-deviation units
+(more shocks; Section~\ref{sec:conditions}); observables without data at $t$ are not exogenized.
+Every variable at $t$ is stored. The update at $t_s$ is the first-quarter update of
+Section~\ref{sec:rls} only when $t_s = t_0$.
 
-\begin{enumerate}[nosep]
-  \item beliefs $\phi_{t-1}$ and model shares $n^m_t$ in the model; solve through the facility
-        if the parameters changed (stage \code{'inversion'});
-  \item one period with every observable that has data at $t$ exogenised at its data value and
-        the shocks of \code{history.inversion.shocks} endogenised: with $y^0_t$ the observables of
-        the simulation with zero shocks and $M$ their response to the endogenised shocks,
-        \begin{equation}\label{eq:inversion}
-          M\delta = y^{\text{obs}}_t - y^0_t,
-        \end{equation}
-        solved exactly (as many shocks as observables) or with minimum norm in standard-deviation
-        units (more shocks; Section~\ref{sec:conditions}); observables without data at $t$ are not
-        exogenised;
-  \item every variable at $t$ stored; $\fRE_t(x)$ and $\fBR_t(x)$ read from the model, the latter
-        checked against the PLM formula ($10^{-9}$);
-  \item the end-of-period update with the ALM check (\code{first} only when $t_s = t_0$).
-\end{enumerate}
-
-Period $t$ uses data up to $t$, so the inversion is one-sided by construction. The forecast starts
+Quarter $t$ uses data up to $t$, so the inversion is one-sided by construction. The forecast starts
 from the backed-out history: \code{+engine/core.m} replaces the RE-smoothed variables and shocks
 over $[t_s, T_0]$ by the backed-out ones. Data come from \code{H.data}. Under mode
 \code{'rational'} the inversion from the smoothed state reproduces the RE-smoothed shocks (test
-target $10^{-8}$; SW07 1966Q1--2026Q2 to $2\times10^{-13}$, measured before the covid quarters
-were set to missing). In a quarter without data nothing is exogenised and the endogenised shocks
+target $10^{-8}$; $2\times10^{-13}$ on SW07 over 1966Q1--2026Q2 when every quarter has data). In a
+quarter without data nothing is exogenized and the endogenized shocks
 stay 0, so from such a quarter on the inversion departs from the smoother, which infers shocks
 there from later data. A Ramsey scenario backs out its history with the rule model (untested).
 
-\paragraph{Diagnostics} (\code{res.inversion}): \code{dates}, \code{shocks} (endogenised),
-\code{observables}, \code{param_names} and \code{params} (the parameter values in the model each
-quarter, which \code{hetlearn.decompose} uses), \code{n_obs} and \code{obs_miss} per quarter,
-\code{max_obs_miss}, \code{shock_diff_vs_smoothed} and \code{path_diff_vs_smoothed} (largest
-absolute distance from the RE smoother, \code{x_exp1_BR} excluded), \code{n_solve}, \code{n_fast},
-\code{runtime_s}, \code{pre_dates}.
+\paragraph{Diagnostics} (\code{res.inversion}). \code{shocks} holds the endogenized shocks and
+\code{params} the parameter values in the model each quarter, which \code{hetlearn.decompose}
+uses. \code{shock_diff_vs_smoothed} and \code{path_diff_vs_smoothed} give the largest absolute
+distance from the RE smoother (\code{x_exp1_BR} excluded), and \code{max_obs_miss} the largest
+miss of an observable target. The other fields hold dates, counts and run times.
 
-\subsubsection{\texorpdfstring{\code{history.inversion.start}}{history.inversion.start}}\label{opt:history-inversion-start}
+\subsubsection{\texorpdfstring{\codem{history.inversion.start}}{history.inversion.start}}\label{opt:history-inversion-start}
 \begin{optspec}
   \item[Default] \code{[]}: \code{beliefs.init.date}.
   \item[Values] a date in $[t_0, T_0]$ (\code{hetlearn:engine:inversion} otherwise).
@@ -2059,7 +2113,7 @@ cfg.history.inversion.start = qq(1985,1);
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{history.inversion.shocks}}{history.inversion.shocks}}\label{opt:history-inversion-shocks}
+\subsubsection{\texorpdfstring{\codem{history.inversion.shocks}}{history.inversion.shocks}}\label{opt:history-inversion-shocks}
 \begin{optspec}
   \item[Default] \code{{}}: every transition shock of the model.
   \item[Values] a cellstr of shocks; at least as many as observables.
@@ -2083,9 +2137,8 @@ With \code{history.mode = 'kalman'} the history is a time-varying Kalman filter 
 each quarter \citep[see][for the filter]{durbin2012}; beliefs and shares move with the same update
 as everywhere else (\code{+engine/kalman_history.m}). For quarter $t$ from the start date to $T_0$:
 
-\paragraph{(1) The ALM in force.} Before $t_0$ the RE limit ($n_1 = 1$); from $t_0$ the beliefs
-$\phi_{t-1}$ and the shares of \code{+engine/shares_for_mode.m}, solved through the facility (stage
-\code{'kalman'}) when the parameters change. Its state space on the full transition vector
+\paragraph{(1) The ALM in force.} Before $t_0$ the RE limit ($n_1 = 1$); from $t_0$ the model of
+steps 1 and 2 of Section~\ref{sec:timing} (stage \code{'kalman'}). Its state space on the full transition vector
 $\xi = (x^f, x^b)$ is
 \begin{equation}\label{eq:kalss}
   \xi_t = A\xi_{t-1} + \K + \Rs\varepsilon_t,\quad A = [0,\ \T],\qquad
@@ -2111,29 +2164,46 @@ A quarter without data is a prediction only, with $\ell_t = 0$. A covariance $F_
 positive definite stops the run. The log likelihood is $\sum_{t\ge t_0}\ell_t$.
 
 \paragraph{(3) The agents' information} (from $t_0$). RE forecasts made with data to $t-1$
-(\code{re_info = 'lagged'}) are the predictions $\code{x_exp1_RE}_{t|t-1}$; with period-$t$ data the
-filtered $\code{x_exp1_RE}_{t|t}$. The learners' PLM forecasts~\eqref{eq:recursion}, their
-regressors and the realised values are the filtered values $x_{s|s}$ stored when each quarter was
+(\code{re_info = 'lagged'}) are the predictions $\codem{x_exp1_RE}_{t|t-1}$; with data up to $t$ the
+filtered $\codem{x_exp1_RE}_{t|t}$. The learners' PLM forecasts~\eqref{eq:recursion}, their
+regressors and the realized values are the filtered values $x_{s|s}$ stored when each quarter was
 filtered, in real time, not revised later.
 
-\paragraph{(4) Update.} The end-of-period update with the ALM check, \code{first} at $t_0$.
+\paragraph{(4) Update.} Step 5 of Section~\ref{sec:timing}, with the first-quarter update at
+$t_0$.
 
 \paragraph{The forecast} starts from the filtered state at $T_0$: the lags of the state vector at
 the origin take their values in $a_{T_0|T_0}$.
 
-\paragraph{Outputs} (\code{res.kalman}): \code{dates}, \code{observables}, \code{y}, \code{pred},
-\code{err}, \code{F}, \code{llt}, \code{n_obs}, \code{loglik}, \code{loglik_start},
-\code{filtered} and \code{predicted} databanks, \code{state_names}, \code{a_origin},
-\code{P_origin}, \code{n_solve}, \code{runtime_s} and \code{fbr_model_maxdiff}, the largest
-$|\fBR_t$ on the real-time data $-$ the model's \code{x_exp1_BR}$|$ (predicted under
-\code{'lagged'}, filtered under \code{'current'}). It is rounding for a PLM whose forecast uses data
+\paragraph{Outputs} (\code{res.kalman}).
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{5.0cm}>{\raggedright\arraybackslash}p{9.8cm}}
+\toprule
+Field & Content \\
+\midrule
+\code{dates}, \code{observables} & the filtered quarters and the measurement variables \\
+\code{y}, \code{pred}, \code{err}, \code{F} & data $y_t$, predictions $\hat y_{t|t-1}$, errors $v_t$, covariances $F_t$ \\
+\code{llt}, \code{n_obs} & $\ell_t$ and the number of observables with data, by quarter \\
+\code{loglik}, \code{loglik_start} & $\sum_{t\ge t_0}\ell_t$ and its first quarter $t_0$ \\
+\code{filtered}, \code{predicted} & databanks of $x_{t|t}$ and $x_{t|t-1}$ \\
+\code{state_names}, \code{a_origin}, \code{P_origin} & the state vector $\xi$, $a_{T_0|T_0}$ and $P_{T_0|T_0}$ \\
+\code{fbr_model_maxdiff} & the largest gap between the learners' forecast and the model's \code{x_exp1_BR} (below) \\
+\code{n_solve}, \code{runtime_s} & solves and run time \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\code{fbr_model_maxdiff} compares $\fBR_t$ on the real-time data with the model's
+\code{x_exp1_BR} (predicted under \code{'lagged'}, filtered under \code{'current'}). The gap is
+rounding for a PLM whose forecast uses data
 of one date only, such as an AR(1); for an AR(2) it is not, because the model's lagged states are
 the filter's revised values and the agents' data the real-time ones. \code{hetlearn.run} writes
 \code{kalman_errors.csv} (date, \code{n_obs}, \code{llt}, and \code{err_}, \code{pred_}, \code{var_}
 of every measurement variable); \code{hetlearn.engine.kalman_history('rmse', res, subsamples)}
 gives one-step RMSEs and log likelihoods by subsample.
 
-\subsubsection{\texorpdfstring{\code{history.kalman.init}}{history.kalman.init}}\label{opt:history-kalman-init}
+\subsubsection{\texorpdfstring{\codem{history.kalman.init}}{history.kalman.init}}\label{opt:history-kalman-init}
 \begin{optspec}
   \item[Default] \code{'stochastic'}.
   \item[Values] \code{'stochastic'}, \code{'smoothed'}.
@@ -2177,12 +2247,12 @@ Three properties hold by construction and are tested:
   \item with mode \code{'rational'}, \code{shocks.source = 'smoothed'} and the smoothed starting
         state, the forecast reproduces the data (\code{test_sw07});
   \item the learners' forecast read from the model equals the PLM formula with $\phi_{t-1}$ in
-        every quarter (the timing assert).
+        every quarter (the timing check).
 \end{itemize}
 
 \subsection{Origin and horizon}
 
-\subsubsection{\texorpdfstring{\code{forecast.origin}}{forecast.origin}}\label{opt:forecast-origin}
+\subsubsection{\texorpdfstring{\codem{forecast.origin}}{forecast.origin}}\label{opt:forecast-origin}
 \begin{optspec}
   \item[Default] \code{[]} (must be set: \code{hetlearn:engine:origin}).
   \item[Values] an IRIS date inside the filter range, with room for the PLM lags after the filter
@@ -2200,7 +2270,7 @@ cfg.forecast.horizon = 16;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{forecast.horizon}}{forecast.horizon}}\label{opt:forecast-horizon}
+\subsubsection{\texorpdfstring{\codem{forecast.horizon}}{forecast.horizon}}\label{opt:forecast-horizon}
 \begin{optspec}
   \item[Default] \code{16}.
   \item[Values] a positive integer.
@@ -2223,7 +2293,7 @@ cfg.policy.loss_horizon = 80;
 Every shock of the model is set to 0 over the horizon, then \code{shocks.source} and
 \code{shocks.add} fill it (\code{+engine/build_shocks.m}). All shocks are unanticipated.
 
-\subsubsection{\texorpdfstring{\code{shocks.source}}{shocks.source}}\label{opt:shocks-source}
+\subsubsection{\texorpdfstring{\codem{shocks.source}}{shocks.source}}\label{opt:shocks-source}
 \begin{optspec}
   \item[Default] \code{'none'}.
   \item[Values] \code{'none'}, \code{'smoothed'}.
@@ -2242,7 +2312,7 @@ cfg.shocks.exclude = {'em'};
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{shocks.range}}{shocks.range}}\label{opt:shocks-range}
+\subsubsection{\texorpdfstring{\codem{shocks.range}}{shocks.range}}\label{opt:shocks-range}
 \begin{optspec}
   \item[Default] \code{[]}: the horizon.
   \item[Values] a date vector, or \code{[start, end]}.
@@ -2257,7 +2327,7 @@ cfg.shocks.range = [qq(2022,3), qq(2023,4)];
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{shocks.exclude}}{shocks.exclude}}\label{opt:shocks-exclude}
+\subsubsection{\texorpdfstring{\codem{shocks.exclude}}{shocks.exclude}}\label{opt:shocks-exclude}
 \begin{optspec}
   \item[Default] \code{{}}.
   \item[Values] a cellstr of shocks of the model (an unknown name is
@@ -2274,7 +2344,7 @@ cfg.shocks.exclude = {'epinf', 'ew'};
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{shocks.add}}{shocks.add}}\label{opt:shocks-add}
+\subsubsection{\texorpdfstring{\codem{shocks.add}}{shocks.add}}\label{opt:shocks-add}
 \begin{optspec}
   \item[Default] \code{{}}.
   \item[Values] a cell array of triples \code{{name, dates, values}}: a shock, a date vector or
@@ -2291,36 +2361,36 @@ cfg.shocks.add = {{'em', qq(2022,3), 0.25}, ...
 \end{lstlisting}
 \end{optspec}
 
-\subsection{Conditions: exogenise and endogenise}\label{sec:conditions}
+\subsection{Conditions: exogenize and endogenize}\label{sec:conditions}
 
-A condition puts a variable on a path in given quarters by endogenising a shock. In quarter $t$
+A condition puts a variable on a path in given quarters by endogenizing a shock. In quarter $t$
 let $\mathcal{K}_t$ be the conditioned variables with targets $\tau_t$, $\mathcal{J}_t$ the
-endogenised shocks, $s^0_t$ the values of the conditioned variables in the one-period simulation
-with the scheduled shocks, and $M_t$ their response to a unit of each endogenised shock. The engine
+endogenized shocks, $s^0_t$ the values of the conditioned variables in the one-period simulation
+with the scheduled shocks, and $M_t$ their response to a unit of each endogenized shock. The engine
 solves (\code{+engine/step.m})
 \begin{equation}\label{eq:cond}
   M_t\,\delta_t = \tau_t - s^0_t,\qquad
   \delta_t =
   \begin{cases}
     M_t^{-1}(\tau_t - s^0_t) & |\mathcal{J}_t| = |\mathcal{K}_t|\\
-    S\,(M_tS)^{+}(\tau_t - s^0_t) & |\mathcal{J}_t| > |\mathcal{K}_t|,\ \text{\code{'std'}}\\
-    M_t^{+}(\tau_t - s^0_t) & |\mathcal{J}_t| > |\mathcal{K}_t|,\ \text{\code{'none'}}
+    S\,(M_tS)^{+}(\tau_t - s^0_t) & |\mathcal{J}_t| > |\mathcal{K}_t|,\ \text{\codem{'std'}}\\
+    M_t^{+}(\tau_t - s^0_t) & |\mathcal{J}_t| > |\mathcal{K}_t|,\ \text{\codem{'none'}}
   \end{cases}
 \end{equation}
 with $S = \mathrm{diag}(\sigma_j)$, the standard deviations \code{std_<shock>}; the \code{'std'}
 case is the minimum of $\sum_j(\delta_j/\sigma_j)^2$ subject to the targets. Then
-$\varepsilon_{j,t}\leftarrow\varepsilon_{j,t}+\delta_{j,t}$ and the period is simulated again; every
+$\varepsilon_{j,t}\leftarrow\varepsilon_{j,t}+\delta_{j,t}$ and the quarter is simulated again; every
 target must be met within $10^{-9}$. Fewer shocks than targets, or $\mathrm{rank}\,M_t <
 |\mathcal{K}_t|$, is \code{hetlearn:engine:conditions}. Under \code{engine.step = 'iris'} $M_t$
 comes from unit-shock simulations; under \code{'fast'} it is exact: the rows of $\Rs$ for
 transition variables and $\Z\Rs_b + \Hs$ for measurement variables. The procedure equals an IRIS
-\code{Plan} with exogenise/endogenise pairs run one period at a time (\code{test_engine} E3).
+\code{Plan} with exogenize/endogenize pairs run one quarter at a time (\code{test_engine} E3).
 
 The conditions are unanticipated: agents learn in quarter $t$ that the variable was hit, and the
-endogenised shocks enter the data the learners see. A condition therefore moves beliefs and shares
+endogenized shocks enter the data the learners see. A condition therefore moves beliefs and shares
 in later quarters.
 
-\subsubsection{\texorpdfstring{\code{conditions}}{conditions}}\label{opt:conditions}
+\subsubsection{\texorpdfstring{\codem{conditions}}{conditions}}\label{opt:conditions}
 \begin{optspec}
   \item[Default] an empty struct array.
   \item[Values] a struct array, one element per pair, with fields
@@ -2341,9 +2411,9 @@ in later quarters.
   \item[Interactions] the option is replaced as a whole, not merged. A variable conditioned twice
         in a quarter, a date outside the horizon, an unknown variable or shock, or a values/dates
         mismatch are errors (\code{hetlearn:engine:conditions}). Under Ramsey policy, quarters
-        whose endogenised shocks are all rule shocks keep only rule-only targets
+        whose endogenized shocks are all rule shocks keep only rule-only targets
         (Section~\ref{sec:rulenames}). In density draws the conditions stay in force, so
-        endogenised shocks offset draws on the same shock. The density fast path needs no
+        endogenized shocks offset draws on the same shock. The density fast path needs no
         conditions.
   \item[Code] \code{+engine/conditions_prepare.m}, \code{+engine/step.m},
         \code{+engine/core.m} (references).
@@ -2354,15 +2424,15 @@ cfg.conditions = struct('variable', 'ms', 'shock', 'em', 'dates', [qq(2022,3), q
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{engine.conditions_weighting}}{engine.conditions\_weighting}}\label{opt:engine-conditions-weighting}
+\subsubsection{\texorpdfstring{\codem{engine.conditions_weighting}}{engine.conditions\_weighting}}\label{opt:engine-conditions-weighting}
 \begin{optspec}
   \item[Default] \code{'std'}.
   \item[Values] \code{'std'}, \code{'none'}.
   \item[Math] the two minimum-norm cases of~\eqref{eq:cond}.
   \item[Assumptions] \code{'std'}: the smallest shocks in standard-deviation units are the most
         plausible.
-  \item[Interactions] matters only with more endogenised shocks than targets (conditions, the
-        inversion); \code{'std'} needs a positive \code{std_<shock>} for every endogenised shock.
+  \item[Interactions] matters only with more endogenized shocks than targets (conditions, the
+        inversion); \code{'std'} needs a positive \code{std_<shock>} for every endogenized shock.
   \item[Code] \code{+engine/step.m} (\code{solve_shocks}).
   \item[Example]
 \begin{lstlisting}
@@ -2373,20 +2443,20 @@ cfg.history.mode = 'inversion';
 
 \subsection{The one-period step}\label{sec:enginestep}
 
-\subsubsection{\texorpdfstring{\code{engine.step}}{engine.step}}\label{opt:engine-step}
+\subsubsection{\texorpdfstring{\codem{engine.step}}{engine.step}}\label{opt:engine-step}
 \begin{optspec}
   \item[Default] \code{'fast'}.
   \item[Values] \code{'fast'}, \code{'iris'}.
-  \item[Math] \code{'fast'}: period $t$ from the state-space form~\eqref{eq:sspace} of the solved
+  \item[Math] \code{'fast'}: quarter $t$ from the state-space form~\eqref{eq:sspace} of the solved
         model, cached after every successful solve:
         $\xi_t = \T x^b_{t-1} + \Rs\varepsilon_t + \K$, $y_t = \Z x^b_t + \Hs\varepsilon_t + \D$,
         with $x^b_{t-1}$ read from the databank (element \code{v{-k}} is \code{v} at $t-1-k$) and
         missing shocks set to 0. \code{'iris'}: \code{simulate(m, d, t:t, 'prependInput', true)}.
-  \item[Assumptions] none; the two agree to rounding ($10^{-14}$ per period, about $10^{-12}$
+  \item[Assumptions] none; the two agree to rounding ($10^{-14}$ per quarter, about $10^{-12}$
         over 16 quarters).
   \item[Interactions] a stored backward system has priority over both. \code{'fast'} needs plain
         state names. Bit-identity tests pin \code{'iris'}. The fast step is 2--3 times faster
-        without conditions and about 20 times with the observables exogenised (the inversion).
+        without conditions and about 20 times with the observables exogenized (the inversion).
   \item[Code] \code{+engine/step.m}, \code{+engine/solve_model.m}, \code{+engine/core.m}.
   \item[Example]
 \begin{lstlisting}
@@ -2397,7 +2467,7 @@ cfg.history.mode = 'inversion';
 
 \subsection{Identification and comparisons}
 
-\subsubsection{\texorpdfstring{\code{id}, \code{title}, \code{description}}{id, title, description}}\label{opt:id}
+\subsubsection{\texorpdfstring{\codem{id}, \codem{title}, \codem{description}}{id, title, description}}\label{opt:id}
 \begin{optspec}
   \item[Default] \code{''}.
   \item[Values] text. \code{id} must be set (\code{hetlearn:run:id}).
@@ -2414,7 +2484,7 @@ cfg.title = 'Switching on inflation';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{compare_with}}{compare\_with}}\label{opt:compare-with}
+\subsubsection{\texorpdfstring{\codem{compare_with}}{compare\_with}}\label{opt:compare-with}
 \begin{optspec}
   \item[Default] \code{{}}.
   \item[Values] a cellstr of scenario ids.
@@ -2432,7 +2502,7 @@ cfg.id = 'a1_learn_variant';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{report.variables}}{report.variables}}\label{opt:report-variables}
+\subsubsection{\texorpdfstring{\codem{report.variables}}{report.variables}}\label{opt:report-variables}
 \begin{optspec}
   \item[Default] \code{{}}.
   \item[Values] a cellstr; \code{report} is a free-form subtree.
@@ -2463,11 +2533,11 @@ Ramsey policy needs \code{spec.policy} with four fields (\code{extend_model.m},
   \item \code{targets}: a struct of target expressions (names, numbers, \code{+ - * / ^},
         parentheses and lags \code{x{-k}}; at least one transition variable). SW07:
         \code{pinf = 4*pinf}, \code{ygap = y - yf}, \code{r = 4*r}, \code{dr = 4*(r - r{-1})};
-  \item \code{discount}: a number or an expression; \code{$substitutions$} are expanded
-        (SW07: \code{$cbetabar$*$cgamma$}).
+  \item \code{discount}: a number or an expression, in which substitutions written as
+        \code{$name$} are expanded; SW07 uses \code{$cbetabar$*$cgamma$}.
 \end{itemize}
 
-The generator wraps the labelled rule:
+The generator wraps the labeled rule:
 \begin{lstlisting}
 !if ramsey
     min((1 - ramsey_disc_on)*(<discount>) + ramsey_disc_on*ramsey_disc) w_pinf*(4*pinf)^2 + w_ygap*(y - yf)^2 + ...;
@@ -2490,27 +2560,27 @@ conditions of
   \min\; E_t\sum_{h\ge0}\delta^h\sum_k w_k\,\bigl(\text{target}_{k,t+h}\bigr)^2
 \end{equation}
 subject to every other model equation, including the expectation block with the beliefs and shares
-in force, which the planner treats as permanent (anticipated utility). The Lagrange
+in force, which the planner, like every agent, treats as permanent (Section~\ref{sec:timing}). The Lagrange
 multipliers of the plan (IRIS \code{Mu_Eq<k>}) are new transition variables of the Ramsey model.
-Under \code{'commitment'} the planner honours past promises through their lags; under
-\code{'discretion'} it re-optimises each period and takes the private sector's leads as given. The toolbox ships a
+Under \code{'commitment'} the planner honors past promises through their lags; under
+\code{'discretion'} it re-optimizes each quarter and takes the private sector's leads as given. The toolbox ships a
 corrected copy of one IRIS file, \code{toolbox/iris_patches/+model/Insertable.m}, which
 \code{setup_paths} puts first on the path, because the optimal-policy parser of IRIS 20230622 fails
 on MATLAB R2025a.
 
-\paragraph{Timing.} The history is always the rule model: the RE filter is run with the rule, the
-RE-moment initial beliefs come from the rule model, and anchored RE agents keep the coefficients of
-the rule-based RE model. The plan starts at the origin: the multipliers are 0 at and before $T_0$
+\paragraph{Timing.} The history is always the rule model: the RE filter is run with the rule and
+the RE-moment initial beliefs come from the rule model (for anchored RE agents see
+Section~\ref{opt:policy-mode}). The plan starts at the origin: the multipliers are 0 at and before $T_0$
 (\code{+policy/prepare.m}, \code{+policy/forecast_setup.m}), and their values are stored every
-quarter so their lags carry forward. With learning the planner re-optimises each quarter with the
-current beliefs and shares and honours past multipliers.
+quarter so their lags carry forward. With learning the planner re-optimizes each quarter with the
+current beliefs and shares and honors past multipliers.
 
 \subsection{Rule-only names}\label{sec:rulenames}
 
 The generator finds the variables used only by the rule and their own laws of motion, and the shocks
 used only there (SW07: \code{ms}, \code{em}; \code{meta.policy.rule_vars}, \code{.rule_shocks}).
 Under Ramsey policy they move nothing else. Shocks and conditions on them still run, with one
-warning per run (\code{hetlearn:policy:ruleInputs}); in quarters whose endogenised shocks are all
+warning per run (\code{hetlearn:policy:ruleInputs}); in quarters whose endogenized shocks are all
 rule shocks, only conditions on rule-only variables are kept (a target on the instrument cannot be
 met through a rule shock once the planner sets the instrument).
 
@@ -2527,12 +2597,12 @@ with the weights of \code{policy.loss} and $N$ = \code{policy.loss_horizon} (def
 $N > H$ the scenario is continued from \code{res.state} for $N-H$ quarters with zero shocks, no
 conditions and learning on (a failed continuation gives NaN and a warning). Rule and Ramsey runs are
 therefore compared on the same weights. \code{res.loss} holds the total, the contribution of each
-target, the target paths, the per-period loss and the discount factors; \code{loss.csv} has one row
+target, the target paths, the per-quarter loss and the discount factors; \code{loss.csv} has one row
 per target and a total row.
 
 \subsection{Options}
 
-\subsubsection{\texorpdfstring{\code{policy.mode}}{policy.mode}}\label{opt:policy-mode}
+\subsubsection{\texorpdfstring{\codem{policy.mode}}{policy.mode}}\label{opt:policy-mode}
 \begin{optspec}
   \item[Default] \code{'rule'}.
   \item[Values] \code{'rule'}, \code{'ramsey'}.
@@ -2555,13 +2625,13 @@ cfg.policy.type = 'commitment';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{policy.type}}{policy.type}}\label{opt:policy-type}
+\subsubsection{\texorpdfstring{\codem{policy.type}}{policy.type}}\label{opt:policy-type}
 \begin{optspec}
   \item[Default] \code{'commitment'}.
   \item[Values] \code{'commitment'}, \code{'discretion'}.
   \item[Math] IRIS optimal policy of the given type.
-  \item[Assumptions] commitment: the planner honours past promises (multipliers); discretion:
-        re-optimises taking expectations as given.
+  \item[Assumptions] commitment: the planner honors past promises (multipliers); discretion:
+        re-optimizes taking expectations as given.
   \item[Interactions] \code{'ramsey'} only. Discretion is indeterminate in IRIS
         (\code{MULTIPLE_STABLE}) at some parameter points: SW07 under RE, and any learning
         variable at the RE point where the model is loaded; interior shares solve.
@@ -2573,7 +2643,7 @@ cfg.policy.type = 'discretion';
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{policy.loss}}{policy.loss}}\label{opt:policy-loss}
+\subsubsection{\texorpdfstring{\codem{policy.loss}}{policy.loss}}\label{opt:policy-loss}
 \begin{optspec}
   \item[Default] \code{struct('pinf', 1, 'ygap', 0.5, 'r', 0.1, 'dr', 0)}.
   \item[Values] a struct of non-negative finite weights by target name of \code{spec.policy}.
@@ -2590,12 +2660,12 @@ cfg.policy.loss = struct('pinf', 1, 'ygap', 0.25, 'r', 0.5);   % dr gets 0
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{policy.discount}}{policy.discount}}\label{opt:policy-discount}
+\subsubsection{\texorpdfstring{\codem{policy.discount}}{policy.discount}}\label{opt:policy-discount}
 \begin{optspec}
   \item[Default] \code{[]}: \code{spec.policy.discount} evaluated at the parameters.
   \item[Values] \code{[]} or a number in $(0,1]$.
   \item[Math] $\delta$ in~\eqref{eq:ramsey} and~\eqref{eq:loss}; in the model file the discount is
-        $(1-\code{ramsey_disc_on})\cdot\delta_{\text{spec}} + \code{ramsey_disc_on}\cdot\code{ramsey_disc}$,
+        $(1-\codem{ramsey_disc_on})\cdot\delta_{\text{spec}} + \codem{ramsey_disc_on}\cdot\codem{ramsey_disc}$,
         with \code{ramsey_disc_on} = 1 when the option is set.
   \item[Assumptions] none.
   \item[Interactions] used by the loss of rule runs too.
@@ -2607,7 +2677,7 @@ cfg.policy.discount = 0.99;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{policy.loss_horizon}}{policy.loss\_horizon}}\label{opt:policy-loss-horizon}
+\subsubsection{\texorpdfstring{\codem{policy.loss_horizon}}{policy.loss\_horizon}}\label{opt:policy-loss-horizon}
 \begin{optspec}
   \item[Default] \code{[]}: \code{forecast.horizon}.
   \item[Values] \code{[]} or a positive integer.
@@ -2638,12 +2708,12 @@ scenario's own shock:
   \varepsilon^{(j)}_{s,t} = \varepsilon^{\text{scen}}_{s,t} + E^{(j)}_{t,s},\qquad
   E^{(j)}_{t,s} =
   \begin{cases}
-    \sigma_s\, z^{(j)}_{t,s},\ z \sim N(0,1)\ \text{i.i.d.} & \text{\code{'normal'}}\\
-    \bigl(p_{\iota^{(j)}_t} - \kappa\,\bar p\bigr)_s,\ \iota^{(j)}_t\sim U\{1,\dots,P\} & \text{\code{'bootstrap'}}
+    \sigma_s\, z^{(j)}_{t,s},\ z \sim N(0,1)\ \text{i.i.d.} & \text{\codem{'normal'}}\\
+    \bigl(p_{\iota^{(j)}_t} - \kappa\,\bar p\bigr)_s,\ \iota^{(j)}_t\sim U\{1,\dots,P\} & \text{\codem{'bootstrap'}}
   \end{cases}
 \end{equation}
 where $\sigma_s$ is the model's \code{std_<shock>} (\code{'calibrated'}) or the sample standard
-deviation (normalised by the number of values minus one) of the RE-smoothed shock over
+deviation (normalized by the number of values minus one) of the RE-smoothed shock over
 \code{density.sigma_range}
 (\code{'smoothed'}), and $p_1,\dots,p_P$ are the vectors of RE-smoothed values of all drawn shocks at
 the dates of \code{sigma_range} where all are finite, with mean $\bar p$; $\kappa = 1$ with \code{density.demean} and 0 otherwise. The bootstrap draws whole
@@ -2661,7 +2731,7 @@ path to rounding (\code{test_density} D4). The \emph{general path} calls
 shares respond to the drawn shocks. Conditions keep their targets in every draw.
 
 \paragraph{Exclusions.} A draw with a non-finite value, or any absolute value above $10^6$, in a
-summarised series is \code{'explosive'}; a draw whose forecast stage stops (for example
+summarized series is \code{'explosive'}; a draw whose forecast stage stops (for example
 \code{hetlearn:engine:almUnstable} or \code{noSolution}) is \code{'error'}. Both are left out of the
 summaries and counted.
 
@@ -2686,7 +2756,7 @@ density files of an earlier run of the same id.
 
 \subsection{Options}
 
-\subsubsection{\texorpdfstring{\code{density.enabled}}{density.enabled}}\label{opt:density-enabled}
+\subsubsection{\texorpdfstring{\codem{density.enabled}}{density.enabled}}\label{opt:density-enabled}
 \begin{optspec}
   \item[Default] \code{false}.
   \item[Values] true, false.
@@ -2702,13 +2772,13 @@ cfg.density.shocks = {'epinf', 'ew'};
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.shocks}}{density.shocks}}\label{opt:density-shocks}
+\subsubsection{\texorpdfstring{\codem{density.shocks}}{density.shocks}}\label{opt:density-shocks}
 \begin{optspec}
   \item[Default] \code{{}}.
   \item[Values] a cellstr of shocks of the model (\code{hetlearn:density:shocks} otherwise).
   \item[Math] the shocks $s$ in~\eqref{eq:draws}; the others keep the scenario's values.
   \item[Assumptions] uncertainty comes from these shocks only.
-  \item[Interactions] required when enabled; a shock that is also endogenised by a condition is
+  \item[Interactions] required when enabled; a shock that is also endogenized by a condition is
         offset by the condition.
   \item[Code] \code{+density/draws.m}.
   \item[Example]
@@ -2718,7 +2788,7 @@ cfg.density.shocks = {'eb', 'eg', 'eqs'};
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.sigma}}{density.sigma}}\label{opt:density-sigma}
+\subsubsection{\texorpdfstring{\codem{density.sigma}}{density.sigma}}\label{opt:density-sigma}
 \begin{optspec}
   \item[Default] \code{'calibrated'}.
   \item[Values] \code{'calibrated'}, \code{'smoothed'}.
@@ -2735,7 +2805,7 @@ cfg.density.sigma_range = [qq(1966,1), qq(2019,4)];
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.sigma_range}}{density.sigma\_range}}\label{opt:density-sigma-range}
+\subsubsection{\texorpdfstring{\codem{density.sigma_range}}{density.sigma\_range}}\label{opt:density-sigma-range}
 \begin{optspec}
   \item[Default] \code{[]}: the filter range.
   \item[Values] a date vector or \code{[start, end]}.
@@ -2751,7 +2821,7 @@ cfg.density.sigma_range = [qq(1985,1), qq(2019,4)];
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.method}}{density.method}}\label{opt:density-method}
+\subsubsection{\texorpdfstring{\codem{density.method}}{density.method}}\label{opt:density-method}
 \begin{optspec}
   \item[Default] \code{'normal'}.
   \item[Values] \code{'normal'}, \code{'bootstrap'}.
@@ -2768,12 +2838,12 @@ cfg.density.demean = true;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.demean}}{density.demean}}\label{opt:density-demean}
+\subsubsection{\texorpdfstring{\codem{density.demean}}{density.demean}}\label{opt:density-demean}
 \begin{optspec}
   \item[Default] \code{true}.
   \item[Values] true, false.
   \item[Math] subtracts $\bar p$ from the pool in~\eqref{eq:draws}.
-  \item[Assumptions] the smoothed shocks have non-zero sample means; demeaning centres the density
+  \item[Assumptions] the smoothed shocks have non-zero sample means; demeaning centers the density
         on the scenario's own shocks.
   \item[Interactions] \code{'bootstrap'} only.
   \item[Code] \code{+density/draws.m}.
@@ -2784,7 +2854,7 @@ cfg.density.demean = false;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.ndraws}}{density.ndraws}}\label{opt:density-ndraws}
+\subsubsection{\texorpdfstring{\codem{density.ndraws}}{density.ndraws}}\label{opt:density-ndraws}
 \begin{optspec}
   \item[Default] \code{200}.
   \item[Values] a positive integer.
@@ -2800,7 +2870,7 @@ cfg.density.seed = 1;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.seed}}{density.seed}}\label{opt:density-seed}
+\subsubsection{\texorpdfstring{\codem{density.seed}}{density.seed}}\label{opt:density-seed}
 \begin{optspec}
   \item[Default] \code{0}.
   \item[Values] a non-negative integer.
@@ -2812,11 +2882,10 @@ cfg.density.seed = 1;
   \item[Example]
 \begin{lstlisting}
 cfg.density.seed = 42;
-cfg.density.ndraws = 200;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.quantiles}}{density.quantiles}}\label{opt:density-quantiles}
+\subsubsection{\texorpdfstring{\codem{density.quantiles}}{density.quantiles}}\label{opt:density-quantiles}
 \begin{optspec}
   \item[Default] \code{[0.05 0.16 0.5 0.84 0.95]}.
   \item[Values] a vector of numbers in $(0,1)$.
@@ -2827,11 +2896,10 @@ cfg.density.ndraws = 200;
   \item[Example]
 \begin{lstlisting}
 cfg.density.quantiles = [0.1 0.25 0.5 0.75 0.9];
-cfg.density.enabled = true;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.range}}{density.range}}\label{opt:density-range}
+\subsubsection{\texorpdfstring{\codem{density.range}}{density.range}}\label{opt:density-range}
 \begin{optspec}
   \item[Default] \code{[]}: the horizon.
   \item[Values] a date vector or \code{[start, end]}; dates outside the horizon are ignored
@@ -2843,11 +2911,10 @@ cfg.density.enabled = true;
   \item[Example]
 \begin{lstlisting}
 cfg.density.range = [qq(2022,3), qq(2023,2)];
-cfg.density.enabled = true;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.keep_draws}}{density.keep\_draws}}\label{opt:density-keep-draws}
+\subsubsection{\texorpdfstring{\codem{density.keep_draws}}{density.keep\_draws}}\label{opt:density-keep-draws}
 \begin{optspec}
   \item[Default] \code{false}.
   \item[Values] true, false.
@@ -2863,7 +2930,7 @@ cfg.density.ndraws = 100;
 \end{lstlisting}
 \end{optspec}
 
-\subsubsection{\texorpdfstring{\code{density.fast_path}}{density.fast\_path}}\label{opt:density-fast-path}
+\subsubsection{\texorpdfstring{\codem{density.fast_path}}{density.fast\_path}}\label{opt:density-fast-path}
 \begin{optspec}
   \item[Default] \code{true}.
   \item[Values] true, false.
@@ -2894,13 +2961,13 @@ horizon).
 $x^b_{\text{ss}} = (I-\T_b)^{-1}\K_b$, $\xi_{\text{ss}} = \T x^b_{\text{ss}} + \K$,
 $y_{\text{ss}} = \Z x^b_{\text{ss}} + \D$.
 
-\paragraph{Method \code{'iris'}.} IRIS contributions of the RE model,
+\paragraph{Method \codem{'iris'}.} IRIS contributions of the RE model,
 \code{simulate(m, res.paths, range, 'anticipate', false, 'contributions', true)}, from the first date
 with initial conditions; \code{init} is the \code{Init+Const+Trends} column minus the steady state;
 \code{beliefs_constants} is the rest (the \code{Nonlinear} column and rounding; 0 for a linear RE
 model).
 
-\paragraph{Method \code{'tv'}.} A time-varying linear decomposition with the model in force in each
+\paragraph{Method \codem{'tv'}.} A time-varying linear decomposition with the model in force in each
 quarter: the RE model ($n_1=1$, zero beliefs) before the learning model applies (the RE-smoothed
 history), the parameter values recorded by the inversion (\code{res.inversion.params}) over an
 inversion history, and over the horizon the beliefs $\phi_{t-1}$ and model shares $n^m_{1,t}$ from
@@ -2913,24 +2980,22 @@ matrices (or its backward system),
 without constants, for $c$ = each shock ($\varepsilon^c$ = that shock only, zero start) and
 $c$ = \code{init} (no shocks, start = the deviation of the initial state from the steady state). Then
 \begin{equation}
-  \text{\code{beliefs_constants}}_t = (\xi_t - \xi_{\text{ss}}) - \sum_c \xi^c_t ,
+  \text{\codem{beliefs_constants}}_t = (\xi_t - \xi_{\text{ss}}) - \sum_c \xi^c_t ,
 \end{equation}
 the time-varying intercepts (perceived means) and their propagation. The decomposition is additive
 by construction. On the RE model \code{'tv'} equals \code{'iris'} (toy $10^{-13}$). The matrices with
 their constants rebuild \code{res.paths} quarter by quarter (\code{D.check.recon_maxerr};
-\code{x_exp1_BR} is left out in RE-model periods, where it holds the history-stage forecasts).
+\code{x_exp1_BR} is left out in RE-model quarters, where it holds the history-stage forecasts).
 
 \paragraph{Reading.} Slope beliefs and shares act inside every shock component, through each
 quarter's $\T_t$ and $\Rs_t$, so they are not a component of their own; \code{beliefs_constants} is
 the intercept channel only.
 
-\paragraph{Output.} \code{D.values.<v>} (dates $\times$ components, model units), \code{D.total},
-\code{D.ss}, \code{D.scale}, \code{D.components}, \code{D.labels} (shock labels from the model file,
-group members, \code{'initial conditions'}, \code{'intercept channel (perceived means)'}),
-\code{D.table} and \code{decomposition.csv} (scenario, date, variable, component,
-\code{value_model}, \code{value_report}, label, with \code{total} rows), \code{D.check}
-(\code{additivity_maxerr}; \code{'tv'}: \code{recon_maxerr}, \code{recon_by_date},
-\code{n_solve}, \code{n_backward}).
+\paragraph{Output.} \code{D.values.<v>} holds one column per component (dates $\times$
+components, model units) and \code{D.labels} their labels; \code{D.check} holds the additivity
+error and, under \code{'tv'}, the reconstruction error \code{recon_maxerr}.
+\code{decomposition.csv} has the same values in long form; \code{docs/USER_GUIDE.md}, Section 6.1,
+lists its columns.
 
 \paragraph{Restrictions.} Ramsey results are refused (\code{hetlearn:decompose:ramsey}), and so are
 results of \code{history.mode = 'kalman'} (\code{hetlearn:options:unsupported}): the filtered history
@@ -2938,7 +3003,7 @@ is not a path of the model with the filtered shocks, because the state covarianc
 
 \subsection{Call options}
 
-\subsubsection{Call options of \texorpdfstring{\code{hetlearn.decompose}}{hetlearn.decompose}}\label{opt:decompose}
+\subsubsection{Call options of \texorpdfstring{\codem{hetlearn.decompose}}{hetlearn.decompose}}\label{opt:decompose}
 \begin{optspec}
   \item[Default] \code{groups = struct()}, \code{method = 'auto'}, \code{model = []} (loaded from
         \code{res.cfg}), \code{save = true}, \code{results_dir = results/}, \code{file = ''}
@@ -2991,34 +3056,34 @@ variant's errors; the relative RMSE $\mathrm{RMSE}_v/\mathrm{RMSE}_b$ against th
 the targets both have.
 
 \paragraph{Diebold--Mariano test} \citep{diebold1995}. On the common targets, in origin order,
-$d_i = e_{v,i}^2 - e_{b,i}^2$ (a negative mean favours the variant), $u = d - \bar d$,
+$d_i = e_{v,i}^2 - e_{b,i}^2$ (a negative mean favors the variant), $u = d - \bar d$,
 $\hat\gamma_k = \frac1n\sum_{i>k}u_iu_{i-k}$, $L = \min(h-1, n-1)$, and
 \begin{equation}\label{eq:dm}
   \widehat{\mathrm{LRV}} =
   \begin{cases}
-    \hat\gamma_0 + 2\sum_{k=1}^{L}\hat\gamma_k & \text{\code{'uniform'}}\\
-    \hat\gamma_0 + 2\sum_{k=1}^{L}\bigl(1 - \tfrac{k}{L+1}\bigr)\hat\gamma_k & \text{\code{'bartlett'}}
+    \hat\gamma_0 + 2\sum_{k=1}^{L}\hat\gamma_k & \text{\codem{'uniform'}}\\
+    \hat\gamma_0 + 2\sum_{k=1}^{L}\bigl(1 - \tfrac{k}{L+1}\bigr)\hat\gamma_k & \text{\codem{'bartlett'}}
   \end{cases}
   \qquad
   \mathrm{DM} = \frac{\bar d}{\sqrt{\widehat{\mathrm{LRV}}/n}} .
 \end{equation}
-The uniform kernel is the rectangular window for which \citet{harvey1997} derived their correction;
+The uniform kernel is the rectangular window for which \citet{harvey1997} (HLN) derived their correction;
 where its variance is not positive the cell falls back to Bartlett \citep{newey1987} (kernel column
 \code{bartlett_fallback}, counted in \code{settings.dm_fallbacks}). With the HLN correction the
 statistic is multiplied by $\sqrt{(n + 1 - 2h + h(h-1)/n)/n}$ and the two-sided p-value comes from
 Student's $t$ with $n-1$ degrees of freedom, $p = I_{\nu/(\nu+\mathrm{DM}^2)}(\nu/2, 1/2)$; without it
 $p = \mathrm{erfc}(|\mathrm{DM}|/\sqrt2)$. DM is NaN when $n<2$ or the variance is not positive.
 
-\paragraph{Outputs} (\code{results/eval_<name>/}): \code{errors_long.csv} (variant, origin, target,
-h, variable, actual, forecast, error), \code{metrics.csv}, \code{relative_rmse.csv}, \code{dm.csv}
-(with a \code{kernel} column) and \code{settings.mat}; \code{E} also holds the forecasts and actuals
-as arrays. \code{hetlearn.evaluate_tables(errors, opts)} rebuilds the three tables from a saved
+\paragraph{Outputs} (\code{results/eval_<name>/}): the errors in \code{errors_long.csv}, the
+tables \code{metrics.csv}, \code{relative_rmse.csv} and \code{dm.csv}, and \code{settings.mat};
+\code{docs/USER_GUIDE.md}, Section 6.4, lists their columns. \code{E} also holds the forecasts and
+actuals as arrays. \code{hetlearn.evaluate_tables(errors, opts)} rebuilds the three tables from a saved
 \code{errors_long.csv} (or an \code{eval_<name>} folder) without rerunning any forecast, for example
 with another kernel.
 
 \subsection{Call options}
 
-\subsubsection{Call options of \texorpdfstring{\code{hetlearn.evaluate}}{hetlearn.evaluate}}\label{opt:evaluate}
+\subsubsection{Call options of \texorpdfstring{\codem{hetlearn.evaluate}}{hetlearn.evaluate}}\label{opt:evaluate}
 \begin{optspec}
   \item[Default] \code{horizon = 8}, \code{benchmark = ''} (the first variant), \code{dm = true},
         \code{dm_hln = true}, \code{dm_kernel = ''} (\code{'uniform'} with HLN, else
@@ -3032,10 +3097,9 @@ with another kernel.
         \code{realtime}); full-sample parameters; actuals of the current vintage.
   \item[Interactions] all variants must use the same package (\code{hetlearn:evaluate:model}) and
         have unique ids; the benchmark must be a variant. Lagged and inversion variants get their
-        own filters as described above. \code{evaluate_tables} takes \code{variants},
-        \code{variables}, \code{horizon}, \code{origins}, \code{benchmark}, \code{subsamples},
-        \code{dm}, \code{dm_hln}, \code{dm_kernel}, \code{settings}, \code{save}, \code{folder},
-        \code{write_errors}, with defaults from \code{settings.mat} next to the file.
+        own filters as described above. \code{evaluate_tables} takes the table options, with
+        defaults from \code{settings.mat} next to the file (\code{docs/USER_GUIDE.md},
+        Section 7).
   \item[Code] \code{evaluate.m}, \code{evaluate_tables.m}.
   \item[Example]
 \begin{lstlisting}
@@ -3045,11 +3109,40 @@ E = hetlearn.evaluate('my_eval', {'e01_re', 'e02_learn'}, [qq(2010,1), qq(2024,2
 \end{optspec}
 
 % =====================================================================
+\section{Scenario files and caches}\label{sec:options}
+% =====================================================================
+
+\subsection{Scenario files}\label{sec:scenarios}
+
+A scenario is a function that returns a partial option tree. Inheritance is a function call: a file
+starts from its parent and sets what differs.
+\begin{lstlisting}
+function cfg = my_learn()
+cfg = a1_re();                        % the RE parent: model, origin, horizon, learning set
+cfg.id = 'my_learn';                  % results/my_learn/
+cfg.expectations.mode = 'switching';
+cfg.compare_with = {'a1_re'};
+end
+\end{lstlisting}
+Ids are function names; \code{compare_with}, \code{'delta'} references and the runner find
+scenarios by name, so names must be unique on the path. Each result stores its merged options
+(\code{res.cfg}); \code{hetlearn.load_model} re-merges a saved tree, so it runs on later versions.
+Saved results never update themselves: after an edit, rerun the scenario and its descendants.
+
+\subsection{Caches}
+
+Generated files and RE filter caches live in \code{<package>/generated/}
+(Sections~\ref{sec:gencache} and~\ref{sec:refilter}). Every cache key includes what the cached object
+depends on (model text, parameters, toggles, data, range), so a stale cache is never used; deleting
+the folder only forces a rebuild.
+
+% =====================================================================
 \section{Outputs and the result struct}\label{sec:outputs}
 % =====================================================================
 
 \code{res = hetlearn.run(cfg)} returns the result struct and, unless \code{'save', false}, writes
 \code{results/<id>/} (\code{+engine/assemble.m}, \code{+engine/save_results.m}).
+\code{docs/USER_GUIDE.md}, Section 6, describes the same files for the project's scenarios.
 
 \subsection{The result struct}
 
@@ -3092,7 +3185,7 @@ under universal shares the group sums drive the shares) and \code{fRE}, \code{fB
 $x_{t+1}$ made in $t$). Under switching, \code{n1_model}$(t)$ = \code{n1}$(t-1)$ unless the facility
 kept the shares (\code{test_engine} E11 checks the timing from the paths alone).
 
-\subsection{Share names}
+\subsection{Share names}\label{sec:sharenames}
 
 \begin{center}
 \begin{tabular}{>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{6.2cm}}
@@ -3108,9 +3201,9 @@ Name & Where & Meaning \\
 \end{tabular}
 \end{center}
 
-\subsection{Files in \texorpdfstring{\code{results/<id>/}}{results/<id>/}}
+\subsection{Files in \texorpdfstring{\codem{results/<id>/}}{results/<id>/}}
 
-\begin{longtable}{>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{10.8cm}}
+\begin{longtable}{>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{9.8cm}}
 \toprule
 File & Content \\
 \midrule
@@ -3133,96 +3226,6 @@ learning series are in model units; \code{value_report} columns multiply by
 \code{spec.report.scale}.
 
 % =====================================================================
-\section{Model packages, scenario files and option precedence}\label{sec:options}
-% =====================================================================
-
-\subsection{Precedence and merging}\label{sec:precedence}
-
-\code{opts = hetlearn.load_options(cfg, master)} (\code{load_options.m}) builds the option tree in
-three layers:
-\begin{equation*}
-  \text{\code{hetlearn.defaults()}} \;<\; \text{\code{config/master_options.m}} \;<\; \text{scenario \code{cfg}},
-\end{equation*}
-a later layer overriding an earlier one field by field. \code{master_options()} is found on the path
-or in \code{<root>/config/}; the optional second argument replaces it (the tests use their own
-\code{tests/scenarios/master_options.m}). Rules:
-\begin{itemize}[nosep]
-  \item the merge is recursive; a field that does not exist in the defaults is
-        \code{hetlearn:options:unknown}, naming the full path (typos are caught);
-  \item \emph{replaced as a whole}: \code{conditions} and \code{policy.loss} (a loss struct
-        without \code{dr} gives \code{dr} weight 0);
-  \item \emph{free-form}, merged without name checks: \code{beliefs.init.values},
-        \code{beliefs.plm.by_var}, \code{beliefs.plm.derived} (must hold strings),
-        \code{gain.by_var}, \code{shares.fixed_n2} (as a struct), \code{shocks.add},
-        \code{report};
-  \item strings become char; a char where a cellstr is expected becomes a one-element cellstr
-        (\code{expectations.variables} other than \code{'all'}, \code{shares.master},
-        \code{compare_with}, \code{shocks.exclude}, \code{density.shocks},
-        \code{history.inversion.shocks}, \code{gain.koz.master}, \code{report.variables});
-  \item removed options raise \code{hetlearn:options:removed} with the replacement:
-        \code{projection.max_root}, \code{.method}, \code{.scope}, \code{.on_failure} and
-        \code{switching.error_scale}, \code{.error_scale_ref} (18 October 2026); the
-        bounded-rationality options cut on 22 October 2026. In a merged tree saved before a cut
-        those fields are dropped when they hold their old default values, so old \code{res.cfg}
-        trees still load.
-\end{itemize}
-
-Validation errors: \code{hetlearn:options:type} (wrong type), \code{:value} (outside the
-enumeration or range, or a forbidden combination), \code{:missing} (a required companion option),
-\code{:unsupported} (combinations not derived or built), \code{:notImplemented}
-(\code{history.mode = 'hetero_filter'}). Checks that need the model (names of variables, shocks and
-targets) are made later by the generator, the PLM builder and the engine.
-
-\subsection{Scenario files}\label{sec:scenarios}
-
-A scenario is a function that returns a partial option tree. Inheritance is a function call: a file
-starts from its parent and sets what differs.
-\begin{lstlisting}
-function cfg = my_learn()
-cfg = a1_re();                        % the RE parent: model, origin, horizon, learning set
-cfg.id = 'my_learn';                  % results/my_learn/
-cfg.expectations.mode = 'switching';
-cfg.compare_with = {'a1_re'};
-end
-\end{lstlisting}
-Ids are function names; \code{compare_with}, \code{'delta'} references and the runner find
-scenarios by name, so names must be unique on the path. Each result stores its merged options
-(\code{res.cfg}); \code{hetlearn.load_model} re-merges a saved tree, so it runs on later versions.
-Saved results never update themselves: after an edit, rerun the scenario and its descendants.
-
-\subsection{Public functions}
-
-\begin{longtable}{>{\raggedright\arraybackslash}p{6.4cm}>{\raggedright\arraybackslash}p{8.6cm}}
-\toprule
-Call & Purpose \\
-\midrule
-\endhead
-\code{res = hetlearn.run(cfg, ...)} & one scenario; options \code{'save'}, \code{'results_dir'}, \code{'quiet'}, \code{'model'} (preloaded), \code{'filter'} (an RE filter output) \\
-\code{T = hetlearn.run_files(names, ...)} & runs scenario functions in order; a failure is reported and the next one runs \\
-\code{T = hetlearn.compare(ids, vars, range)} & levels \code{<var>__<id>} and differences \code{<var>__<id>_minus_<id1>} of saved runs \\
-\code{D = hetlearn.decompose(res, vars, range, opts)} & Section~\ref{sec:decompose} \\
-\code{E = hetlearn.evaluate(name, variants, origins, opts)} & Section~\ref{sec:evaluate} \\
-\code{T = hetlearn.evaluate_tables(errors, opts)} & tables from saved errors \\
-\code{o = hetlearn.defaults()} & the option tree \\
-\code{opts = hetlearn.load_options(cfg, master)} & merge and validate \\
-\code{spec = hetlearn.load_spec(name)} & package contract \\
-\code{[d, file] = hetlearn.load_database(spec)} & the package database \\
-\code{[m, info] = hetlearn.load_model(spec, opts)} & generate, load, assign, solve the extended model \\
-\code{H = hetlearn.re_filter(spec, opts, ...)} & RE filter and smoother; \code{'force'}, \code{'end'}, \code{'model'} \\
-\code{meta = hetlearn.extend_model(spec, plm, ...)} & the generator \\
-\code{[A, info] = hetlearn.re_anchor_coefficients(spec, P, ...)} & anchored coefficients \\
-\code{t = hetlearn.find_peak(db, name, from, to)} & date of a series' maximum in a window \\
-\bottomrule
-\end{longtable}
-
-\subsection{Caches}
-
-Generated files and RE filter caches live in \code{<package>/generated/}
-(Sections~\ref{sec:gencache} and~\ref{sec:refilter}). Every cache key includes what the cached object
-depends on (model text, parameters, toggles, data, range), so a stale cache is never used; deleting
-the folder only forces a rebuild.
-
-% =====================================================================
 \section{Validation and the test suite}\label{sec:validation}
 % =====================================================================
 
@@ -3238,7 +3241,7 @@ PLM consistency & the run's BR forecast text against the generated file & exact 
 Anchored coefficients & state-space coefficients against unit-perturbation simulations & $10^{-9}$ relative \\
 Lagged anchored model & anchored against model-consistent RE(t-1) model at $n_1 = 1$ & $10^{-10}$ \\
 RE filter fit & observables rebuilt through the measurement equations & $10^{-8}$ \\
-Timing assert & model's \code{x_exp1_BR} against the PLM formula with $\phi_{t-1}$ & $10^{-9}$ \\
+Timing check & model's \code{x_exp1_BR} against the PLM formula with $\phi_{t-1}$ & $10^{-9}$ \\
 Conditions & every target met after the shock solve & $10^{-9}$ \\
 Kalman & positive definite $F_t$; stationary first ALM under \code{'stochastic'} & roots below $1-10^{-10}$ \\
 \bottomrule
@@ -3246,62 +3249,24 @@ Kalman & positive definite $F_t$; stationary first ALM under \code{'stochastic'}
 
 \subsection{The test suite}
 
-\code{tests/run_tests.m} runs every suite and prints one PASS/FAIL line per check;
-\code{run_tests({'test_options', 'test_rls'})} runs a subset (the whole run takes more than nine
-minutes). The tests never read \code{scenarios/} or \code{results/}: they use the toy package
-\code{tests/toy_nk/} (a three-equation hybrid NK model, IJCB eq.~1, written with mixed lead
-notations and a two-step lead), the test scenarios \code{tests/scenarios/tsw07_*.m}, their own
-master options (\code{tests/scenarios/master_options.m}, equal to the defaults) and stored references
-in \code{tests/reference/}. Four exact-reference checks need the default thread count. The suites of
-the core toolbox:
-
-\begin{longtable}{>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{11.6cm}}
-\toprule
-Suite & Covers \\
-\midrule
-\endhead
-\code{test_options} & defaults, merge order, unknown and removed options, enumerations, ranges, free-form subtrees \\
-\code{test_rls} & RLS against a hand-coded loop and OLS; the gain interface \\
-\code{test_switching} & equations~\eqref{eq:fitness}--\eqref{eq:initfit}, edge cases \\
-\code{test_plm} & PLM systems, forecast text = numeric value = IRIS, companion matrix, initial beliefs \\
-\code{test_generator} & lead notations, comments, the \code{x{+2}} recursion, \code{!if} branches with \code{spec.assign}, collapse tests \\
-\code{test_engine} & RE = IRIS simulate; conditions = IRIS \code{Plan}; fully-BR forecasts = PLM formula; history beliefs = hand-coded RLS; \code{history.learn = false}; universal shares; fixed beliefs; timing from the paths alone (E11); weighted minimum norm (E12) \\
-\code{test_sw07} & SW07 collapse test, smoothed-shock replay = data, template scenarios, parameter sets \\
-\code{test_density} & seeds, $\sigma$ sources, bootstrap rows, fast path = general path, quantiles, conditions in draws \\
-\code{test_evaluate} & errors by hand, metrics, DM by hand, real-time property \\
-\code{test_anchored} & anchored RE, the backward simulator against IRIS, the explosive case, VAR learning with anchored RE \\
-\code{test_plm2} & VAR learning, derived regressors, AR(2), RE-moment cross-moments \\
-\code{test_inversion} & RE inversion = smoother, learning inversion hits every observable, fast = IRIS step, inversion in the evaluation, HLN, demeaning \\
-\code{test_decompose} & \code{'tv'} = IRIS on RE results, additivity, path reconstruction, groups, CSV, beliefs after facility reverts \\
-\code{test_ramsey} & commitment and discretion targeting rules on the textbook toy, loss accounting, multipliers at the origin, SW07 runs \\
-\code{test_info} & \code{beliefs.info = 'current'}: forecasts = IRIS, timing assert, RLS unchanged \\
-\code{test_gain} & the KOZ recursion against a hand-coded loop, $\mu = 0$ = constant gain bit for bit, bounds, sign behaviour, structures, error sources, the gain state through every stage \\
-\code{test_facility} & block rule under each setting, order independence, block detection, ALM revert, history checks, kept shares, \code{almUnstable} and \code{noSolution}, the no-lead explosive path, gain at reverts \\
-\code{test_re_states} & \code{'smoothed'} = the run before the option existed; filtered databank; $\fRE$ = IRIS prediction; data gaps; real time; \code{training_ols} \\
-\code{test_re_info} & RE(t-1) model = a hand-written IRIS reference and Dynare's \code{EXPECTATION(-1)}; closed form; collapse; every stage with \code{'lagged'} \\
-\code{test_kalman} & every-agent-RE Kalman = IRIS filter of the RE(t-1) model; \code{'smoothed'} start = inversion; fixed ALM = IRIS filter \\
-\bottomrule
-\end{longtable}
-
-The suites \code{test_ntypes}, \code{test_transforms}, \code{test_anchor} and
-\code{test_br_regression} belong to the bounded-rationality extensions. The last one is a regression
-gate for the core: it checks that generated files and 30 two-type runs are exactly equal to
-references frozen before the extensions were built.
+\code{tests/run_tests.m} runs the test suites of the toolbox and prints one PASS/FAIL line per
+check; \code{run_tests({'test_options', 'test_rls'})} runs a subset. The suites check the equations
+of this appendix against hand-coded loops, IRIS references and stored results in
+\code{tests/reference/}, on the toy package \code{tests/toy_nk/} (a three-equation hybrid New
+Keynesian model, \citealp[eq.~1]{ozden2025}) and on SW07 test scenarios
+(\code{tests/scenarios/tsw07_*.m}).
 
 \subsection{Known limitations}
 
 \begin{itemize}[nosep]
-  \item Shocks and conditions are unanticipated; anticipated paths are not implemented.
-  \item Nonlinear models have a code path but no test; the anchored variant and the backward
-        simulator are linear-only; log variables are not read by the fast step or the Kalman
-        history.
-  \item Ramsey policy is not supported with \code{expectations.re_info = 'lagged'}; discretion can
-        be indeterminate in IRIS; anchored RE agents keep the Taylor-rule reduced form under
-        Ramsey policy.
-  \item \code{history.realtime} acts on the RE-smoother history only.
-  \item The evaluation scores forecasts against the current data vintage with full-sample
-        parameters.
-  \item With zero future shocks the shares drift toward $1/2$ by construction.
+  \item Shocks and conditions are unanticipated (Section~\ref{sec:timing}).
+  \item Nonlinear models and log variables: Section~\ref{sec:modelreq}.
+  \item Ramsey policy: Sections~\ref{opt:policy-mode} and~\ref{opt:policy-type}.
+  \item \code{history.realtime} acts on the RE-smoother history only
+        (Section~\ref{opt:history-realtime}).
+  \item The evaluation uses the current data vintage and full-sample parameters
+        (Section~\ref{sec:evaluate}).
+  \item With zero future shocks the shares drift toward $1/2$ (Section~\ref{sec:dc}).
 \end{itemize}
 
 % =====================================================================
