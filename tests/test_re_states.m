@@ -1,5 +1,5 @@
 function R = test_re_states(part)
-%TEST_RE_STATES  RE states of the history stage: history.re_states = 'smoothed' | 'filtered' (DESIGN 5.1, 5.2; 2026-10-19).
+%TEST_RE_STATES  RE states of the history stage: history.re_states = 'smoothed' | 'filtered' (DESIGN 5.1, 5.2).
 %
 %   R = test_re_states()         every check
 %   R = test_re_states('toy')    T1-T2 only (options, cache refresh; a few seconds)
@@ -10,15 +10,15 @@ function R = test_re_states(part)
 %      history.mode = 'inversion' is hetlearn:options:value (the inversion is
 %      one-sided by construction)
 %   T2 cache: a cached RE filter without the filtered databank (the format
-%      written before 2026-10-19) is refreshed, not crashed on: re-filtered,
+%      written by an earlier version) is refreshed, not crashed on: re-filtered,
 %      H.filtered present, H.smooth identical to the cached one (max diff 0),
 %      the file rewritten; the next call reads it (toy, real-time filter at
 %      2011Q3, a cache no other suite uses)
 %   S1 'smoothed' (default) reproduces the run made before the option existed:
 %      tsw07_switch_pinf (= scenarios/sw07/app1_peak/a1_learn: anchored RE,
 %      AR(1) learners on inflation, chi 0.51, engine.step 'fast') against
-%      tests/reference/tsw07_switch_pinf_fast.mat (made 2026-10-19 with the
-%      pre-change code): every path and learning series max diff 0, events equal
+%      tests/reference/tsw07_switch_pinf_fast.mat (made with the code before
+%      history.re_states existed): every path and learning series max diff 0, events equal
 %   S2 re_filter on SW07: H.filtered holds every transition variable and shock of
 %      H.smooth; on the last filter date filtered = smoothed (1e-9), for the
 %      full-sample filter (2026Q2) and the real-time filter at 2022Q2
@@ -93,7 +93,7 @@ try
     L = load(f, 'H');
     H = L.H;
     if isfield(H, 'filtered')
-        H = rmfield(H, 'filtered');                 % the format written before 2026-10-19
+        H = rmfield(H, 'filtered');                 % the format written by an earlier version
     end
     old = H;
     save(f, 'H');
