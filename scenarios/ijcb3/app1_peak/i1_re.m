@@ -21,7 +21,7 @@ function cfg = i1_re()
 %   coefficients from IJCB's 1957Q1-2019Q4 sample and covid-adjusted
 %   regressors, 1.00 at the 2022Q2 origin. The plain Hamilton gap (helper
 %   series yobs_hamilton, not observed) is 9.0 there, an echo of the 2020Q2
-%   lockdown trough (user decisions 2026-10-18).
+%   lockdown trough.
 
 cfg = struct();
 
@@ -46,13 +46,13 @@ cfg.forecast.horizon = 16;                    % quarters: 2022Q3-2026Q2
 % ---- expectations ------------------------------------------------------------------------
 cfg.expectations.mode = 'rational';           % 'rational' | 'learning' | 'fixed_shares' | 'switching'
 cfg.expectations.variables = {'pinf'};        % forward-looking variables: y, pinf
-% cfg.expectations.re_variant = 'anchored';  % toolbox default since 2026-10-18; with every agent RE,
+% cfg.expectations.re_variant = 'anchored';  % toolbox default; with every agent RE,
 %                                             % 'anchored' and 'model_consistent' give the same path
 
-% ---- settings pinned against the SW07 project baseline of 2026-10-20 ------------------------
+% ---- settings pinned against the SW07 project baseline ------------------------------------
 % config/master_options.m now sets the SW07 baseline (published SW07 parameters, KOZ gain, t-1
 % RE information, filtered RE states, no facility). This application keeps the settings it was
-% run with on 2026-10-18 (results/i1_re, i1_learn; report section 12), so they are written out:
+% was first run with (results/i1_re, i1_learn), so they are written out:
 cfg.model_params = '';                        % the package's own parameters (ijcb3_params, IJCB Table 1)
 cfg.gain.rule = 'constant';
 cfg.expectations.re_info = 'current';
