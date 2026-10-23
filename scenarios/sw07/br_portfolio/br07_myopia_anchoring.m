@@ -3,8 +3,8 @@ function cfg = br07_myopia_anchoring()
 %
 %   cfg = br07_myopia_anchoring()
 %
-%   As a1_learn, with docs/DESIGN_br_extensions.md mechanism 7 and the 07
-%   row of section 3: in the price Phillips curve only (equation copy), the
+%   As a1_learn, with rule 7 of the portfolio (docs/USER_GUIDE.md
+%   section 7.7): in the price Phillips curve only (equation copy), the
 %   inflation expectation becomes omega_f*E pinf_{t+1} + b*pinf_{t-1}, with
 %   (omega_f, omega_b) = (0.52, 0.43) from AH Table 1 (Coibion-Gorodnichenko
 %   K_CG = 1.193) and b = omega_b/0.99 = 0.434. All types. SW07 keeps its own
