@@ -30,7 +30,7 @@ function res = assemble(ctx, d, rec, recDates, ev, S, H)
 %     .meta      learnVars, model, model_hash, refilter hash and fit, IRIS
 %                version
 %
-%   N agent types (ctx.nt, docs/DESIGN_br_extensions.md 1.1): .paths
+%   N agent types (ctx.nt): .paths
 %   <x>_exp1_<k> of 'plm', 'rule' and 're_mean' types hold the type's
 %   forecasts over the record dates (NaN before), as <x>_exp1_BR above (the
 %   forecast before the transforms, fb_<k>, when there are transforms);
@@ -138,7 +138,7 @@ end
 
 % =========================================================================
 function [paths, learning] = nt_outputs(ctx, paths, rec, recDates, full)
-% paths and learning series of an N-type run (DESIGN_br_extensions 1.1)
+% paths and learning series of an N-type run
 nt = ctx.nt;
 for i = 1:numel(ctx.learnVars)
     x = ctx.learnVars{i};
@@ -148,7 +148,7 @@ for i = 1:numel(ctx.learnVars)
             s = Series(full, NaN(numel(full), 1));
             fn = ['f_' b.names{jj}];
             if isfield(rec.var.(x), ['fb_' b.names{jj}])
-                fn = ['fb_' b.names{jj}];      % the model variable is the forecast before the transforms (P4)
+                fn = ['fb_' b.names{jj}];      % the model variable is the forecast before the transforms
             end
             s(recDates) = rec.var.(x).(fn)(:);
             paths.(b.fvars{jj}) = s;
