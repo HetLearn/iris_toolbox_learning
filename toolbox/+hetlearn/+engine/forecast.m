@@ -76,7 +76,7 @@ end
 doAlm = ~strcmp(hetlearn.engine.facility('name', ctx.opts), 'none');
 lastP = [];
 [d, C] = hetlearn.policy.forecast_setup(ctx, d, C);     % Ramsey: multipliers 0 up to the origin
-isNT = hetlearn.engine.ntypes('on', ctx);              % N agent types (DESIGN_br_extensions 1.1)
+isNT = hetlearn.engine.ntypes('on', ctx);              % N agent types
 if isNT
     d = hetlearn.engine.ntypes('seed', ctx, S, d, hz(1) - 1);   % re_mean types: the RE forecast at the origin
 end
@@ -115,7 +115,7 @@ for k = 1:numel(hz)
     getVal = @(name, j) d.(name)(t + j);
     if isNT
         % asserts the PLM, rule and re_mean types; fRE = the forecasts as they enter the aggregate,
-        % fBR = the forecasts before the transforms (phase P4)
+        % fBR = the forecasts before the transforms
         [fRE, fBR] = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'model', t);
     else
         fRE = struct();
