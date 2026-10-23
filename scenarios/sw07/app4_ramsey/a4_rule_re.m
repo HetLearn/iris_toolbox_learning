@@ -9,7 +9,7 @@ function cfg = a4_rule_re()
 %   recomputes it for the other weight sets from the target paths in
 %   res.loss.values.
 %
-%   Deviation from the baseline (2026-10-20, the only one): Ramsey policy is
+%   Deviation from the baseline (the only one): Ramsey policy is
 %   not supported with expectations.re_info = 'lagged' (hetlearn:options:
 %   unsupported, DESIGN 19), so application 4 runs with RE information
 %   'current' (E_t pinf_{t+1}). It is set here and in a4_rule_learn.m, the
