@@ -1,12 +1,14 @@
-# Your own model
+# Adding a model
 
-`hetlearn` works with any linear IRIS model that has forward-looking terms. You do not change
-the model to add learners: the toolbox reads your model file, finds every lead, and writes an
-extended version in which the expectations of the variables you choose are a mix of RE agents
-and learners. This page takes you from a model file to a first run. The worked example is the
-three-equation New Keynesian model of Özden (2025), package `models/ijcb3/` in the repository.
+`hetlearn` works with any linear IRIS model that has forward-looking terms. The model file is
+not changed to add learners: the toolbox reads it, finds every lead, and writes an extended
+version in which the expectations of the chosen variables are a mix of rational expectations
+(RE) agents and learners. This page goes from a model file to a first run. The worked example
+is the three-equation New Keynesian (NK) model of Özden (2025), published in the
+*International Journal of Central Banking* (IJCB, the abbreviation in the model's equation
+labels): package `models/ijcb3/` in the repository.
 
-## What you need
+## What a model package contains
 
 | File | What it is |
 |---|---|
@@ -14,7 +16,7 @@ three-equation New Keynesian model of Özden (2025), package `models/ijcb3/` in 
 | `models/<name>/<name>_params.m` | A function returning a struct with every parameter and every shock standard deviation |
 | `models/<name>/data/<name>_database.csv` | The observables as an IRIS databank (CSV from `databank.toCSV`, or a `.mat`) |
 | `models/<name>/model_spec.m` | The package contract: a function returning `spec` |
-| `scenarios/<name>/.../*.m` | Your scenario files |
+| `scenarios/<name>/.../*.m` | Scenario files |
 
 ## Step 1: the model file
 
@@ -63,12 +65,12 @@ Notes:
 
 - **Lead notation.** IRIS 20230622 reads `x{+1}` and `x(+1)`. The toolbox also accepts `x{1}`,
   `x[+1]`, `x{t+1}` and `//` or `/* */` comments, and converts them for IRIS (it then keeps a
-  normalised copy, `generated/<name>_norm.model`).
+  normalized copy, `generated/<name>_norm.model`).
 - **Leads of two or more periods** work: `x{+2}` becomes a chain through the one-step
   expectation.
 - **Equation labels** (the quoted text before an equation) are optional, but the policy rule
-  needs one if you want Ramsey policy, and equation-specific transforms refer to labels.
-- **Your own `!if` switches** are allowed; set their values in `spec.assign`.
+  needs one for Ramsey policy, and equation-specific transforms refer to labels.
+- **The model's own `!if` switches** are allowed; their values are set in `spec.assign`.
 - **Linear models only.** `spec.linear = true`.
 
 ## Step 2: the parameters
@@ -99,9 +101,8 @@ P.std_eps_r = 0.24;
 end
 ```
 
-You can keep several parameter files in the package and switch between them with the option
-`model_params`. The project uses published parameter values; the toolbox does not estimate
-them.
+A package can hold several parameter files; the option `model_params` switches between them.
+The project uses published parameter values; the toolbox does not estimate them.
 
 ## Step 3: the database
 
@@ -136,10 +137,10 @@ spec.database = 'data/ijcb3_database.csv';
 spec.filter_range = [qq(1960, 1), qq(2026, 2)];       % RE filter and smoother range
 spec.observables = {'yobs', 'pinfobs', 'robs'};
 
-% Optional: reporting labels, units and the scale to report units (4 annualises a quarterly rate)
+% Optional: reporting labels, units and the scale to report units (4 annualizes a quarterly rate)
 report = struct();
 report.labels = struct('yobs', 'Output gap', 'pinfobs', 'Inflation (CPI)', 'robs', 'Federal funds rate');
-report.units = struct('yobs', '% of trend output', 'pinfobs', '% q/q annualised', 'robs', '% annualised');
+report.units = struct('yobs', '% of trend output', 'pinfobs', '% q/q annualized', 'robs', '% annualized');
 report.scale = struct('yobs', 1, 'pinfobs', 4, 'robs', 4);
 spec.report = report;
 
@@ -168,18 +169,19 @@ H.fit_error                                      % how well the smoothed states 
 ```
 
 `hetlearn.load_model` checks every generated file with a **collapse test**: with every RE share
-at 1 the extended model must reproduce the impulse responses of your original model to 1e-10.
+at 1 the extended model must reproduce the impulse responses of the original model to 1e-10.
 `hetlearn.re_filter` stops if the smoothed states and shocks do not rebuild the data to 1e-8
 (when the model has at least as many shocks as observables).
 
-The second argument of `hetlearn.load_options` replaces `config/master_options.m`. Use it while
-you set up a new model if the project's master options hold values for another model (the
-SW07 baseline sets `model_params = 'sw07_params_original'`, a file of the SW07 package).
+The second argument of `hetlearn.load_options` replaces `config/master_options.m`. It is useful
+while setting up a new model if the project's master options hold values for another model
+(the baseline of the Smets and Wouters (2007) package sets
+`model_params = 'sw07_params_original'`, a file of that package).
 
 ## Step 6: scenarios
 
-Start the new model's RE parent from an empty struct, not from an SW07 scenario (`sw07_re`
-loads SW07 and checks the SW07 inflation peak):
+The new model's RE parent starts from an empty struct, not from a Smets-Wouters scenario
+(`sw07_re` loads that model and checks its inflation peak):
 
 ```matlab
 function cfg = i1_re()
@@ -207,18 +209,18 @@ cfg.compare_with = {'i1_re'};
 end
 ```
 
-Save them under `scenarios/ijcb3/app1_peak/` (run `setup_paths` again after creating a new
-folder), then:
+They are saved under `scenarios/ijcb3/app1_peak/` (`setup_paths` runs again after a new folder
+is created), then:
 
 ```matlab
 res_re = hetlearn.run(i1_re());
 res    = hetlearn.run(i1_learn());
 ```
 
-Values set in `config/master_options.m` reach these scenarios too. Pin anything the master
-sets for another model, as `cfg.model_params = ''` does here.
+Values set in `config/master_options.m` reach these scenarios too, so anything the master sets
+for another model is pinned in the scenario, as `cfg.model_params = ''` does here.
 
-## What the toolbox writes into your model
+## What the toolbox writes into the model
 
 For each learning variable `x` the extended model gets an expectation variable `x_exp1` in
 place of `x{+1}` and the block
@@ -227,8 +229,8 @@ place of `x{+1}` and the block
 x_exp1 = n1_x*x_exp1_RE + n2_x*x_exp1_BR;
 ```
 
-with the RE agents' and the learners' forecasts behind `!if` switches that the toolbox sets
-from the options:
+with the RE agents' and the learners' (code suffix BR, for bounded rationality) forecasts
+behind `!if` switches that the toolbox sets from the options:
 
 | Switch | Set from | Effect |
 |---|---|---|
@@ -240,8 +242,8 @@ from the options:
 `expectations.re_info = 'lagged'` uses a second generated file,
 `<name>_ext_<tag>_relag.model`, in which the RE expectations of the learning set use data up to
 t-1. Generated files and RE filter caches live in `models/<name>/generated/`; their names carry
-a hash of the model text, the PLM spec and the parameters, so a stale file is never used.
-Delete the folder to force a rebuild.
+a hash of the model text, the specification of the perceived laws of motion and the
+parameters, so a stale file is never used. Deleting the folder forces a rebuild.
 
 ## Limits
 
@@ -253,10 +255,10 @@ Delete the folder to force a rebuild.
 
 ## Other templates in the repository
 
-| Package | Model | Use as a template for |
+| Package | Model | Template for |
 |---|---|---|
-| `models/ijcb3/` | three-equation NK model, Özden (2025) | a small model with missing data (ELB) |
-| `models/as07/` | An and Schorfheide (2007) | measurement errors (`std_me_*` in the parameter file) and annualised observables (report scale 1) |
+| `models/ijcb3/` | three-equation NK model, Özden (2025) | a small model with missing data at the effective lower bound |
+| `models/as07/` | An and Schorfheide (2007) | measurement errors (`std_me_*` in the parameter file) and annualized observables (report scale 1) |
 | `models/sw07/` | Smets and Wouters (2007) | a medium-scale model, two parameter sets, a policy section |
 | `tests/toy_nk/` | toy hybrid NK model | mixed lead notations, a two-period lead, a policy section with quarterly targets |
 
