@@ -1,17 +1,17 @@
 function o = master_options()
-%MASTER_OPTIONS  Test copy of config/master_options.m: the calibration of 2026-10-18/19 (= hetlearn.defaults).
+%MASTER_OPTIONS  Test copy of config/master_options.m: the earlier calibration (= hetlearn.defaults).
 %
 %   o = master_options()
 %
 %   The test suites run against this file, not the project's config/master_options.m, so that a
 %   change of the project baseline does not move the test references. tests/run_tests.m and every
 %   SW07 suite add tests/scenarios/ to the front of the path, so hetlearn.load_options finds this
-%   file first (run_tests asserts it). Added on 2026-10-20, when the project baseline moved to the
+%   file first (run_tests asserts it). Added when the project baseline moved to the
 %   published SW07 parameters, the KOZ gain from 0.05, chi 2, memory 0.8, t-1 RE information,
-%   filtered RE states and no projection facility (config/master_options.m; facility 'alm' since
-%   2026-10-21).
+%   filtered RE states and no projection facility (config/master_options.m; facility 'alm'
+%   since then).
 %
-%   The values are those config/master_options.m set until 2026-10-19; they equal
+%   The values are those config/master_options.m set before that change; they equal
 %   hetlearn.defaults(), so the tests run on the defaults as before.
 
 o = struct();
