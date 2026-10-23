@@ -1,10 +1,10 @@
-%BUILD_SUMMARY_V3  Summary tables, checks and memo numbers of the SW07 applications (track H1, 2026-10-18).
+%BUILD_SUMMARY_V3  Summary tables, checks and key numbers of the SW07 applications.
 %
 %   run('results/summary_v3/build_summary_v3.m')      from the project root, after run_applications
 %
-%   Baseline since 2026-10-20 (config/master_options.m): published SW07 parameters (model_params =
+%   Baseline (config/master_options.m): published SW07 parameters (model_params =
 %   'sw07_params_original'), RE agents and learners on t-1 information, filtered RE states, KOZ gain
-%   from 0.05, chi 2, memory 0.8, projection facility 'alm' (since 2026-10-21; 'none' on 2026-10-20);
+%   from 0.05, chi 2, memory 0.8, projection facility 'alm';
 %   app 4 with RE information 'current'. The RE
 %   checks C2 and C3b use the hand-written RE(t-1) reference tests/models/sw07_re_lagged_pinf.model
 %   (SW07 with E_{t-1} pinf_{t+1}; = Dynare, test_re_info T1-T2) at the same parameters, with its own
@@ -52,7 +52,7 @@ addpath(spec.folder);                            % the package's parameter funct
 o0 = hetlearn.load_options(sw07_re());           % the project baseline (config/master_options.m) as the SW07 files get it
 pfun = spec.params;
 if ~isempty(o0.model_params)
-    pfun = o0.model_params;                      % 'sw07_params_original' since 2026-10-20
+    pfun = o0.model_params;                      % 'sw07_params_original' in the baseline
 end
 P = feval(pfun);
 % RE(t-1) reference (re_info = 'lagged' for {pinf}): hand-written model, its own smoother
@@ -569,7 +569,7 @@ for v = 1:numel(obs)
 end
 CH(end+1, :) = {'C1 RE replay of the smoothed shocks = data (a2_re, 7 observables, 2022Q3-2026Q2, max abs, model units)', ...
     e1 < 1e-9, sprintf('%.3g', e1)};
-% C2 RE scenario with learning blocks = the RE(t-1) model (re_info = 'lagged' since 2026-10-20): the
+% C2 RE scenario with learning blocks = the RE(t-1) model (re_info = 'lagged' in the baseline): the
 % hand-written reference, smoothed on the same data by its own filter and simulated from its origin state
 d0 = ref_state(m0, Sm0, R.a1_re.dates.origin, hz);
 s0 = simulate(m0, d0, hz, 'anticipate', false, 'prependInput', true);
@@ -695,12 +695,11 @@ CH(end+1, :) = {sprintf('C7a Evaluation parts partition the origins (%d parts; e
 CH(end+1, :) = {'C7b Merged errors = union of the part errors; merged tables = hetlearn.evaluate_tables on the merged errors (metrics, relative RMSE, DM; max abs)', ...
     all(okB) && height(TE) == height(PE) && e7a == 0 && all(e7b < 1e-12), ...
     sprintf('rows %d vs %d, errors %.3g, tables %.3g / %.3g / %.3g', height(TE), height(PE), e7a, e7b)};
-% C8 statuses. Since 2026-10-21 the baseline has projection.facility = 'alm' (2026-10-20: 'none', when a
-% quarter without a model solution stopped the run and C8 accepted those stops). Under 'alm' an unstable
+% C8 statuses. The baseline has projection.facility = 'alm' (under 'none' a
+% quarter without a model solution stops the run). Under 'alm' an unstable
 % model reverts the beliefs (and, if that is not enough, keeps last quarter's shares), so no run is
 % expected to stop: the check passes only if every run and every evaluation part is ok, except a
-% hetlearn:engine:noSolution stop of a run whose own facility is 'none' (none of the files sets 'none'
-% since 2026-10-20). The detail lists the facility events the runs record.
+% hetlearn:engine:noSolution stop of a run whose own facility is 'none' (none of the files sets 'none'). The detail lists the facility events the runs record.
 isNoSol = @(m) contains(m, 'noSolution') || (contains(m, 'has no solution') && contains(m, 'restricts nothing'));
 bad = {};
 stops = {};
@@ -756,8 +755,8 @@ if ~isempty(bad)
 end
 msg8 = [msg8 sprintf('; runs with facility events (beliefs reverted / shares kept / PLM blocks kept): %s', ...
     strjoin_or(fr, 'none')) sprintf('; evaluation engine events (all types, 138 origins each): %s', strjoin_or(fe, 'none'))];
-CH(end+1, :) = {sprintf(['C8 Every scenario has status ok: with projection.facility = ''%s'' (the baseline since ' ...
-    '2026-10-21) no run is expected to stop; a hetlearn:engine:noSolution stop is accepted only as the recorded result of ' ...
+CH(end+1, :) = {sprintf(['C8 Every scenario has status ok: with projection.facility = ''%s'' (the baseline' ...
+    ') no run is expected to stop; a hetlearn:engine:noSolution stop is accepted only as the recorded result of ' ...
     'a run whose facility is ''none'' (%d scenarios incl. %d evaluation variants)'], o0.projection.facility, nS, nnz(isEval)), ...
     isempty(bad), msg8};
 % C9 inversion fits the data; C10 share timing
@@ -967,7 +966,7 @@ for id = {'v3_all', 'v3_all_plm_alm', 'v3_all_alm'}
     E = R.(id{1}).events;
     K = addk(K, ['ev_explosive__' id{1}], sum(strcmp(E.type, 'explosive')), 'events', ['explosive events, ' id{1}]);
 end
-% variant 4 (since 2026-10-20): the KOZ gain is the baseline (a1_learn in the forecast, a6_smooth_learn
+% variant 4: the KOZ gain is the baseline (a1_learn in the forecast, a6_smooth_learn
 % over the history to 2026Q2); v4_const and v4_const_full hold the gain at 0.05
 Lk = R.a6_smooth_learn.learning.pinf;
 gk = Lk.gain(hd);
@@ -1037,7 +1036,7 @@ K = addk(K, 'ev_n_runs', es.n_runs, 'runs', 'Evaluation runs (variants x origins
 K = addk(K, 'ev_failures', height(es.failures), 'runs', 'Evaluation runs that failed');
 K = addk(K, 'ev_dm_fallbacks', es.dm_fallbacks, 'cells', 'DM cells with the Bartlett fallback');
 K = addk(K, 'ev_runtime_parts_s', sum(es.parts.runtime_s), 's', 'Evaluation compute time, sum over parts');
-% further numbers quoted in FINDINGS_v3.md
+% further key numbers
 g1 = (R.a1_learn.paths.pinfobs(hz) - R.a1_re.paths.pinfobs(hz)) * sc.pinfobs;
 for dq = {'2024Q2', '2025Q3', '2025Q4', '2026Q2'}
     K = addk(K, ['a1_gap_pinf_' dq{1}], g1(strcmp(hs, dq{1})), 'pp annualised', ['Learning-minus-RE inflation gap in ' dq{1}]);
@@ -1048,7 +1047,7 @@ for k = 1:4
     K = addk(K, ['a2_gap_pinf_' hs{k}], g2(k), 'pp annualised', ['Learning replay minus data, inflation, ' hs{k}]);
 end
 K = addk(K, 'a2_gap_pinf_absmax_after_2023Q2', max(abs(g2(5:end))), 'pp annualised', 'Largest absolute inflation gap of the learning replay after 2023Q2');
-if isfield(R, 'v1_mc_learn')                     % no results when it stopped (C8; it did under 'none', 2026-10-20)
+if isfield(R, 'v1_mc_learn')                     % no results when it stopped (C8; it can under 'none')
     Lm = R.v1_mc_learn.learning.pinf;
     for dq = {'2022Q4', '2024Q1', '2025Q2'}
         K = addk(K, ['v1_n2_model_' dq{1}], 1 - Lm.n1_model(hz(strcmp(hs, dq{1}))), 'share', ['Learners'' share in force in ' dq{1} ', model-consistent RE']);
@@ -1138,7 +1137,7 @@ for i = 1:size(la, 1)
             sprintf('Largest |real-time (%s) minus full-sample (%s) forecast| from 2022Q2, h = 1-8, %s', la{i, 1}, la{i, 2}, pv{v}));
     end
 end
-% covid treatment (user decision 2026-10-19): share path, inversion shocks in 2020, dropped targets
+% covid treatment: share path, inversion shocks in 2020, dropped targets
 for dq = {'2019Q4', '2020Q1', '2020Q2', '2020Q3', '2020Q4', '2021Q1', '2021Q2', '2021Q3', '2021Q4', '2022Q1', '2022Q2'}
     K = addk(K, ['a1_n2_end_' dq{1}], Lh.n2(hd(strcmp(hds, dq{1}))), 'share', ['n2 at the end of ' dq{1} ', a1_learn (RE-smoothed history)']);
 end
