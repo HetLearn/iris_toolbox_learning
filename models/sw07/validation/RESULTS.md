@@ -1,8 +1,8 @@
 # SW07 validation results (2026-10-17; filter re-run 2026-10-19)
 
 IRIS 20230622, MATLAB R2025a. Model `../sw07.model` at `../sw07_params.m` (swX1 mode).
-All checks **PASS**. Since 2026-10-19 the database has every observable missing (NaN) in
-2020Q1-2020Q3 (user decision: ignore the covid quarters; `covid_nan_quarters` in
+All checks **PASS**. The database has every observable missing (NaN) in
+2020Q1-2020Q3 (the covid quarters are ignored; `covid_nan_quarters` in
 `../data/build_database.m`); the filter treats them as missing data. The parameters are still
 the swX1 mode, estimated with those quarters in the sample.
 
