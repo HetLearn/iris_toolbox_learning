@@ -21,23 +21,24 @@ or, with latexmk:
   latexmk -pdf technical_appendix
 
 Packages: fontenc, inputenc, lmodern, textcomp, geometry, amsmath, amssymb, booktabs,
-array, longtable, enumitem, xcolor, listings, natbib, hyperref. All are in a standard TeX
-Live or MiKTeX installation. No figures, no shell escape.
+array, longtable, enumitem, xcolor, listings, natbib, url, hyperref. All are in a standard
+TeX Live or MiKTeX installation. No figures, no shell escape.
 
 Editing notes
-  - Inline code is written \code{...}. It prints its argument literally (underscores,
-    braces, quotes), but the argument must not contain %, # or a backslash. Write \texttt{\%}
-    for a percent sign.
-  - In a section title, wrap \code in \texorpdfstring, e.g.
-    \subsubsection{\texorpdfstring{\code{gain.value}}{gain.value}}.
+  - Inline code is written \code{...} (a url-package command). It prints its argument
+    literally (underscores, braces, quotes) and can break at punctuation and spaces. The
+    argument must not contain %, # or a backslash. Write \texttt{\%} for a percent sign.
+  - In headings, inside \texorpdfstring and inside math, write \codem{...} instead: it
+    prints the same but cannot break. In a section title, wrap it in \texorpdfstring, e.g.
+    \subsubsection{\texorpdfstring{\codem{gain.value}}{gain.value}}.
   - Every option entry is an optspec environment with the fields Default, Values, Math,
-    Assumptions, Interactions, Code, Example; the examples are lstlisting blocks.
+    Assumptions, Interactions, Code, Example; the examples are lstlisting blocks of one or
+    two lines.
   - Appendix A lists every option with its default; add a row there when an option is added.
 
 Scope and status
-  The appendix documents the core toolbox (two agent types: RE agents and learners) as in
-  toolbox/+hetlearn on 2026-10-22. It leaves out the bounded-rationality extensions
-  (expectations.types, expectations.transforms, shares.init, shares.fixed) and the estimation
-  module. It was written without a LaTeX installation: brace and environment balance, labels,
-  references and citation keys were checked with a script, but the file has not been compiled
-  yet. Compile it once on Overleaf and fix any message before circulating the PDF.
+  The appendix documents the core toolbox (two agent types: RE agents and learners) in
+  toolbox/+hetlearn. It leaves out the bounded-rationality extensions (expectations.types,
+  expectations.transforms, shares.init, shares.fixed) and the estimation module.
+  Compiles with pdflatex and bibtex (TinyTeX, TeX Live 2026) with no errors, no undefined
+  references and no overfull lines.
