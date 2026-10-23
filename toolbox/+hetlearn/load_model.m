@@ -81,8 +81,8 @@ function [m, info] = load_model(spec, opts)
 %   (hetlearn:load_model:solveFailed); 'anchored' for a model without
 %   plain state names or a nonlinear model (hetlearn:load_model:anchored).
 %
-%   N agent types (expectations.types, docs/DESIGN_br_extensions.md 1.1-1.2,
-%   phase P2): hetlearn.agent_types resolves the types; the model comes from
+%   N agent types (expectations.types, docs/USER_GUIDE.md sections 7.1-7.2):
+%   hetlearn.agent_types resolves the types; the model comes from
 %   hetlearn.extend_model(spec, plm, 'types', ...) (<name>_ext_n<hash>.model),
 %   loaded at its RE limit (n_RE_<x> = 1, every other share 0, beliefs 0,
 %   rule constants at their values, anchored coefficients as above for the RE
@@ -99,13 +99,13 @@ function [m, info] = load_model(spec, opts)
 %   two-type system). N types with policy.mode = 'ramsey' are not supported
 %   (hetlearn:load_model:types).
 %
-%   Forecast transforms (expectations.transforms, DESIGN_br_extensions 1.3,
-%   phase P3) take the N-type path (the default pair spelled out when no types
+%   Forecast transforms (expectations.transforms, docs/USER_GUIDE.md section
+%   7.3) take the N-type path (the default pair spelled out when no types
 %   are given; generator version 7). Their factors are parameters set here from
 %   the options: multipliers D(h) = m^h per type, h = 2 for a type with t-1
 %   information and 1 otherwise, theta, omega_f and b; recorded in
 %   info.nt.model_values.transforms (res.meta.model_values). Anchored RE
-%   coefficients (D11) come from the variant's own RE limit, model-consistent:
+%   coefficients come from the variant's own RE limit, model-consistent:
 %   hetlearn.re_anchor_coefficients ('lagged') or, with period-t information,
 %   the RE limit's state space over the original states; the IRFs of the
 %   anchored and model-consistent RE limits must agree (1e-10). The factor
@@ -115,15 +115,14 @@ function [m, info] = load_model(spec, opts)
 %   transform the generator left out of a learning variable's type
 %   (meta.transforms.blocked).
 %
-%   Generalised anchor (DESIGN_br_extensions 1.4, phase P4): with extra anchored
+%   Generalized anchor (docs/USER_GUIDE.md section 7.5): with extra anchored
 %   terms (the memory states of diagnostic expectations, the anchored
 %   diagnostic reference) the RE type's coefficients come from
 %   hetlearn.anchor_coefficients in the anchor economy (anchor_general);
 %   're_mean' types get a mean-only PLM of x_feRE. The level types, the rule
 %   term re1(...), the wedge and partial-adjustment transforms, the multiplier
 %   profiles other than m^h and the model values model:bma, model:sd_ygap_half,
-%   model:projection and model:acd51 were removed on 2026-10-22
-%   (docs/BR_audit.txt).
+%   model:projection and model:acd51 are not supported.
 %
 %   See also hetlearn.extend_model, hetlearn.re_filter, hetlearn.run,
 %   hetlearn.re_anchor_coefficients, hetlearn.anchor_coefficients.
@@ -135,7 +134,7 @@ end
 % by an older version (e.g. res.cfg of an earlier run) gets the options
 % added since; an up-to-date merged tree comes back unchanged.
 opts = hetlearn.load_options(opts);
-% Parameter set of this run (option model_params, 2026-10-20): another parameter function of the
+% Parameter set of this run (option model_params): another parameter function of the
 % same package replaces spec.params here and in everything below (generator checks, anchored
 % coefficients, policy discount, info.params and so the RE filter cache key)
 if ~isempty(opts.model_params)
@@ -146,7 +145,7 @@ if ~isempty(opts.model_params)
     end
     spec.params = opts.model_params;
 end
-AT = hetlearn.agent_types(opts);          % N agent types (DESIGN_br_extensions 1.1); default: off
+AT = hetlearn.agent_types(opts);          % N agent types; default: off
 if AT.ntype
     [m, info] = load_ntype(spec, opts, AT);
     return
@@ -372,7 +371,7 @@ info.pList = pList;
 info.model_hash = hetlearn.util.md5(hetlearn.util.file_bytes(meta.ext_file));
 info.policy = pol;
 if AT.engine
-    % the default pair RE/BR on the N-type engine path (DESIGN_br_extensions 1.2), two-type file
+    % the default pair RE/BR on the N-type engine path, two-type file
     if ~isempty(pol) && pol.ramsey
         error('hetlearn:load_model:types', ['shares.init and shares.fixed (the N-type engine path) are not ' ...
             'supported with policy.mode = ''ramsey'' yet.']);
@@ -384,7 +383,7 @@ end
 
 
 % =========================================================================
-% N agent types (DESIGN_br_extensions 1.1, phase P2)
+% N agent types (docs/USER_GUIDE.md section 7.1)
 % =========================================================================
 function [m, info] = load_ntype(spec, opts, AT)
 v = opts.expectations.variables;
@@ -401,7 +400,7 @@ if needLv
         end
     end
 end
-X = opts.expectations.transforms;          % forecast transforms (DESIGN_br_extensions 1.3, phase P3)
+X = opts.expectations.transforms;          % forecast transforms
 if isempty(X)
     meta = hetlearn.extend_model(spec, opts.beliefs.plm, 'types', gen);
 else
@@ -427,7 +426,7 @@ if anchored && ~(isfield(meta, 'anchor_ok') && meta.anchor_ok && logical(spec.li
 end
 if hasTF && anchTog && ~isempty(meta.transforms.deferred)
     % a diagnostic transform on an RE type that follows re_variant: with information up to t-1 the
-    % anchored version has the reference x_DEg_RE{-1} (phase P4, meta.transforms.deg_vars); with
+    % anchored version has the reference x_DEg_RE{-1} (meta.transforms.deg_vars); with
     % period-t information the anchored reference is not built
     degv = {};
     if isfield(meta.transforms, 'deg_vars')
@@ -438,13 +437,13 @@ if hasTF && anchTog && ~isempty(meta.transforms.deferred)
     if ~isempty(dv)
         error('hetlearn:load_model:transforms', ['expectations.transforms(%d) (diagnostic) acts on the anchored ' ...
             'RE forecast of %s (type %s, expectations.re_variant = ''anchored'') with period-t information: its ' ...
-            'anchored reference E_{t-1} x_{t+1} is built for RE information up to t-1 only (phase P4). Set ' ...
+            'anchored reference E_{t-1} x_{t+1} is built for RE information up to t-1 only. Set ' ...
             'expectations.re_info = ''lagged'' or expectations.re_variant = ''model_consistent''.'], dv(1).i, ...
             dv(1).var, dv(1).type);
     end
 end
 if hasTF && ~isempty(meta.transforms.blocked)
-    % a transform that phase P3 leaves out of a type's forecast, on a variable that learns in this run
+    % a transform that the generator leaves out of a type's forecast, on a variable that learns in this run
     bv = meta.transforms.blocked(ismember({meta.transforms.blocked.var}, learnVars));
     if ~isempty(bv)
         error('hetlearn:load_model:transforms', ['expectations.transforms(%d) (%s) acts on the forecast of %s ' ...
@@ -497,7 +496,7 @@ reCheck = [];
 mMC = [];
 TFI = [];
 if hasTF
-    % forecast transforms: factors and the anchor economy (D11)
+    % forecast transforms: factors and the anchor economy
     [m, TFI, anchorInfo, mMC] = tf_prepare(spec, meta, opts, AT, A, Pm, Z, P, m, anchored, lagged, learnVars);
 elseif anchored && ~lagged
     [Aa, anchorInfo] = hetlearn.re_anchor_coefficients(spec, P, 'vars', meta.forward_vars, ...
@@ -529,7 +528,7 @@ if logical(spec.linear)
     m = sstate(m);
 end
 if hasTF
-    % anchored = model-consistent at n_RE = 1 (D11)
+    % anchored = model-consistent at n_RE = 1
     reCheck = tf_finish(m, mMC, anchored, learnVars);
 end
 if ~hasTF && anchored && lagged
@@ -616,11 +615,11 @@ end
 
 
 % =========================================================================
-% Forecast transforms (DESIGN_br_extensions 1.3 and D11, phase P3)
+% Forecast transforms (docs/USER_GUIDE.md section 7.3)
 % =========================================================================
 function [m, TFI, anchorInfo, mA] = tf_prepare(spec, meta, opts, AT, A, Pm, Z, P, m, anchored, lagged, learnVars)
 % Factors of the transforms (from the options: the generated file holds their structure only) and
-% the anchored coefficients. The anchor economy (D11) is the variant's own RE limit: this file at
+% the anchored coefficients. The anchor economy is the variant's own RE limit: this file at
 % n_RE = 1, model-consistent (re_anchored = false).
 Tm = meta.transforms;
 V = tf_values(Tm, opts.expectations.transforms, AT);
@@ -636,8 +635,8 @@ if anchored
     mA = assign(mA, V);
     mA = tf_solve(mA, spec, meta);
     if has_extra(meta, learnVars)
-        % phase P4: the anchored expression has terms on states that the transforms add (memory states
-        % of diagnostic expectations, the anchored diagnostic reference): the generalised anchor
+        % generalized anchor: the anchored expression has terms on states that the transforms add (memory states
+        % of diagnostic expectations, the anchored diagnostic reference): the generalized anchor
         [Aa, anchorInfo] = anchor_general(mA, meta, learnVars, lagged, A);
     elseif lagged
         try
@@ -686,7 +685,7 @@ for q = 1:numel(Tm.params)
     x = X(p.i);
     switch p.role
         case 'D'
-            % multiplier D(h) = m^h (DESIGN_br_extensions 1.3): h = 1 for the model-consistent E_t x_{t+1},
+            % multiplier D(h) = m^h: h = 1 for the model-consistent E_t x_{t+1},
             % h = 2 for a type with t-1 information (E_{t-1} x_{t+1})
             h = 1;
             if ~isempty(p.type)
@@ -709,8 +708,8 @@ end
 
 
 function [A, info] = tf_anchor_current(mA, meta, learnVars)
-% Anchored E_t x_{t+1} = k + c' s_t (period-t information) in the variant's RE limit mA (D11), over
-% the original model's states; a loading on any other state needs the generalised anchor (P4)
+% Anchored E_t x_{t+1} = k + c' s_t (period-t information) in the variant's RE limit mA, over
+% the original model's states; a loading on any other state needs the generalized anchor
 xv = cellstr(get(mA, 'xVector'));
 xb = reshape(cellstr(get(mA, 'xbVector')), 1, []);
 states = reshape(cellstr(meta.re_states), 1, []);
@@ -728,7 +727,7 @@ end
 iO = setdiff(1:numel(xb), iS);
 A = struct();
 info = struct('states', {states}, 'vars', {learnVars}, 'k', struct(), 'c', struct(), 'param_names', struct(), ...
-    'check_maxdiff', NaN, 're_info', 'current', 'economy', 'RE limit of the variant with its forecast transforms (D11)');
+    'check_maxdiff', NaN, 're_info', 'current', 'economy', 'RE limit of the variant with its forecast transforms');
 for i = 1:numel(learnVars)
     x = learnVars{i};
     pos = find(strcmp(xv, x), 1);
@@ -738,7 +737,7 @@ for i = 1:numel(learnVars)
         if big >= 1e-12
             error('hetlearn:load_model:transforms', ['The anchored RE forecast of %s in the RE limit with the forecast ' ...
                 'transforms loads on %s (coefficient %.3g), not a state of the original model: this needs the ' ...
-                'generalised anchor of phase P4. Set expectations.re_variant = ''model_consistent'' meanwhile.'], ...
+                'generalized anchor, which the generated file does not have. Set expectations.re_variant = ''model_consistent''.'], ...
                 x, xb{iO(w)}, big);
         end
     end
@@ -800,7 +799,7 @@ for f = reshape(fieldnames(meta.anchor_params), 1, [])
         Z.(pn{j}) = 0;
     end
 end
-if isfield(meta, 'anchor_extra')          % phase P4: the anchored diagnostic reference
+if isfield(meta, 'anchor_extra')          % generalized anchor: the anchored diagnostic reference
     for f = reshape(fieldnames(meta.anchor_extra), 1, [])
         pn = meta.anchor_extra.(f{1});
         for j = 1:numel(pn)
@@ -815,7 +814,7 @@ end
 
 
 % =========================================================================
-% Generalised anchor (DESIGN_br_extensions 1.4, phase P4)
+% Generalized anchor (docs/USER_GUIDE.md section 7.5)
 % =========================================================================
 function tf = has_extra(meta, learnVars)
 % the RE type's anchored expression of a learning variable has terms beyond the original states
@@ -898,7 +897,7 @@ end
 
 
 function [Aa, info] = anchor_general(mA, meta, learnVars, lagged, A)
-% Anchored RE coefficients (D11, phase P4) over the original states and the extra terms of the
+% Anchored RE coefficients (generalized anchor) over the original states and the extra terms of the
 % generated text: E_{t-j} x_{t+1} (and E_{t-1} x_{t+2}, the anchored diagnostic reference) in the anchor
 % economy mA, the chain states of the RE type solved out; the reference's own lag x_DEg_RE{-1} takes
 % the coefficient on x_REt3{-1}. Terms whose state does not exist under the toggles are 0.
@@ -921,7 +920,7 @@ Aa = struct();
 info = struct('states', {st}, 'vars', {learnVars}, 'k', struct(), 'c', struct(), 'param_names', struct(), ...
     'check_maxdiff', ic.check_maxdiff, 're_info', ternary(lagged, 'lagged', 'current'), 'cz', ic.cz, ...
     'fixed_point_rcond', ic.fixed_point_rcond, 'targets', tg, 'own_lags', R.own_lags, ...
-    'economy', 'RE limit of the variant with its forecast transforms (D11), generalised anchor (phase P4)');
+    'economy', 'RE limit of the variant with its forecast transforms, generalized anchor');
 for i = 1:numel(learnVars)
     x = learnVars{i};
     xs = meta.anchor_xstates.(x);
@@ -1001,7 +1000,7 @@ for j = 1:numel(AT.types)
                 t.data_maxlag = max(t.data_maxlag, R.maxlag);
             end
         case 're_mean'
-            % RE forecast plus a learned mean of its error (phase P4, mechanism 23): a mean-only PLM of the
+            % RE forecast plus a learned mean of its error (the intercept-only type): a mean-only PLM of the
             % generated target <x>_feRE = x - x_exp1_RE{-1}
             zv = strcat(t.vars, '_feRE');
             bv = struct();
