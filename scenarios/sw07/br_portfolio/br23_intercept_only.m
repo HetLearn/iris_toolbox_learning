@@ -3,8 +3,8 @@ function cfg = br23_intercept_only()
 %
 %   cfg = br23_intercept_only()
 %
-%   As a1_learn, with docs/DESIGN_br_extensions.md mechanism 23 and the 23
-%   row of section 3: the learner type (IO) forecasts the anchored RE(t-1)
+%   As a1_learn, with rule 23 of the portfolio (docs/USER_GUIDE.md
+%   section 7.7): the learner type (IO) forecasts the anchored RE(t-1)
 %   forecast plus a learned mean of that forecast's own error (the KOZ gain
 %   of the baseline, from 0.05); it switches against the RE agents as in the
 %   baseline. Gati's smooth anchoring function is not used (knots not in the
