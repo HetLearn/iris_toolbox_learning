@@ -88,15 +88,15 @@ nav:
   - Getting started:
       - Installation: getting-started/installation.md
       - Quick start: getting-started/quick-start.md
-  - Tutorial:
-      - "Application 1: the 2022Q2 peak": tutorial/application-1.md
   - Applications:
       - applications/index.md
+      - "Application 1: the 2022Q2 peak": applications/app1-peak.md
       - "Application 2: shock replay": applications/app2-replay.md
       - "Application 3: policy deviations": applications/app3-policy.md
       - "Application 4: Ramsey policy": applications/app4-ramsey.md
       - "Application 5: density forecasts": applications/app5-density.md
       - "Application 6: history and decompositions": applications/app6-history.md
+      - "Application 7: further expectation rules": applications/app7-rules.md
   - Options:
       - options/index.md
       - Expectations: options/expectations.md
@@ -114,7 +114,7 @@ nav:
       - Shock decompositions: options/decompositions.md
       - Forecast evaluation: options/evaluation.md
       - Further expectation rules: options/further-expectation-rules.md
-  - Your own model: your-own-model.md
+  - Adding a model: adding-a-model.md
   - Reference:
       - Options reference: reference/options.md
       - Functions and outputs: reference/functions-outputs.md
