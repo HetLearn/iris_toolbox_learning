@@ -3,15 +3,15 @@ function cfg = a6_kalman_learn()
 %
 %   cfg = a6_kalman_learn()
 %
-%   As a6_smooth_learn with history.mode = 'kalman' (docs/DESIGN_br_extensions.md
-%   sec. 5, phase P1): each quarter the ALM in force (beliefs and shares from the end of
+%   As a6_smooth_learn with history.mode = 'kalman' (technical appendix,
+%   "The Kalman history"): each quarter the ALM in force (beliefs and shares from the end of
 %   the quarter before) is solved, the Kalman filter predicts and updates with that
 %   quarter's data, and the agents learn from the filtered values in real time. The
 %   default start, history.kalman.init = 'stochastic', is the asymptotic distribution of
 %   the RE limit in 1965Q1. res.kalman and kalman_errors.csv hold the one-step prediction
 %   errors of the 7 observables and the log likelihood; the in-sample RMSE benchmark is
 %   a6_kalman_re (RE(t-1), same mode): hetlearn.engine.kalman_history('rmse', res).
-%   The 4-quarter forecast starts from the filtered state at 2026Q2 (D12). Writes
+%   The 4-quarter forecast starts from the filtered state at 2026Q2. Writes
 %   compare_a6_kalman_re.csv.
 %
 %   history.re_states = 'smoothed': the baseline sets 'filtered', which applies to the
