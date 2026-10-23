@@ -162,12 +162,12 @@ This appendix covers the core toolbox: two agent types (RE agents and learners),
 learning, switching and every stage built on them. It leaves out two parts of the repository:
 
 \begin{itemize}[nosep]
-  \item the bounded-rationality extensions of \code{docs/DESIGN_br_extensions.md}: the options
-        \code{expectations.types}, \code{expectations.transforms}, \code{shares.init},
-        \code{shares.fixed}, the type kinds \code{'rule'} and \code{'re_mean'}, and the N-type
-        paths of the engine (\code{+engine/ntypes.m}). A later chapter will document the
-        further expectation rules. Every one of these options is off by default, and a run that sets none of them
-        takes the two-type code described here;
+  \item the bounded-rationality extensions, which Section~7 of the user guide describes as the
+        further expectation rules: the options \code{expectations.types},
+        \code{expectations.transforms}, \code{shares.init}, \code{shares.fixed}, the type kinds
+        \code{'rule'} and \code{'re_mean'}, and the N-type paths of the engine
+        (\code{+engine/ntypes.m}). Every one of these options is off by default, and a run that
+        sets none of them takes the two-type code described here;
   \item the Bayesian estimation module (\code{estimation/}, package \code{+hlest}), which has
         its own copy of the toolbox and no scenario uses it.
 \end{itemize}
