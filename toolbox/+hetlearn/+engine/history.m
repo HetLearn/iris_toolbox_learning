@@ -101,7 +101,7 @@ hinfo = alm_info();
 if ~logical(ctx.opts.history.learn)
     t = ctx.origin;
     getVal = @(name, k) sm.(name)(t + k);
-    if hetlearn.engine.ntypes('on', ctx)       % N agent types (DESIGN_br_extensions 1.1)
+    if hetlearn.engine.ntypes('on', ctx)       % N agent types
         [F, X] = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'history', t);
         S = hetlearn.engine.ntypes('store', ctx, S, F, X);
         rec = hetlearn.engine.record(rec, 1, ctx, S, hetlearn.engine.ntypes('no_update', ctx), []);
@@ -174,8 +174,8 @@ origin = double(ctx.origin);
 for k = 1:numel(dates)
     t = dates(k);
     getVal = @(name, j) sm.(name)(t + j);
-    if hetlearn.engine.ntypes('on', ctx)       % N agent types: every type's forecast (DESIGN_br_extensions 1.1)
-        [fRE, fBR] = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'history', t);   % fBR: before the transforms (P4)
+    if hetlearn.engine.ntypes('on', ctx)       % N agent types: every type's forecast
+        [fRE, fBR] = hetlearn.engine.ntypes('forecasts', ctx, S, getVal, 'history', t);   % fBR: before the transforms
     else
         fRE = struct();
         fBR = struct();
