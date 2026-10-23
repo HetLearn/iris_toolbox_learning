@@ -1,7 +1,8 @@
 # Forecast evaluation
 
 `hetlearn.evaluate` runs recursive out-of-sample forecasts of several scenario variants from a
-series of origins and compares their accuracy with a benchmark, with Diebold-Mariano tests.
+series of origins and compares their accuracy with a benchmark: root-mean-square errors (RMSE),
+relative RMSE and Diebold-Mariano (DM) tests.
 
 ```matlab
 E = hetlearn.evaluate(name, variants, origins, opts)
@@ -15,10 +16,10 @@ E = hetlearn.evaluate(name, variants, origins, opts)
 | `opts.horizon` | Forecast horizon H (default 8) |
 | `opts.benchmark` | Variant id for relative RMSE and DM tests (default: the first) |
 | `opts.dm` | Diebold-Mariano tests (default `true`) |
-| `opts.dm_hln` | Harvey-Leybourne-Newbold small-sample correction and t(n-1) p-values (default `true`) |
+| `opts.dm_hln` | Harvey-Leybourne-Newbold (HLN) small-sample correction and t(n-1) p-values (default `true`) |
 | `opts.dm_kernel` | `''` (default: `'uniform'` with HLN, else `'bartlett'`), `'uniform'`, `'bartlett'` |
 | `opts.subsamples` | struct of `[start, end]` target-date ranges; every table is also given for each |
-| `opts.realtime` | `history.realtime` of every run (default `true`: the RE filter sees data up to the origin only) |
+| `opts.realtime` | `history.realtime` of every run (default `true`: the rational expectations (RE) filter sees data up to the origin only) |
 | `opts.results_dir` | Parent folder (default `results/`) |
 | `opts.save` | Write `eval_<name>/` (default `true`) |
 | `opts.quiet` | No progress lines (default `false`) |
@@ -26,7 +27,7 @@ E = hetlearn.evaluate(name, variants, origins, opts)
 For every origin, each variant runs with the origin and horizon set, zero future shocks, no
 conditions, no density and no comparisons, and a real-time RE filter. So only the expectations
 side of a scenario file matters. Errors are actual minus forecast in report units (inflation
-annualised), for every observable and h = 1..H; targets without data are skipped.
+annualized), for every observable and h = 1..H; targets without data are skipped.
 
 ## Example
 
@@ -74,7 +75,8 @@ next to the errors when there is one:
 ## The DM test
 
 The loss differential is \(d_t = e^2_{variant,t} - e^2_{benchmark,t}\) (negative mean: the variant
-is more accurate). The statistic is \(\bar d / \sqrt{\widehat{LRV}/n}\) with h-1 autocovariances.
+is more accurate). The statistic is \(\bar d / \sqrt{\widehat{LRV}/n}\), with \(\widehat{LRV}\) the estimated long-run variance (LRV)
+of \(d_t\) from h-1 autocovariances.
 The `'uniform'` kernel uses \(\gamma_0 + 2\sum_{k<h}\gamma_k\), with a Bartlett fallback where
 that is not positive; `'bartlett'` uses Newey-West weights. With the HLN correction the
 statistic is multiplied by \(\sqrt{(n + 1 - 2h + h(h-1)/n)/n}\) and compared with a Student t
@@ -98,8 +100,8 @@ The settings are in `run_applications.m`, function `eval_settings`. Before a rer
 origins, horizon or variants, move `results/eval_sw07_v3/parts/` aside: the merge reads every
 part folder and stops on parts with other settings or overlapping origins.
 
-Inflation, full sample, relative RMSE against RE(t-1) (`e01_re`; RE RMSE 1.42, 1.65 and 1.68 pp
-at h = 1, 4, 8):
+Inflation, full sample, relative RMSE against the RE model with t-1 information (`e01_re`; RE
+RMSE 1.42, 1.65 and 1.68 percentage points at h = 1, 4, 8):
 
 | Variant | h = 1 | h = 4 | h = 8 |
 |---|---:|---:|---:|
