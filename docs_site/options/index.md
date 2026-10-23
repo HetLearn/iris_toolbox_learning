@@ -11,7 +11,7 @@ hetlearn.defaults()  <  config/master_options.m  <  the scenario's cfg
 ```
 
 `hetlearn.load_options` merges the three field by field (later wins) and checks every name
-and value. A misspelt field stops the run with `hetlearn:options:unknown` and the full option
+and value. A misspelled field stops the run with `hetlearn:options:unknown` and the full option
 path; a removed option stops it with `hetlearn:options:removed` and names the replacement.
 The merged tree is stored with every result as `res.cfg`.
 
@@ -38,7 +38,7 @@ Some groups are replaced as a whole rather than merged: `conditions`, `policy.lo
 subtrees are merged without name checks: `beliefs.init.values`, `beliefs.plm.by_var`,
 `beliefs.plm.derived`, `gain.by_var`, `shares.fixed_n2` (as a struct), `shocks.add`, `report`.
 
-To see the options a scenario ends up with:
+The options a scenario ends up with:
 
 ```matlab
 opts = hetlearn.load_options(a1_learn());
@@ -46,6 +46,8 @@ opts.gain
 ```
 
 ## The pages
+
+One page per group of options (RE: rational expectations):
 
 | Page | Options and functions |
 |---|---|
@@ -63,11 +65,11 @@ opts.gain
 | [Density forecasts](densities.md) | `density.*` |
 | [Shock decompositions](decompositions.md) | `hetlearn.decompose` |
 | [Forecast evaluation](evaluation.md) | `hetlearn.evaluate`, `hetlearn.evaluate_tables` |
-| [Further expectation rules](further-expectation-rules.md) | `expectations.types`, `expectations.transforms`, `shares.init`, `shares.fixed`; seven rules from the literature |
+| [Further expectation rules](further-expectation-rules.md) | `expectations.types`, `expectations.transforms`, `shares.init`, `shares.fixed` |
 
 !!! note "Defaults and the project baseline"
-    The examples use the SW07 scenarios of the project, which inherit the project baseline of
-    `config/master_options.m` (KOZ gain from 0.05, \(\chi = 2\), memory 0.8, t-1 information
-    for both types, filtered history, facility `'alm'`). Where a page quotes a default, it is
-    the value in `hetlearn.defaults()`; the baseline value is given next to it when they
-    differ.
+    The examples use the scenarios of the project's Smets and Wouters (2007) model, which
+    inherit the project baseline of `config/master_options.m`
+    ([Application 1, section 3](../applications/app1-peak.md#3-the-baseline-settings)). Where
+    a page quotes a default, it is the value in `hetlearn.defaults()`; the baseline value is
+    given next to it when they differ.
