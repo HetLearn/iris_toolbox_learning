@@ -6,7 +6,7 @@ function cfg = a4_rule_learn()
 %   As a1_learn with the policy loss reported over 80 quarters (zero-shock
 %   continuation; learning continues). Writes compare_a4_rule_re.csv.
 %
-%   Deviation from the baseline (2026-10-20, the only one): the RE agents use
+%   Deviation from the baseline (the only one): the RE agents use
 %   information 'current' (E_t pinf_{t+1}) in application 4, because Ramsey
 %   policy is not supported with expectations.re_info = 'lagged' (DESIGN 19);
 %   see a4_rule_re.m. The learners keep t-1 data (beliefs.info = 'lagged').
