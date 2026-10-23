@@ -1,5 +1,5 @@
 function A = agent_types(opts)
-%AGENT_TYPES  Agent types of a run: expectations.types resolved against the other options (DESIGN_br_extensions 1.1-1.2).
+%AGENT_TYPES  Agent types of a run: expectations.types resolved against the other options (docs/USER_GUIDE.md sections 7.1-7.2).
 %
 %   A = hetlearn.agent_types(opts)
 %
@@ -15,7 +15,7 @@ function A = agent_types(opts)
 %                    out the default pair RE ('re') and BR ('plm').
 %     .engine        true when the engine takes its N-type path: N types, or the
 %                    default pair RE/BR with shares.init or shares.fixed. False:
-%                    the two-type code of 2026-10-20
+%                    the two-type code
 %                    (hetlearn.switching.discrete_choice), unchanged.
 %     .legacy_file   true for the default pair on the N-type engine path: the
 %                    model is the two-type file (x_exp1_RE, x_exp1_BR, n1_x,
@@ -44,9 +44,9 @@ function A = agent_types(opts)
 %                    name, kind, variant, info, plm, rule, variables
 %
 %   Every type inherits its information set, PLM, update and gain: the
-%   per-type fields, the kind 'level' and a second 're' type were removed on
-%   2026-10-22 with the portfolio variants that used them (docs/BR_audit.txt).
-%   Kind 're_mean' (mechanism 23): the RE type's forecast plus a learned mean
+%   per-type fields, the kind 'level' and a second 're' type are not
+%   supported.
+%   Kind 're_mean' (the intercept-only type): the RE type's forecast plus a learned mean
 %   of its own error, with the RE type's variant and information. Only
 %   switching.rule = 'discrete_choice' (error hetlearn:types:unsupported).
 %
@@ -57,7 +57,7 @@ sw = opts.switching;
 A = struct();
 hasTF = isfield(opts.expectations, 'transforms') && ~isempty(opts.expectations.transforms);
 if isempty(T) && hasTF
-    % forecast transforms (DESIGN_br_extensions 1.3, phase P3) are written by the N-type writer: without
+    % forecast transforms are written by the N-type writer: without
     % expectations.types the population is the default pair, spelled out (RE kind 're', BR kind 'plm')
     T = default_pair_types();
 end
@@ -106,7 +106,7 @@ else
                 b.update = char(opts.beliefs.update);
                 b.gain = opts.gain;
             case 're_mean'
-                % the RE type's forecast plus a learned mean of its error (mechanism 23, phase P4)
+                % the RE type's forecast plus a learned mean of its error (the intercept-only type)
                 b = base;
                 b.name = t.name;
                 b.kind = 're_mean';
