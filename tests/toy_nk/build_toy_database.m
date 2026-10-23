@@ -7,7 +7,7 @@ function file = build_toy_database()
 %   with unanticipated N(0, std) shocks (rng seed 20261017) over
 %   1990Q1-2029Q4 from the steady state and writes obs_y, obs_pie, obs_r over
 %   2000Q1-2029Q4 to data/nk3_database.csv (databank.toCSV). Needs IRIS and
-%   the hetlearn toolbox on the path (setup_paths).
+%   the HetLearn toolbox on the path (setup_paths).
 
 here = fileparts(mfilename('fullpath'));
 spec = hetlearn.load_spec(here);
