@@ -35,7 +35,7 @@ classdef Insertable
                 add.Type = repmat(type, 1, numToAdd);
                 newPos = posLast + (1:numToAdd);
             else
-                % hetlearn patch (toolbox/iris_patches, DESIGN 13): the optimal-policy
+                % HetLearn patch (toolbox/iris_patches, DESIGN 13): the optimal-policy
                 % parser passes a vector `where` here. MATLAB R2025a rejects a
                 % non-scalar colon operand ("Colon operands must be real scalars");
                 % older MATLAB releases used its first element, which this restores.
