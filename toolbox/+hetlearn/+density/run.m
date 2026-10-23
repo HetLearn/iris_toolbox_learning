@@ -27,7 +27,7 @@ function [D, cols] = run(F, res, H)
 %                 then per learning variable x: n2_model_<x> (1 - the RE share
 %                 used in the model in t) and its belief parameters
 %                 (sys.eq param_names, e.g. alpha_x, beta_x). N agent types
-%                 and forecast transforms (ctx.nt, phase P6): per learning
+%                 and forecast transforms (ctx.nt): per learning
 %                 variable x, n_model_<k>_<x> (the model share of type k in
 %                 t) for every type k of x, then the belief parameters of
 %                 each learning type's PLM equation of x (names with the
@@ -88,7 +88,7 @@ N = size(E, 3);
 obs = spec.observables(ismember(spec.observables, fieldnames(res.paths)));
 lv = ctx.learnVars;
 sys = ctx.sys;
-isNT = hetlearn.engine.ntypes('on', ctx);       % N agent types, forecast transforms (phase P6)
+isNT = hetlearn.engine.ntypes('on', ctx);       % N agent types, forecast transforms
 % share: '' = 1 - n1_model (two types), else the record field of a type's model share; lkey: the
 % res.learning entry of the point value
 spc = struct('name', {}, 'kind', {}, 'var', {}, 'eq', {}, 'row', {}, 'share', {}, 'lkey', {});
@@ -259,7 +259,7 @@ end
 
 
 function spc = nt_series(spc, ctx)
-% N agent types (phase P6): per learning variable x the model share of each of its types (record field
+% N agent types: per learning variable x the model share of each of its types (record field
 % n_model_<k>), then the belief parameters of each learning type's PLM equation of x (keyed system
 % ctx.sys: e.type = the type, e.var = x, or <x>_feRE for a 're_mean' type; auxiliary equations left out)
 nt = ctx.nt;
