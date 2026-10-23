@@ -26,7 +26,7 @@ function R = test_anchored(parts)
 %   S1 collapse test incl. re_anchored, coefficient check; the anchored model
 %      with all 12 learning has no leads and backward_simulate = IRIS simulate
 %      at n1 = 1 from the smoothed 2022Q2 state (transition + measurement)
-%   (S0, the bit-identity pin against results/, was removed on 2026-10-18;
+%   (S0, the bit-identity pin against results/, was removed;
 %   the stored reference for the new defaults is tests/reference/, see test_gain G14)
 %   S2 smoke runs from the 2022Q2 peak, zero shocks, switching (sw07_smoke_run):
 %      anchored pinf only; anchored all 12 (per-variable shares); VAR(1) over
@@ -111,7 +111,7 @@ nm = 'anchored A2: anchored rational run = model-consistent rational run (random
 try
     cM = base;
     cM.id = 'toy_anch_a2_mc';
-    cM.expectations.re_variant = 'model_consistent';   % anchored is the default since 2026-10-18
+    cM.expectations.re_variant = 'model_consistent';   % anchored is the default
     cA = base;
     cA.id = 'toy_anch_a2_anch';
     cA.expectations.re_variant = 'anchored';
