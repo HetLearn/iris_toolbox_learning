@@ -1,10 +1,10 @@
-# hetlearn: heterogeneous expectations for IRIS models
+# HetLearn: heterogeneous expectations for IRIS models
 
 > **Disclaimer.** This is a Claude-assisted project. The code, tests and documentation were
 > developed with Anthropic's Claude, in particular Claude Opus 5.5, under the author's direction
 > and review.
 
-`hetlearn` is a MATLAB toolbox, built on the [IRIS Toolbox](https://github.com/IRIS-Solutions-Team/IRIS-Toolbox)
+HetLearn is a MATLAB toolbox, built on the [IRIS Toolbox](https://github.com/IRIS-Solutions-Team/IRIS-Toolbox)
 (release 20230622), for forecasts and policy scenarios in dynamic stochastic general
 equilibrium (DSGE) models where not everyone has rational expectations. The expectations of
 chosen forward-looking variables are a mix of **rational expectations (RE) agents**, who use
@@ -16,6 +16,7 @@ Central Banking* 21(1)).
 The toolbox takes a linear IRIS model file and a database, writes the
 heterogeneous-expectations version of the model, learns beliefs and shares over the history,
 and runs a scenario forward one quarter at a time with beliefs and shares updating as it goes.
+Its functions are in the MATLAB package `hetlearn` (for example `hetlearn.run`).
 The project's main model is Smets and Wouters (2007), SW07, on US data 1965Q1-2026Q2.
 
 **Documentation website:** <https://tolgaozden.net/iris_toolbox_learning/>, with every option,
@@ -191,7 +192,7 @@ To cite the toolbox and the method:
 
 @misc{hetlearn,
   author       = {{\"O}zden, Tolga},
-  title        = {hetlearn: a {MATLAB} toolbox for heterogeneous expectations in {IRIS} models},
+  title        = {{HetLearn}: a {MATLAB} toolbox for heterogeneous expectations in {IRIS} models},
   year         = {2026},
   howpublished = {\url{https://github.com/tolgaozden/iris_toolbox_learning}}
 }
