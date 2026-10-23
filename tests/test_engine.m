@@ -322,7 +322,7 @@ catch err
 end
 
 try
-    % E9: the toy switching run equals the stored reference (made before the 2026-10-18 changes)
+    % E9: the toy switching run equals the stored reference (made with an earlier version of the engine)
     cfg = base;
     cfg.id = 'toy_e9_ref';
     cfg.expectations.re_variant = 'model_consistent';   % the reference was made with the old default
