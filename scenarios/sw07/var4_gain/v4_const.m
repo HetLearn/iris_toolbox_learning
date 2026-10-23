@@ -3,12 +3,12 @@ function cfg = v4_const()
 %
 %   cfg = v4_const()
 %
-%   Since 2026-10-20 the baseline gain is endogenous (gain.rule = 'koz',
+%   The baseline gain is endogenous (gain.rule = 'koz',
 %   Kostyshyna, Ozden and Zhang 2024, eq. 9, starting at gain.value = 0.05;
 %   config/master_options.m). This variant holds the gain at 0.05, the KOZ
 %   start value, so the comparison with a1_learn isolates what the endogenous
-%   gain changes. It replaces v4_koz (KOZ gain against the constant-gain
-%   baseline of 2026-10-18/19). Writes compare_a1_learn.csv.
+%   gain changes. It replaces v4_koz (KOZ gain against the earlier
+%   constant-gain baseline). Writes compare_a1_learn.csv.
 
 cfg = a1_learn();
 cfg.id = 'v4_const';
