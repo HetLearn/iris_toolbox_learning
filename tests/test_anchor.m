@@ -1,11 +1,11 @@
 function R = test_anchor(part)
-%TEST_ANCHOR  Generalised anchor, phase P4 of docs/DESIGN_br_extensions.md (1.4; mechanisms 10, 23).
+%TEST_ANCHOR  Generalized anchor (docs/USER_GUIDE.md section 7.5; rules 10 and 23 of the portfolio).
 %
 %   R = test_anchor()        every part
 %   R = test_anchor(part)    'gate' | 'de' | 'io'
 %
 %   3 checks. A2-A4, A7 and A8 and the level part of A1 were removed with the
-%   features they tested on 2026-10-22 (docs/BR_audit.txt); the labels are unchanged.
+%   features they tested; the labels are unchanged.
 %   A1  fixed-point gate: hetlearn.anchor_coefficients on the anchored RE(t-1)
 %       limit of the SW07 test baseline (tsw07_a1_learn) returns the model's own
 %       anchored coefficients (1e-12; its unit check 1e-9)
