@@ -1,15 +1,15 @@
 function R = test_br_regression()
-%TEST_BR_REGRESSION  Regression gate of the bounded-rationality extensions (docs/DESIGN_br_extensions.md 1.7).
+%TEST_BR_REGRESSION  Regression gate of the bounded-rationality extensions.
 %
 %   R = test_br_regression()   returns a struct array of checks (name, pass, msg).
 %
 %   References: tests/reference/br_freeze.mat, frozen by tests/scenarios/make_br_freeze.m from the
-%   code of 2026-10-20 before phase P1 (phase P0). Every later phase reruns this suite, and
+%   code before the N-type extensions. Every later change reruns this suite, and
 %   everything is compared exactly (max diff 0): run it at the default thread count
 %   (maxNumCompThreads changes the results at about 1e-12). About 2 minutes.
 %
 %   R1   the default and _relag generated files of SW07 and of the toy models nk3 and nk3l1, and
-%        the normalised toy sources, are byte-identical (MD5) to the frozen ones (br_generate
+%        the normalized toy sources, are byte-identical (MD5) to the frozen ones (br_generate
 %        writes them in a temporary copy of each package; the model caches are not touched)
 %   R2   the frozen runs, re-run from their stored partial option trees, equal the frozen results
 %        exactly: paths (every variable over the full range), learning records (every frozen
@@ -19,12 +19,12 @@ function R = test_br_regression()
 %        must default to off, so the runs cannot move). Groups:
 %        R2a tsw07_peak_re; R2b tsw07_switch_pinf, engine.step 'fast' (also equal to
 %        tests/reference/tsw07_switch_pinf_fast.mat); R2c the same with 'iris' (also equal to
-%        tsw07_switch_pinf_iris.mat); R2d the 2026-10-20 baseline a1_re and a1_learn (test
+%        tsw07_switch_pinf_iris.mat); R2d the frozen baseline a1_re and a1_learn (test
 %        copies tsw07_a1_re, tsw07_a1_learn), 'fast' and 'iris'; R2e-R2g the 2019Q4 IRF runs of
-%        DESIGN_br_extensions sec. 4: RE(t-1) and baseline without a shock and with +1 sd of
+%        the further expectation rules: RE(t-1) and baseline without a shock and with +1 sd of
 %        each SW07 shock in 2020Q1, and the baseline with -1 sd.
-%   R3 (N-type syntax of the baseline) and R4 (transforms at their identity values) are added by
-%   phases P2 and P3.
+%   R3 (N-type syntax of the baseline) and R4 (transforms at their identity values) are in
+%   test_ntypes and test_transforms.
 
 R = struct('name', {}, 'pass', {}, 'msg', {});
 here = fileparts(mfilename('fullpath'));
@@ -77,7 +77,7 @@ groups = {
         {'tsw07'}, {'tsw07_switch_pinf'}, 'fast', 'tsw07_switch_pinf_fast.mat'
     'br R2c: tsw07_switch_pinf (iris) equals the freeze and tsw07_switch_pinf_iris.mat exactly', ...
         {'tsw07'}, {'tsw07_switch_pinf'}, 'iris', 'tsw07_switch_pinf_iris.mat'
-    'br R2d: baseline a1_re, a1_learn of 2026-10-20 (fast and iris) equal the freeze exactly', ...
+    'br R2d: frozen baseline a1_re, a1_learn (fast and iris) equal the freeze exactly', ...
         {'baseline'}, {}, '', ''
     'br R2e: 2019Q4 IRF runs, RE(t-1), no shock and +1 sd of 7 shocks, equal the freeze exactly', ...
         {'girf_re'}, {}, '', ''
