@@ -3,8 +3,8 @@ function cfg = br24_mean_only()
 %
 %   cfg = br24_mean_only()
 %
-%   As a1_learn, with docs/DESIGN_br_extensions.md mechanism 24 and the 24
-%   row of section 3: the learners' inflation PLM keeps only the constant,
+%   As a1_learn, with rule 24 of the portfolio (docs/USER_GUIDE.md
+%   section 7.7): the learners' inflation PLM keeps only the constant,
 %   so their forecast is the learned mean, updated with the baseline's KOZ
 %   gain (from 0.05). Existing options only. Writes compare_a1_learn.csv and
 %   compare_a1_re.csv.
