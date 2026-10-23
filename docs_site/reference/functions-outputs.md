@@ -1,6 +1,8 @@
 # Functions and outputs
 
-`help hetlearn.<name>` in MATLAB gives the full text of each function.
+`help hetlearn.<name>` in MATLAB gives the full text of each function. Abbreviations: RE,
+rational expectations; PLM, perceived law of motion; RLS, recursive least squares; DM,
+Diebold-Mariano; RMSE, root-mean-square error; SW07, the Smets and Wouters (2007) model.
 
 ## Project functions
 
@@ -9,7 +11,7 @@
 | `setup_paths()` | Starts IRIS unless started; adds the toolbox, the IRIS patch (first on the path), `config/` and `scenarios/` with subfolders |
 | `L = run_applications(groups, ...)` | Runs groups `'app1'`-`'app6'`, `'var1'`-`'var4'`, `'eval'`, `'all'` (default), a scenario id, or a cell of these; `'decompose'`; `'eval_part', variants, parts [, K]`; `'eval_merge'`. Logs every run in `results/run_log.csv` and returns this call's rows |
 | `o = master_options()` | The project-wide partial option tree (`config/master_options.m`) |
-| `run_br_app1(cmd)` | The seven [further expectation rules](../options/further-expectation-rules.md) in Application 1: `'check'`, `'run'`, `'csv'`, `'ids'` |
+| `run_br_app1(cmd)` | The seven [further expectation rules](../applications/app7-rules.md) in Application 1: `'check'`, `'run'`, `'csv'`, `'ids'` |
 | `run_br_portfolio(cmd)` | Their impulse responses and Kalman RMSE: `'irf'`, `'rmse'`, `'check'`, `'csv'`, `'ids'` |
 | `run_tests(only)` | Test suites (in `tests/`; `addpath('tests')` first) |
 
@@ -27,7 +29,7 @@
 | `opts = hetlearn.load_options(cfg, master)` | Merge and validate; `master` replaces `master_options()` |
 | `spec = hetlearn.load_spec(name)` | A package's `model_spec` (name under `models/`, or a folder path) |
 | `[d, file] = hetlearn.load_database(spec)` | The package database as an IRIS databank |
-| `[m, info] = hetlearn.load_model(spec, opts)` | Generate (if needed), load, parameterise and solve the extended model |
+| `[m, info] = hetlearn.load_model(spec, opts)` | Generate (if needed), load, parameterize and solve the extended model |
 | `H = hetlearn.re_filter(spec, opts, 'force', false, 'end', date, 'model', MA)` | RE Kalman filter and smoother, cached; `'end'` for real-time data |
 | `meta = hetlearn.extend_model(spec, plm, 'force', false, 'validate', true)` | Write the extended model file and run the collapse test |
 | `[A, info] = hetlearn.re_anchor_coefficients(spec, P, ...)` | Coefficients of the anchored RE forecast |
@@ -86,7 +88,7 @@ matrix), `gain` (and `gain_R` with the endogenous gain), and for learning variab
 ## Units
 
 Model units are percent quarter on quarter (SW07: inflation and the policy rate in percent per
-quarter, hours 100 x log). Report units multiply by `spec.report.scale` (4 annualises). The
+quarter, hours 100 x log). Report units multiply by `spec.report.scale` (4 annualizes). The
 `value_report` columns, the evaluation errors and the summary tables are in report units;
 learning series are in model units.
 
