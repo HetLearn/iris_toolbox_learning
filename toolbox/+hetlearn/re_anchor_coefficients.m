@@ -62,7 +62,7 @@ function [A, info] = re_anchor_coefficients(spec, P, varargin)
 %   info also holds .re_info, .cz (C_z), .k_full/.c_full (on xb_{t-1} of
 %   'model'), .xb (its xbVector) and .fixed_point_rcond.
 %
-%   Since phase P4 (DESIGN_br_extensions 1.4, 2026-10-21) this is a wrapper:
+%   This is a wrapper:
 %   the coefficients and the check come from hetlearn.anchor_coefficients
 %   (j = 0, h = 1 on the original model; j = 1, h = 1 with the chain x_REt2 on
 %   the lagged RE model), computed with the same operations, so A and info are
