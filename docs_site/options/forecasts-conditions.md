@@ -1,7 +1,7 @@
 # Forecasts, shocks and conditions
 
 These options set where the forecast starts, how long it runs, which shocks hit the economy
-over it, and which variables are put on a path.
+over it, and which variables are put on a path. RE stands for rational expectations.
 
 ## Origin and horizon
 
@@ -33,8 +33,8 @@ origin = hetlearn.find_peak(db, 'pinfobs', qq(2020, 1), qq(2024, 4));   % 2022Q2
 its own RE filter cache:
 
 ```matlab
-cfg = a1_learn(); cfg.id = 'a1_swX1';
-cfg.model_params = '';                    % '' = spec.params (sw07_params, the swX1 re-estimate)
+cfg = a1_learn(); cfg.id = 'a1_params2';
+cfg.model_params = '';                    % '' = spec.params (sw07_params, the package's second parameter set)
 ```
 
 ## Shocks over the horizon
