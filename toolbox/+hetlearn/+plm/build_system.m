@@ -12,12 +12,12 @@ function sys = build_system(plm, learnVars, allVarNames, info, suffix)
 %   regressors and companion matrix do not depend on it.
 %
 %   suffix (optional, default '' = none): the name of an agent type
-%   (expectations.types, DESIGN_br_extensions 1.1). Every parameter name gets
+%   (expectations.types). Every parameter name gets
 %   '__<suffix>' appended (alpha_pinf__BR, beta_pinf__BR,
 %   beta_pinf__w_l2__BR), so that several learning types can hold their own
 %   beliefs in one model; sys.suffix records it. Targets, regressors and
 %   everything else are unchanged. Without a suffix the output has no field
-%   suffix and is the same as before (2026-10-20).
+%   suffix.
 %
 %   Inputs
 %     plm          PLM spec: a shorthand char ('ar1' | 'ar2' | 'ar1_noconst' |
@@ -177,7 +177,7 @@ if ~any(strcmp(info, {'lagged', 'current'}))
 end
 sys.info = info;
 if nargin >= 5 && ~isempty(suffix)
-    % agent type (DESIGN_br_extensions 1.1): type-suffixed parameter names
+    % agent type: type-suffixed parameter names
     suffix = char(suffix);
     for i = 1:numel(sys.eq)
         sys.eq(i).param_names = strcat(sys.eq(i).param_names, ['__' suffix]);
@@ -336,7 +336,7 @@ for j = 1:numel(regs)
     e.reg_names{end+1} = tok{1};
     e.reg_lags(end+1) = l;
 end
-if ~isempty(e.reg_names)       % (a mean-only PLM, regressors {}, has none: 2026-10-21 fix, strcat failed)
+if ~isempty(e.reg_names)       % (a mean-only PLM, regressors {}, has none: strcat would fail on it)
     key = strcat(e.reg_names, '_', arrayfun(@num2str, e.reg_lags, 'UniformOutput', false));
     if numel(unique(key)) < numel(key)
         error('hetlearn:plm:regressor', 'Duplicate PLM regressors for %s.', x);
