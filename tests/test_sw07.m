@@ -11,7 +11,7 @@ function R = test_sw07()
 %      shares and the annualised inflation paths
 %   S3 tsw07_peak_re = one IRIS simulate of the ORIGINAL models/sw07/sw07.model
 %      from the smoothed state at 2022Q2 with zero shocks (< 1e-10)
-%   S5 option model_params = 'sw07_params_original' (2026-10-20): the model gets the published
+%   S5 option model_params = 'sw07_params_original': the model gets the published
 %      SW07 values, the RE filter cache key differs, a missing function is an error
 
 R = struct('name', {}, 'pass', {}, 'msg', {});
@@ -119,7 +119,7 @@ catch err
     R = add(R, 'sw07 S3: tsw07_peak_re = one IRIS simulate of the original sw07.model (all variables)', false, err.message);
 end
 
-% ---- S5: option model_params (2026-10-20) ---------------------------------------------------------
+% ---- S5: option model_params ----------------------------------------------------------------------
 nm = ['sw07 S5: model_params = ''sw07_params_original'' assigns the published SW07 mode (every value), ' ...
     'has its own RE filter cache (fit < 1e-8); a name not in the package is an error'];
 try
