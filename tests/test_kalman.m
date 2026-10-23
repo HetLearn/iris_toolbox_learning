@@ -1,5 +1,5 @@
 function R = test_kalman(part)
-%TEST_KALMAN  history.mode = 'kalman': time-varying Kalman filter of the ALM (DESIGN_br_extensions 5, phase P1).
+%TEST_KALMAN  history.mode = 'kalman': time-varying Kalman filter of the ALM (technical appendix, "The Kalman history").
 %
 %   R = test_kalman()            every check
 %   R = test_kalman('options')   KO only (a few seconds)
@@ -7,7 +7,7 @@ function R = test_kalman(part)
 %
 %   12 checks: KO (3), K1 (2), K2-K8 (one each).
 %
-%   KO options: history.mode = 'kalman' loads (the P1 guard of load_options is gone),
+%   KO options: history.mode = 'kalman' loads,
 %      history.kalman.init 'stochastic' (default) | 'smoothed', a bad init and
 %      history.re_states = 'filtered' with 'kalman' are hetlearn:options:value
 %   K1 every agent RE (mode 'rational', baseline tsw07_a1_re, 'stochastic' start): the
@@ -26,12 +26,12 @@ function R = test_kalman(part)
 %      'stochastic' start, 1965Q1-2026Q2: l_t, the log likelihood from 1966Q1, beliefs,
 %      shares, model shares, forecasts and facility events = hlest.loglik_learn at the same
 %      parameters (estimation/, read only; < 1e-8)
-%   K5 outputs: the forecast starts from the filtered state at the origin (D12: res.paths
+%   K5 outputs: the forecast starts from the filtered state at the origin (res.paths
 %      at the origin, lags included, = res.kalman.a_origin, exact; <x>_exp1_BR to 1e-12,
 %      since res.paths holds the learners' recorded forecasts there); res.kalman fields;
 %      hetlearn.run writes kalman_errors.csv when it saves (tests/output/results/; values
 %      = res.kalman to 1e-12) and a later 're_smoother' run of the id deletes it
-%   N agent types and forecast transforms (phase P6, DESIGN_br_extensions 1.1-1.5):
+%   N agent types and forecast transforms (docs/USER_GUIDE.md section 7):
 %   K6 the baseline tsw07_a1_learn with the types RE and BR spelled out (N-type file and engine
 %      path), 'stochastic' start, 1965Q1-2026Q2 = the two-type Kalman run: one-step errors,
 %      l_t, log likelihood, F_t, filtered and predicted databanks, a and P at the origin,
@@ -41,10 +41,9 @@ function R = test_kalman(part)
 %      two-type Kalman run unchanged (errors, log likelihood, beliefs, shares; <= 1e-10, the TB
 %      file has a larger state vector)
 %   K8 an intercept-only type in the Kalman history (projection.facility 'alm'): {RE, IO
-%      're_mean'} (variant 23) runs to 2026Q2 with its forecast stage; its forecast, which uses
+%      're_mean'} (rule 23) runs to 2026Q2 with its forecast stage; its forecast, which uses
 %      data of one date only, equals the model's prediction of it (res.kalman.ftypes_model_maxdiff
-%      < 1e-11); shares sum to 1 (the level-type half of K8 was removed with the level kind on
-%      2026-10-22, docs/BR_audit.txt)
+%      < 1e-11); shares sum to 1 (the level-type half of K8 was removed with the level kind)
 %   SW07 runs are not saved, except the K5 pair (tests/output/results/).
 
 if nargin < 1 || isempty(part)
@@ -253,8 +252,8 @@ catch err
     R = add(R, nm, false, getReport(err, 'basic'));
 end
 
-% ---- K5: forecast start (D12), res.kalman, kalman_errors.csv --------------------------------------
-nm = 'kalman K5: forecast from the filtered state at the origin (D12); res.kalman; kalman_errors.csv written / removed';
+% ---- K5: forecast start, res.kalman, kalman_errors.csv --------------------------------------
+nm = 'kalman K5: forecast from the filtered state at the origin; res.kalman; kalman_errors.csv written / removed';
 try
     outDir = fullfile(here, 'output', 'results');
     c = kalman_cfg(tsw07_a1_learn(), 'tk_k5', qq(2022, 2), 'stochastic');
@@ -314,8 +313,8 @@ end
 
 % =========================================================================
 function R = ntype_checks(R, run)
-% K6-K8: N agent types and forecast transforms in the Kalman history (phase P6; K8 cut to the
-% intercept-only type on 2026-10-22)
+% K6-K8: N agent types and forecast transforms in the Kalman history (K8: the intercept-only
+% type)
 T = @(varargin) struct(varargin{:});
 pair = {T('name', 'RE', 'kind', 're'), T('name', 'BR', 'kind', 'plm')};
 ra = [];
