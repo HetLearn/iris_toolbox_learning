@@ -14,7 +14,7 @@ function R = test_decompose(part)
 %   C6 'tv' uses the beliefs in force after the projection facility (ALM
 %      reverts included; model-consistent toy, high gain): paths rebuilt
 %      after every revert, a wrong recorded belief is detected
-%   C7 N agent types (phase P6): a switching re_smoother run with RE and BR
+%   C7 N agent types: a switching re_smoother run with RE and BR
 %      spelled out decomposes as the two-type run (every component, 1e-9);
 %      {RE, BR, TB}: additive, the period models rebuild its paths; a result
 %      of history.mode = 'kalman' stops with hetlearn:options:unsupported
@@ -145,7 +145,7 @@ catch err
     R = add(R, nm, false, err.message);
 end
 
-% ---- C6: beliefs in force after the projection facility (2026-10-18) ----
+% ---- C6: beliefs in force after the projection facility ----
 % Model-consistent toy with half learners on y and pie and a high gain:
 % under 'alm' the ALM check reverts every belief in some periods (history
 % and horizon). 'tv' must use the beliefs actually in force (res.learning
@@ -192,7 +192,7 @@ catch err
     R = add(R, nm, false, sprintf('%s (%s, line %d)', err.message, err.stack(1).name, err.stack(1).line));
 end
 
-% ---- C7: N agent types (phase P6) ----
+% ---- C7: N agent types ----
 nm = ['decompose C7: N agent types: RE and BR spelled out = the two-type decomposition (switching, re_smoother; ' ...
     'every component, 1e-9); {RE, BR, TB} additive and rebuilds its forecast paths; Kalman results refused'];
 try
