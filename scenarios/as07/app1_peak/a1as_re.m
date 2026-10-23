@@ -47,13 +47,13 @@ cfg.forecast.horizon = 16;                    % quarters: 2022Q3-2026Q2
 % ---- expectations ------------------------------------------------------------------------
 cfg.expectations.mode = 'rational';           % 'rational' | 'learning' | 'fixed_shares' | 'switching'
 cfg.expectations.variables = {'pinf'};        % forward-looking variables: y, pinf
-% cfg.expectations.re_variant = 'anchored';  % toolbox default since 2026-10-18; with every agent RE,
+% cfg.expectations.re_variant = 'anchored';  % toolbox default; with every agent RE,
 %                                             % 'anchored' and 'model_consistent' give the same path
 
-% ---- settings pinned against the SW07 project baseline of 2026-10-20 ------------------------
+% ---- settings pinned against the SW07 project baseline ------------------------------------
 % config/master_options.m now sets the SW07 baseline (published SW07 parameters, KOZ gain, t-1
 % RE information, filtered RE states, no facility). This application keeps the settings it was
-% run with on 2026-10-18 (results/a1as_re, a1as_learn; report section 12), so they are written out
+% was first run with (results/a1as_re, a1as_learn), so they are written out
 % (a1as_learn sets the gain value, memory, chi and initial share itself):
 cfg.model_params = '';                        % the package's own parameters (as07_params, published means)
 cfg.gain.rule = 'constant';
