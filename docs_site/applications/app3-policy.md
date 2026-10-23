@@ -1,15 +1,15 @@
-# Application 3: policy 100 bp looser or tighter than the rule
+# Application 3: policy 100 basis points looser or tighter than the rule
 
-**Question.** From the 2022Q2 peak, the central bank sets the policy rate 100 bp a year below
-(looser) or above (tighter) what its Taylor rule prescribes, for the four quarters
+**Question.** From the 2022Q2 peak, the central bank sets the policy rate 100 basis points (bp)
+a year below (looser) or above (tighter) what its Taylor rule prescribes, for the four quarters
 2022Q3-2023Q2. How do inflation and output respond, and does learning make the responses
 asymmetric?
 
 ## How the deviation is set: a condition
 
-The SW07 policy rule is `r = (rule terms) + ms`, where `ms` is the AR(1) monetary shock
-process driven by the shock `em`. The scenario puts `ms` on a path and lets `em` adjust each
-quarter to deliver it:
+The policy rule of the Smets and Wouters (2007) model (SW07) is `r = (rule terms) + ms`, where
+`ms` is the AR(1) monetary shock process driven by the shock `em`. The scenario puts `ms` on a
+path and lets `em` adjust each quarter to deliver it:
 
 ```matlab
 function cfg = a3_loose_re()
@@ -27,7 +27,7 @@ end
   scenario without the condition. The model is in percent per quarter, so 0.25 is 100 bp a
   year.
 - `dates` with two elements is read as a range: 2022Q3 to 2023Q2.
-- `em` is endogenised quarter by quarter, so the deviation surprises agents every quarter.
+- `em` is endogenized quarter by quarter, so the deviation surprises agents every quarter.
 
 The tighter scenario changes only the sign; the learning scenarios copy the condition:
 
@@ -61,9 +61,11 @@ run_applications('app3')
 
 ![Application 3](../assets/figures/fig_app3.png){ .figure }
 
-*Deviations from Application 1 (pp of annualised rates) when the rate is held 100 bp a year
-below or above the Taylor rule in 2022Q3-2023Q2 (shaded). Top: inflation and output growth.
-Bottom: looser + tighter, which is zero when the responses are symmetric.*
+*Deviations from Application 1 (percentage points (pp) of annualized rates) when the rate is
+held 100 bp a year below or above the Taylor rule in 2022Q3-2023Q2 (shaded). Top: inflation
+and output growth. Bottom: looser + tighter, which is zero when the responses are symmetric.*
+
+Effects under rational expectations (RE) and learning, in pp (the share as a fraction):
 
 | Variable | Statistic | RE, looser | Learning, looser | Learning, tighter | Looser + tighter |
 |---|---|---:|---:|---:|---:|
@@ -73,13 +75,14 @@ Bottom: looser + tighter, which is zero when the responses are symmetric.*
 | Policy rate | largest effect | −1.735 (2023Q2) | −1.817 (2023Q2) | +1.815 (2023Q2) | −0.0099 (2024Q2) |
 | Learners' share in force | largest effect | | +0.0244 (2024Q3) | −0.0295 (2024Q2) | −0.0053 (2024Q2) |
 
-- **Learning delays the inflation response and makes it slightly larger**: the peak effect of
-  looser policy is +0.72 pp in 2024Q1 against +0.67 pp in 2023Q3 under RE.
-- **The asymmetry is small**: at most 0.014 pp of inflation, about 2% of the effect. Under RE
-  the two responses are exact mirror images (to 6e-14, check C3a).
-- **It comes from the learning states.** Looser policy raises the learners' share in force by
-  up to 0.024; tighter policy lowers it by up to 0.030.
-- The policy-rate effect includes the rule's own response to the higher or lower inflation.
+Learning delays the inflation response and makes it slightly larger: the peak effect of looser
+policy is +0.72 pp in 2024Q1 against +0.67 pp in 2023Q3 under RE. The policy-rate effect
+includes the rule's own response to the higher or lower inflation.
+
+The asymmetry is small, at most 0.014 pp of inflation, about 2% of the effect. Under RE the two
+responses are exact mirror images, to 6e-14. Under learning the asymmetry comes from the
+learning states: looser policy raises the learners' share in force by up to 0.024, and tighter
+policy lowers it by up to 0.030.
 
 ## Variations
 
