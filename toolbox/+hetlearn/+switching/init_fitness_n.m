@@ -1,5 +1,5 @@
 function U0 = init_fitness_n(n0, chi)
-%INIT_FITNESS_N  Initial fitness over N types so that the logit returns the initial shares (DESIGN_br_extensions 1.2).
+%INIT_FITNESS_N  Initial fitness over N types so that the logit returns the initial shares (docs/USER_GUIDE.md section 7.2).
 %
 %   U0 = hetlearn.switching.init_fitness_n(n0, chi)
 %
