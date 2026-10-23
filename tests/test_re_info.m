@@ -1,5 +1,5 @@
 function R = test_re_info(part)
-%TEST_RE_INFO  RE agents' information set: expectations.re_info = 'current' | 'lagged' (DESIGN 19; 2026-10-19).
+%TEST_RE_INFO  RE agents' information set: expectations.re_info = 'current' | 'lagged' (DESIGN 19).
 %
 %   R = test_re_info()               every check
 %   R = test_re_info('toy')          T0, T3, T4 (toy), T6a (toy): options, closed form, collapse (about 1 min)
