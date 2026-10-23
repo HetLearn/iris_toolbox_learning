@@ -6,7 +6,7 @@ function cfg = v4_const_full()
 %   As v4_const with origin 2026Q2 and horizon 4: beliefs and shares under the
 %   constant gain over the whole history to 2026Q2. The baseline (KOZ gain)
 %   counterpart is a6_smooth_learn; writes compare_a6_smooth_learn.csv.
-%   Replaces v4_koz_full (2026-10-20).
+%   Replaces v4_koz_full.
 
 cfg = v4_const();
 cfg.id = 'v4_const_full';
