@@ -1,5 +1,5 @@
 function [n, U] = discrete_choice_n(FE, Uprev, chi, omega)
-%DISCRETE_CHOICE_N  Fitness update and shares over N agent types (DESIGN_br_extensions 1.2).
+%DISCRETE_CHOICE_N  Fitness update and shares over N agent types (docs/USER_GUIDE.md section 7.2).
 %
 %   [n, U] = hetlearn.switching.discrete_choice_n(FE, Uprev, chi, omega)
 %
