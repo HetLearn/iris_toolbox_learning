@@ -6,7 +6,8 @@ project sets in `config/master_options.m` where it differs from the default.
 `scenarios/sw07/base/sw07_re.m` lists every option as a commented line, a convenient template.
 
 Precedence: `hetlearn.defaults()` < `config/master_options.m` < the scenario. Unknown names stop
-the run (`hetlearn:options:unknown`).
+the run (`hetlearn:options:unknown`). RE stands for rational expectations, PLM for perceived law
+of motion.
 
 ## Identification
 
@@ -15,7 +16,7 @@ the run (`hetlearn:options:unknown`).
 | `id` | `''` | text | Results folder `results/<id>/`; required | [Forecasts](../options/forecasts-conditions.md) |
 | `title` | `''` | text | Title for summaries and reports | |
 | `description` | `''` | text | Description for summaries and reports | |
-| `model` | `''` | text | Model package under `models/`, or a folder path; required | [Your own model](../your-own-model.md) |
+| `model` | `''` | text | Model package under `models/`, or a folder path; required | [Adding a model](../adding-a-model.md) |
 | `model_params` | `''` | `''` or a function name | Parameter file of the package; `''` = `spec.params`. Baseline `'sw07_params_original'` | [Forecasts](../options/forecasts-conditions.md#origin-and-horizon) |
 
 ## Forecast
@@ -50,7 +51,7 @@ the run (`hetlearn:options:unknown`).
 | `beliefs.plm.var.constant` | `true` | logical | VAR constant | |
 | `beliefs.init.method` | `'re_moments'` | `'re_moments'`, `'training_ols'`, `'user'` | Initial beliefs | [Initial beliefs](../options/initial-beliefs.md) |
 | `beliefs.init.date` | `[]` | a date | `[]` = first filter date + 4 quarters | |
-| `beliefs.init.values.<x>` | none | `.alpha`, `.beta` or `.phi`, `.R` | Your values (free-form) | |
+| `beliefs.init.values.<x>` | none | `.alpha`, `.beta` or `.phi`, `.R` | Given values (free-form) | |
 | `beliefs.init.training_range` | `[]` | `[start, end]` | Required for `'training_ols'` | |
 
 ## Gain
@@ -87,7 +88,7 @@ the run (`hetlearn:options:unknown`).
 
 | Option | Default | Values | Meaning | Page |
 |---|---|---|---|---|
-| `projection.facility` | `'plm_alm'` | `'plm_alm'`, `'alm'`, `'none'` | Stabilising device. Baseline `'alm'` | [Projection facility](../options/projection-facility.md) |
+| `projection.facility` | `'plm_alm'` | `'plm_alm'`, `'alm'`, `'none'` | Stabilizing device. Baseline `'alm'` | [Projection facility](../options/projection-facility.md) |
 
 ## History
 
@@ -109,7 +110,7 @@ the run (`hetlearn:options:unknown`).
 | `shocks.range` | `[]` | dates | Quarters with smoothed shocks | |
 | `shocks.exclude` | `{}` | cellstr | Shocks set to zero | |
 | `shocks.add` | `{}` | `{{name, dates, values}, ...}` | Shocks added on top (free-form) | |
-| `conditions` | empty | struct array: `variable`, `shock`, `dates`, `values`, `type` (`'level'`, `'delta'`), `reference` (`'self'` or an id) | Exogenise a variable, endogenise a shock; replaced as a whole | [Forecasts](../options/forecasts-conditions.md#conditions) |
+| `conditions` | empty | struct array: `variable`, `shock`, `dates`, `values`, `type` (`'level'`, `'delta'`), `reference` (`'self'` or an id) | Exogenize a variable, endogenize a shock; replaced as a whole | [Forecasts](../options/forecasts-conditions.md#conditions) |
 
 ## Density forecasts
 
