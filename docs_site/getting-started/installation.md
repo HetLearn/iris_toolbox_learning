@@ -8,7 +8,7 @@
 | IRIS Toolbox | release **20230622** exactly | model parsing, solution, Kalman filter, simulation |
 | MkDocs Material | see `docs_site/requirements.txt` | only to build these pages locally |
 
-No other MATLAB toolbox is required by `hetlearn` itself. Dynare is not needed; it was used
+No other MATLAB toolbox is required by HetLearn itself. Dynare is not needed; it was used
 once to validate the Smets and Wouters (2007) package (SW07) and the rational expectations
 (RE) model with t-1 information.
 
