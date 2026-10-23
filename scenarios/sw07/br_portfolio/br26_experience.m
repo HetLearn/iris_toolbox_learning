@@ -3,8 +3,8 @@ function cfg = br26_experience()
 %
 %   cfg = br26_experience()
 %
-%   As a1_learn, with docs/DESIGN_br_extensions.md mechanism 26 and the 26
-%   row of section 3: the AR(1) inflation learners use a constant gain of
+%   As a1_learn, with rule 26 of the portfolio (docs/USER_GUIDE.md
+%   section 7.7): the AR(1) inflation learners use a constant gain of
 %   0.018 per quarter (Nagel and Xu's fading-memory gain, from Malmendier and
 %   Nagel's best-matching constant gain 0.0175) instead of the KOZ gain.
 %   Cohorts are out of scope. Existing options only. Writes
