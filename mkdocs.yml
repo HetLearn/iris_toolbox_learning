@@ -1,8 +1,8 @@
-# MkDocs configuration for the hetlearn user documentation.
+# MkDocs configuration for the HetLearn user documentation.
 # Build locally:  pip install -r docs_site/requirements.txt   then   mkdocs serve   (or mkdocs build)
 # Published by .github/workflows/docs.yml on every push to main that touches the site.
 
-site_name: hetlearn
+site_name: HetLearn
 site_url: https://tolgaozden.net/iris_toolbox_learning/
 site_description: >-
   MATLAB toolbox on IRIS for forecasts and scenarios with heterogeneous expectations:
