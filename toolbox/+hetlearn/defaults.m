@@ -107,6 +107,7 @@ o.beliefs.init = struct( ...
 % Gain
 o.gain = struct( ...
     'rule', 'constant', ...    % function hetlearn.gain.<rule>: 'constant' | 'koz' (endogenous, DESIGN 18)
+    ...                        %   | 'decreasing' (g = 1/(t0 + t), t = 2 at the first update)
     'value', 0.0585, ...
     'by_var', struct());       % free-form: by_var.<x> = gain
 o.gain.koz = struct( ...       % gain.rule = 'koz': Kostyshyna, Ozden and Zhang (2024), eq. (9)
@@ -118,6 +119,8 @@ o.gain.koz = struct( ...       % gain.rule = 'koz': Kostyshyna, Ozden and Zhang 
     'error_scale', 1, ...      % errors times this first (1 = the model's units, % per quarter)
     'structure', 'common', ... % 'common' (one process, KOZ fn. 7) | 'per_variable' (one per PLM equation)
     'master', '');             % common: '' = first learning variable; name or cellstr (mean of their errors)
+o.gain.decreasing = struct( ...  % gain.rule = 'decreasing': the k-th update of an equation has gain 1/(t0 + k + 1)
+    't0', 0);                   % >= 0; the initial beliefs count as t0 + 1 observations
 
 % Shares
 o.shares = struct( ...
