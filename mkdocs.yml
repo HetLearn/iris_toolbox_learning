@@ -3,13 +3,13 @@
 # Published by .github/workflows/docs.yml on every push to main that touches the site.
 
 site_name: HetLearn
-site_url: https://tolgaozden.net/iris_toolbox_learning/
+site_url: https://hetlearn.github.io/iris_toolbox_learning/
 site_description: >-
   MATLAB toolbox on IRIS for forecasts and scenarios with heterogeneous expectations:
   rational agents and adaptive learners whose shares switch on forecast performance.
 site_author: Tolga Özden
-repo_url: https://github.com/tolgaozden/iris_toolbox_learning
-repo_name: tolgaozden/iris_toolbox_learning
+repo_url: https://github.com/HetLearn/iris_toolbox_learning
+repo_name: HetLearn/iris_toolbox_learning
 edit_uri: edit/main/docs_site/
 docs_dir: docs_site
 exclude_docs: |
