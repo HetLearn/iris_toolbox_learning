@@ -1,10 +1,11 @@
 function R = test_gain(part)
-%TEST_GAIN  Endogenous gain gain.rule = 'koz' (KOZ 2024 eq. 9; DESIGN 18) and the gain-rule interface.
+%TEST_GAIN  Gain rules: the endogenous gain gain.rule = 'koz' (KOZ 2024 eq. 9; DESIGN 18), the decreasing gain and the gain-rule interface.
 %
 %   R = test_gain()          all checks
 %   R = test_gain('unit')    G1-G6 (no model)
 %   R = test_gain('toy')     G7-G13 (toy NK runs)
 %   R = test_gain('sw07')    G14-G15 (SW07 runs into tests/output/results/)
+%   R = test_gain('decreasing')  D1-D5 (unit and toy NK runs)
 %
 %   G1  the recursion equals a hand-coded loop on a known error sequence:
 %       gain used in t = gamma_{t-1}; gamma_t = gamma_{t-1} + mu Rg_{t-1} FE_t;
@@ -40,6 +41,18 @@ function R = test_gain(part)
 %   G14 SW07: 'constant' unchanged: tsw07_switch_pinf with engine.step =
 %       'iris' = tests/reference/tsw07_switch_pinf_iris.mat (max diff 0), 'fast' to 1e-10
 %   G15 SW07 smoke: tsw07_switch_pinf with gain.rule = 'koz' (defaults)
+%
+%   The decreasing gain, gain.rule = 'decreasing':
+%   D1  the k-th update of an equation has gain 1/(t0 + k + 1); a missing
+%       residual does not count (t0 = 0 and 3)
+%   D2  load_options: default t0 = 0, the rule accepted, t0 < 0 or NaN
+%       rejected, a saved tree with the earlier gain.decreasing.n0 = 1 loads
+%   D3  RLS on a constant with gains 1/(k + 1) is the running mean of the
+%       initial belief and the data (hand formula)
+%   D4  toy switching run (y, pie): the recorded gain is 1/(t0 + k + 1) over
+%       the history and the forecast, the count carrying on at the origin
+%   D5  toy, mean-only PLM on pie: (k + 1) alpha_k - k alpha_{k-1} = pie_k
+%       over the history and the forecast (the belief is the running mean)
 
 if nargin < 1 || isempty(part)
     part = 'all';
@@ -54,8 +67,129 @@ end
 if any(strcmp(part, {'all', 'toy'}))
     R = toy_checks(R, here, outDir);
 end
+if any(strcmp(part, {'all', 'decreasing'}))
+    R = decreasing_checks(R, here);
+end
 if any(strcmp(part, {'all', 'sw07'}))
     R = sw07_checks(R, here, root, outDir);
+end
+end
+
+
+% =========================================================================
+function R = decreasing_checks(R, here)
+% D1-D5: gain.rule = 'decreasing'
+sys = struct('eq', struct('target', {'a', 'b'}, 'isAux', {false, false}));
+nm = 'gain D1: decreasing gain 1/(t0 + k + 1) at the k-th update; a missing residual does not count';
+try
+    E = [0.1 0.2; NaN 0.3; 0.4 NaN; 0.5 0.6; 0.7 0.8];
+    ok = true;
+    msg = '';
+    for t0 = [0 3]
+        g = struct('rule', 'decreasing', 'decreasing', struct('t0', t0));
+        G = hetlearn.gain.decreasing('init', sys, {'a', 'b'}, g);
+        used = NaN(size(E));
+        for t = 1:size(E, 1)
+            errs = struct('t', t, 'first', t == 1, 'targets', {{'a', 'b'}}, ...
+                'rls', struct('a', E(t, 1), 'b', E(t, 2)));
+            gg = hetlearn.gain.decreasing('gain', G, errs, g);
+            [G, ev] = hetlearn.gain.decreasing('update', G, errs, g);
+            used(t, :) = [gg.a, gg.b];
+            ok = ok && isempty(ev);
+        end
+        ka = [1 2 2 3 4];       % updates before t, plus 1 (a misses t = 2, b misses t = 3)
+        kb = [1 2 3 3 4];
+        d = max(abs([used(:, 1) - 1 ./ (t0 + ka' + 1); used(:, 2) - 1 ./ (t0 + kb' + 1)]));
+        ok = ok && d == 0 && G.count.a == 4 && G.count.b == 4;
+        msg = sprintf('%s t0 = %d: max diff %g;', msg, t0, d);
+    end
+    R = add(R, nm, ok, msg);
+catch err
+    R = add(R, nm, false, err.message);
+end
+
+nm = 'gain D2: load_options: default t0 0; rule accepted; t0 -1 and NaN rejected; earlier n0 = 1 dropped';
+try
+    d = hetlearn.defaults();
+    o = hetlearn.load_options(struct('id', 'x', 'gain', struct('rule', 'decreasing')), struct());
+    o2 = hetlearn.load_options(struct('id', 'x', 'gain', struct('rule', 'decreasing', ...
+        'decreasing', struct('n0', 1, 't0', 2))), struct());
+    ok = isequal(d.gain.decreasing, struct('t0', 0)) && strcmp(o.gain.rule, 'decreasing') ...
+        && isequal(o2.gain.decreasing, struct('t0', 2));
+    R = add(R, nm, ok, '');
+catch err
+    R = add(R, nm, false, err.message);
+end
+R = expect_error(R, 'gain D2: load_options rejects gain.decreasing.t0 = -1', 'hetlearn:options:value', ...
+    @() hetlearn.load_options(struct('id', 'x', 'gain', struct('rule', 'decreasing', ...
+    'decreasing', struct('t0', -1))), struct()));
+R = expect_error(R, 'gain D2: load_options rejects gain.decreasing.t0 = NaN', 'hetlearn:options:value', ...
+    @() hetlearn.load_options(struct('id', 'x', 'gain', struct('decreasing', struct('t0', NaN))), struct()));
+
+nm = 'gain D3: RLS on a constant with gains 1/(k + 1) = running mean of the initial belief and the data';
+try
+    x = [1.3 -0.4 2.2 0.7 0.1 1.9 -1.1 0.6];
+    phi = 0.25;
+    Rm = 1;
+    d = 0;
+    for k = 1:numel(x)
+        [phi, Rm] = hetlearn.rls.update(phi, Rm, 1, x(k), 1 / (k + 1));
+        d = max(d, abs(phi - (0.25 + sum(x(1:k))) / (k + 1)));
+    end
+    R = add(R, nm, d < 1e-14 && abs(Rm - 1) < 1e-15, sprintf('max diff %.2g', d));
+catch err
+    R = add(R, nm, false, err.message);
+end
+
+toyDir = fullfile(here, 'toy_nk');
+if exist(fullfile(toyDir, 'data', 'nk3_database.csv'), 'file') ~= 2
+    addpath(toyDir);
+    build_toy_database();
+end
+org = qq(2020, 4);
+base = struct('model', toyDir);
+base.forecast = struct('origin', org, 'horizon', 12);
+base.expectations = struct('mode', 'switching', 'variables', {{'y', 'pie'}});
+base.switching.intensity = 0.25;
+base.gain.rule = 'decreasing';
+
+nm = 'gain D4: toy switching run: recorded gain = 1/(t0 + k + 1) over history and forecast (t0 = 4)';
+try
+    c = base;
+    c.id = 'toy_gain_decreasing';
+    c.gain.decreasing.t0 = 4;
+    res = hetlearn.run(c, 'save', false, 'quiet', true);
+    rd = res.dates.record;
+    k = (1:numel(rd))';
+    nMiss = 0;
+    if height(res.events) > 0
+        nMiss = sum(strcmp(res.events.type, 'rls_missing'));
+    end
+    gy = res.learning.y.gain(rd);
+    gp = res.learning.pie.gain(rd);
+    d = max(abs([gy - 1 ./ (4 + k + 1); gp - 1 ./ (4 + k + 1)]));
+    nH = sum(double(rd) <= double(org));
+    R = add(R, nm, d < 1e-15 && nMiss == 0 && numel(rd) > nH, sprintf(['max diff %.2g over %d history and %d ' ...
+        'forecast quarters; gain %.4f at the origin, %.4f at the end'], d, nH, numel(rd) - nH, gp(nH), gp(end)));
+catch err
+    R = add(R, nm, false, err.message);
+end
+
+nm = 'gain D5: toy, mean-only PLM on pie: (k + 1) alpha_k - k alpha_{k-1} = pie_k, history and forecast';
+try
+    c = base;
+    c.id = 'toy_gain_decreasing_mean';
+    c.expectations.variables = {'pie'};
+    c.beliefs.plm.by_var.pie = struct('regressors', {{}}, 'constant', true);
+    res = hetlearn.run(c, 'save', false, 'quiet', true);
+    rd = res.dates.record;
+    a = res.learning.pie.alpha_pie(rd);
+    p = res.paths.pie(rd);
+    k = (2:numel(rd))';
+    d = max(abs((k + 1) .* a(k) - k .* a(k - 1) - p(k)));
+    R = add(R, nm, d < 1e-10, sprintf('max diff %.2g over %d quarters', d, numel(k)));
+catch err
+    R = add(R, nm, false, err.message);
 end
 end
 
