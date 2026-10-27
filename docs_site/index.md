@@ -93,7 +93,7 @@ The methods, with every equation and timing convention, are in the
 ## License and citation
 
 The code is released under the MIT License
-([`LICENSE`](https://github.com/tolgaozden/iris_toolbox_learning/blob/main/LICENSE)). To cite
+([`LICENSE`](https://github.com/HetLearn/iris_toolbox_learning/blob/main/LICENSE)). To cite
 the method and the toolbox:
 
 ```bibtex
@@ -110,7 +110,7 @@ the method and the toolbox:
   author       = {{\"O}zden, Tolga},
   title        = {{HetLearn}: a {MATLAB} toolbox for heterogeneous expectations in {IRIS} models},
   year         = {2026},
-  howpublished = {\url{https://github.com/tolgaozden/iris_toolbox_learning}}
+  howpublished = {\url{https://github.com/HetLearn/iris_toolbox_learning}}
 }
 ```
 
