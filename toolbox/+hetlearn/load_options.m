@@ -54,6 +54,7 @@ function opts = load_options(cfg, master)
 %     initial gain (gamma0, or gain.value and with 'per_variable' the
 %     gain.by_var values) must lie inside the bounds. That master names PLM
 %     targets is checked by hetlearn.gain.koz (the model is not known here).
+%     gain.decreasing.t0 >= 0 (gain.rule = 'decreasing').
 %     beliefs.plm.derived must hold non-empty strings under valid names;
 %     beliefs.plm.var.variables a cellstr or 'learning', .lags a positive
 %     integer, .constant true/false; default 'var1' with var.variables set
@@ -88,7 +89,7 @@ function opts = load_options(cfg, master)
 %     history take N types; hetlearn.decompose refuses Kalman results.
 %     Options that are no longer supported (switching.inertia, .costs, .fitness,
 %     intensity 'model:<rule>', beliefs.update 'sac' | 'kf', beliefs.kf,
-%     gain.rule 'decreasing', gain.decreasing, the type kind 'level' and
+%     gain.decreasing.n0 (the offset is gain.decreasing.t0), the type kind 'level' and
 %     the type fields variant, info, plm, update, gain, base, k, variables,
 %     cost, the transform kinds 'partial_adjustment' and 'wedge' and the
 %     fields profile and factor) raise hetlearn:options:removed; in a
@@ -142,7 +143,7 @@ function drop = removed_br_option(full, val)
 % expectation rules stays). A merged tree saved by an earlier version (res.cfg) holds them at their
 % old defaults: those are dropped (drop = true). Any other value is an error naming the option.
 old = struct('switching_inertia', 0, 'switching_costs', [], 'switching_fitness', 'normalized', ...
-    'beliefs_kf', struct('gamma', [], 's2', 're_moments'), 'gain_decreasing', struct('n0', 1));
+    'beliefs_kf', struct('gamma', [], 's2', 're_moments'), 'gain_decreasing_n0', 1);
 key = strrep(full, '.', '_');
 drop = false;
 if ~isfield(old, key)
@@ -154,7 +155,8 @@ if isequal(val, old.(key))
 end
 error('hetlearn:options:removed', ['Option "%s" is no longer supported: ' ...
     'switching has no inertia, costs or unnormalized fitness, ' ...
-    'beliefs.update is ''rls'' or ''fixed'', and gain.rule has no ''decreasing'' rule.'], full);
+    'beliefs.update is ''rls'' or ''fixed'', and the decreasing gain takes gain.decreasing.t0 ' ...
+    '(gain 1/(t0 + t)), not n0.'], full);
 end
 
 
@@ -593,10 +595,6 @@ end
 if ~isstruct(o.beliefs.init.values)
     error('hetlearn:options:type', 'Option "beliefs.init.values" must be a struct.');
 end
-if strcmp(o.gain.rule, 'decreasing')
-    error('hetlearn:options:removed', ['gain.rule = ''decreasing'' is not supported: ' ...
-        'the toolbox has no decreasing-gain rule.']);
-end
 fn(o.gain.rule, 'gain');
 num(o.gain.value, @(x) x > 0 && x <= 1, 'gain.value', 'in (0, 1]');
 if ~isstruct(o.gain.by_var)
@@ -955,6 +953,10 @@ end
 if ~isempty(k.gamma0)
     num(k.gamma0, @(x) x > 0 && x <= 1, 'gain.koz.gamma0', 'in (0, 1], or []');
 end
+if ~(isstruct(o.gain.decreasing) && isscalar(o.gain.decreasing))
+    error('hetlearn:options:type', 'Option "gain.decreasing" is a group of options and must be a struct.');
+end
+num(o.gain.decreasing.t0, @(x) x >= 0 && isfinite(x), 'gain.decreasing.t0', '>= 0');
 bad = k.master(~cellfun(@isvarname, k.master));
 if ~isempty(bad)
     error('hetlearn:options:value', 'Option "gain.koz.master" must hold variable names; not valid: %s.', ...
