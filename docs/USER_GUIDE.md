@@ -9,7 +9,7 @@ lives, the checks every option is subject to, the outputs and the project runner
 
 This version describes the toolbox as of 23 October 2026.
 
-The website, <https://tolgaozden.net/iris_toolbox_learning/> (source in `docs_site/`), is the
+The website, <https://hetlearn.github.io/iris_toolbox_learning/> (source in `docs_site/`), is the
 introduction: installation, quick start, the Application 1 tutorial, the applications, one page
 per option group, the option table and the function list. This guide is the reference behind it
 and does not repeat those pages. The equations, timing conventions and algorithms are in the
@@ -30,7 +30,7 @@ The README gives the short layout; this table adds who writes each file.
 |---|---|---|
 | `setup_paths.m` | Starts IRIS (the folder in the environment variable `HETLEARN_IRIS_DIR`, else `IRIS-Toolbox-Release-20230622` next to the project root), then adds `toolbox/`, the IRIS patch, `config/` and `scenarios/` with every subfolder to the path | Not edited; set `HETLEARN_IRIS_DIR` if IRIS is elsewhere |
 | `config/master_options.m` | Project-wide option values: the project baseline (the `o.*` lines; 1.4) and commented knobs below them | By hand |
-| `scenarios/sw07/<folder>/<id>.m` | The scenario files (61) of the Smets and Wouters (2007; SW07) package, one function per file. Each calls its parent and sets what differs | By hand |
+| `scenarios/sw07/<folder>/<id>.m` | The scenario files (66) of the Smets and Wouters (2007; SW07) package, one function per file. Each calls its parent and sets what differs | By hand |
 | `scenarios/ijcb3/app1_peak/`, `scenarios/as07/app1_peak/` | Application 1 on the two template packages: `i1_re`, `i1_learn`, `a1as_re`, `a1as_learn` (3.6) | By hand |
 | `scenarios/sw07/INDEX.csv` | One row per SW07 scenario file: folder, id, parent, options it sets, compare_with, has_results, title | Written by `python scenarios/build_index.py` |
 | `models/sw07/`, `models/ijcb3/`, `models/as07/` | Model packages: model file, parameters, data, `model_spec.m`, validation (1.2); ijcb3 and as07 are templates | By hand, when the model, its parameters or its data change |
@@ -106,7 +106,7 @@ from 2020 on. swX1 was estimated with those quarters in the data.
 | `+engine/` | `core`, `history` (with `history_db`, the databank of the history loop), `forecast`, `step`, `update_learning`, `facility`, `shares_for_mode`, `state_init`, `build_shocks`, `conditions_prepare`, `conditions_key`, `backward_simulate`, `solve_model`, `record`, `assemble`, `save_results`, `load_result`, `kalman_history` |
 | `+plm/` | PLM system (`build_system`), PLM blocks for the facility (`blocks`), companion matrix, the learners' forecast expressions and values, anchored-RE parameter names, rule terms |
 | `+rls/update.m` | One RLS step (IJCB eq. 13) |
-| `+gain/` | Gain rules `constant` and `koz` (the endogenous gain, 4.4); `gain.rule` names the function |
+| `+gain/` | Gain rules `constant`, `koz` (the endogenous gain) and `decreasing` (4.4); `gain.rule` names the function |
 | `+switching/` | `discrete_choice` (IJCB eqs. 14-15), `init_fitness` and their N-type versions; `switching.rule` names the function |
 | `+init/` | Initial beliefs: `re_moments`, `training_ols`, `user` (`beliefs.init.method`) |
 | `+policy/` | Ramsey setup, policy loss, `loss.csv` |
@@ -140,7 +140,8 @@ Where the project baseline does not apply:
   an error with `history.mode = 'inversion'` or `'kalman'`; those histories are one-sided
   already.
 - **Variants that change one baseline setting on purpose:** `v3_all_plm_alm` (facility
-  `'plm_alm'`), `v4_const` (a constant gain of 0.05) and `br26_experience` (a constant gain of
+  `'plm_alm'`), `v4_const` (a constant gain of 0.05), `v4_decreasing` (the decreasing gain), the four
+  `v5_*` files (intensity of choice 0.5 or 5, memory 0.5 or 0.95) and `br26_experience` (a constant gain of
   0.018).
 - **The templates** (`i1_re.m`, `a1as_re.m`) pin their own settings and set `model_params = ''`,
   so the project baseline does not reach them.
@@ -176,7 +177,7 @@ T = hetlearn.compare({'a1_re', 'a1_learn'}, {'pinfobs', 'robs'})   % levels and 
 
 `res = hetlearn.run(a1_learn());` runs one scenario without the runner (same results folder, no
 row in the run log). A fresh clone has no `results/`; `run_applications('all')` runs every SW07
-group (app1-app6, var1-var4, eval), about three hours on one laptop, most of it the evaluation
+group (app1-app6, var1-var5, eval), about three hours on one laptop, most of it the evaluation
 (6.1 runs it faster in parallel sessions).
 
 ---
@@ -252,6 +253,8 @@ sw07_re                          base: every option listed, commented at its def
                 v3_all_plm_alm, v3_all_alm, e10_allvars
             v4_const             constant gain 0.05 (the project baseline gain is endogenous)
                 v4_const_full
+            v4_decreasing        decreasing gain 1/t
+            v5_chi050, v5_chi500, v5_omega050, v5_omega095   intensity of choice or memory changed alone
             br05b_cd_learn, br07_myopia_anchoring, br10_diagnostic, br19_target_believers,
             br23_intercept_only, br24_mean_only, br26_experience      further rules (section 7)
 i1_re                            ijcb3 template (starts from struct(), not from sw07_re)
@@ -264,7 +267,7 @@ An edit to `a1_learn.m` therefore reaches every learning application and variant
 further rules, and the evaluation variants e03 and e05-e10 through their parents. The evaluation
 still overrides origin, horizon, shocks, conditions, density and comparisons (5.3).
 
-The groups of `run_applications` (function `group_table`) are app1-app6, var1-var4 and eval. The
+The groups of `run_applications` (function `group_table`) are app1-app6, var1-var5 and eval. The
 app6 group does not run the Kalman pair: `hetlearn.run(a6_kalman_re())` and
 `hetlearn.run(a6_kalman_learn())` run it. No group holds the `br*` files; `run_br_app1('run')`
 runs them with `a1_re` and `a1_learn` (section 7).
@@ -284,7 +287,8 @@ Files are in `scenarios/sw07/` unless a path is given. Each entry names the line
 | RE information set, RE states of the history | project baseline `'lagged'`, `'filtered'`; `app4_ramsey/a4_rule_re.m` and `a4_rule_learn.m` set `re_info = 'current'`; `app6_history/a6_inv_learn.m` and the `a6_kalman_*` files set `re_states = 'smoothed'` | children | app4, app6 |
 | PLM | the `cfg.beliefs.plm.*` lines of `var2_plm/v2_ar2.m`, `v2_ar1nc.m`, `v2_reg.m`, `v2_var3.m`, `v2_var12.m` | the matching `e05`-`e09` | var2, eval |
 | Information timing of the learners | `beliefs.info = 'lagged'` (project baseline and toolbox default) | | |
-| Gain | project baseline: the endogenous gain from 0.05; `var4_gain/v4_const.m` (`gain.rule = 'constant'`, 0.05) and `br_portfolio/br26_experience.m` (0.018) set a constant gain | `v4_const_full` | var4 |
+| Gain | project baseline: the endogenous gain from 0.05; `var4_gain/v4_const.m` (`gain.rule = 'constant'`, 0.05) and `br_portfolio/br26_experience.m` (0.018) set a constant gain; `var4_gain/v4_decreasing.m` the decreasing gain | `v4_const_full` | var4 |
+| Intensity of choice, memory | project baseline 2 and 0.8; the `cfg.switching.*` line of `var5_switching/v5_chi050.m`, `v5_chi500.m`, `v5_omega050.m`, `v5_omega095.m` | | var5 |
 | Policy deviation: size, dates | the `cfg.conditions` struct of `app3_policy/a3_loose_re.m`; sign: `cfg.conditions.values = 0.25` in `a3_tight_re.m` and `a3_tight_learn.m` | all four app3 files | app3 |
 | Ramsey loss weights | the `cfg.policy.loss` line of `app4_ramsey/a4_ramsey_balanced_re.m` and of the hawk, dove and smooth files; the summary builder repeats them (`W` in `build_summary_v3.m`) | the matching `_re_mc` and `_learn` files | app4 |
 | Loss horizon (80 quarters) | the `cfg.policy.loss_horizon` line of `app4_ramsey/a4_rule_re.m` and `a4_rule_learn.m` | every app4 file | app4 |
@@ -461,7 +465,8 @@ The endogenous gain (`gain.rule = 'koz'`) is eq. (9) of Kostyshyna, Özden and Z
 "Endogenous Credibility and Wage-Price Spirals", Bank of Canada Staff Working Paper 2024-14
 (DESIGN 18). The function name `koz` and the options `gain.koz.*` stay as named in the code.
 
-- `gain.rule`: `'constant'` or `'koz'`; the name must be a function in `toolbox/+hetlearn/+gain/`.
+- `gain.rule`: `'constant'`, `'koz'` or `'decreasing'`; the name must be a function in
+  `toolbox/+hetlearn/+gain/`.
 - `gain.value`: in (0, 1]; the constant gain (toolbox default 0.0585, the IJCB posterior mean)
   and the start of the endogenous gain.
 - `gain.by_var.<x>`: the gain of one variable. With `'koz'` it is the start value under
@@ -485,6 +490,15 @@ A missing error (NaN: missing data, or the first learning quarter under
 `gain.koz.error = 'forecast'`) leaves gamma and Rg unchanged that quarter. With
 `gain.koz.master` a list, the driving error is the mean of the drivers' errors, so one missing
 driver skips the update of the whole common process.
+
+**Decreasing gain (`gain.rule = 'decreasing'`).** The k-th update of an equation (k = 1 at
+`beliefs.init.date`) has gain 1/(t0 + k + 1), t0 = `gain.decreasing.t0` (>= 0, default 0;
+`hetlearn:options:value` otherwise). The initial beliefs count as t0 + 1 observations, so the
+first gain is 1/(t0 + 2) and the moment matrix R stays invertible for a PLM with several
+coefficients. A quarter with an `rls_missing` event does not count; the count carries on into
+the forecast, density draws, evaluation origins and the Ramsey continuation, and with N agent
+types each learning type has its own. `gain.value` and `gain.by_var` are not read. Learning from
+1966Q1, the gain is 1/227 at 2022Q2.
 
 With `'koz'`, `res.learning.<x>` also holds `gain_R`. The "R0 = 0.001" in Table 1 of
 Kostyshyna, Özden and Zhang is the initial RLS moment matrix: to use it, set
@@ -653,7 +667,7 @@ replacement.
 | `projection.max_root`, `projection.method`, `projection.scope`, `projection.on_failure` | `projection.facility` |
 | `switching.error_scale`, `switching.error_scale_ref` | none: squared errors enter unscaled |
 | `beliefs.update = 'sac'` or `'kf'`, `beliefs.kf` | `beliefs.update = 'rls'` or `'fixed'` |
-| `gain.rule = 'decreasing'`, `gain.decreasing` | `gain.rule = 'constant'` or `'koz'` |
+| `gain.decreasing.n0` (an earlier form of the decreasing gain, 1/(k - 1 + n0)) | `gain.decreasing.t0`: the gain 1/(t0 + k + 1) of 4.4 |
 | `switching.inertia`, `switching.costs`, `switching.fitness`; a model-implied `switching.intensity` such as `'model:bma'` | a number >= 0; the normalized fitness of 4.5 |
 | type kind `'level'`; type fields `base`, `k`, `variables`, `variant`, `info`, `plm`, `update`, `gain`, `cost`; a second type of kind `'re'` | the type fields and kinds of 7.1 |
 | transform kinds `'wedge'` and `'partial_adjustment'`; transform fields `profile` and `factor` | the transform kinds of 7.3 |
@@ -832,7 +846,7 @@ first before parallel ones.
   `test_re_info` T6b and `test_br_regression` compare with `tests/reference/` exactly. The
   references were made at the default thread count; with `maxNumCompThreads(2)` the runs differ
   by about 1e-12 and those checks fail, so they run at the default thread count.
-- `run_tests` runs the 24 suites in `tests/run_tests.m` (364 checks), more than 9 min in one
+- `run_tests` runs the 24 suites in `tests/run_tests.m` (371 checks), more than 9 min in one
   session. The suites of the further expectation rules are `test_kalman`, `test_ntypes`,
   `test_transforms`, `test_anchor` and `test_br_regression`.
 - A subset: `run_tests({'test_options', 'test_rls', 'test_switching'})`. `test_re_info` alone
