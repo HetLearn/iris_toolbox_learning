@@ -9,7 +9,7 @@ Diebold-Mariano; RMSE, root-mean-square error; SW07, the Smets and Wouters (2007
 | Call | What it does |
 |---|---|
 | `setup_paths()` | Starts IRIS unless started; adds the toolbox, the IRIS patch (first on the path), `config/` and `scenarios/` with subfolders |
-| `L = run_applications(groups, ...)` | Runs groups `'app1'`-`'app6'`, `'var1'`-`'var4'`, `'eval'`, `'all'` (default), a scenario id, or a cell of these; `'decompose'`; `'eval_part', variants, parts [, K]`; `'eval_merge'`. Logs every run in `results/run_log.csv` and returns this call's rows |
+| `L = run_applications(groups, ...)` | Runs groups `'app1'`-`'app6'`, `'var1'`-`'var5'`, `'eval'`, `'all'` (default), a scenario id, or a cell of these; `'decompose'`; `'eval_part', variants, parts [, K]`; `'eval_merge'`. Logs every run in `results/run_log.csv` and returns this call's rows |
 | `o = master_options()` | The project-wide partial option tree (`config/master_options.m`) |
 | `run_br_app1(cmd)` | The seven [further expectation rules](../applications/app7-rules.md) in Application 1: `'check'`, `'run'`, `'csv'`, `'ids'` |
 | `run_br_portfolio(cmd)` | Their impulse responses and Kalman RMSE: `'irf'`, `'rmse'`, `'check'`, `'csv'`, `'ids'` |
