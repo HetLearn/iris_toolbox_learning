@@ -19,7 +19,7 @@ and runs a scenario forward one quarter at a time with beliefs and shares updati
 Its functions are in the MATLAB package `hetlearn` (for example `hetlearn.run`).
 The project's main model is Smets and Wouters (2007), SW07, on US data 1965Q1-2026Q2.
 
-**Documentation website:** <https://tolgaozden.net/iris_toolbox_learning/>, with every option,
+**Documentation website:** <https://hetlearn.github.io/iris_toolbox_learning/>, with every option,
 the seven applications and the [technical appendix](docs_site/assets/technical_appendix.pdf)
 (PDF). **License:** MIT, see [`LICENSE`](LICENSE).
 
@@ -56,7 +56,7 @@ and the model packages use published parameter values: it does not estimate them
 
 ## 3. Installation
 
-1. **Clone** the repository: `git clone https://github.com/tolgaozden/iris_toolbox_learning.git`.
+1. **Clone** the repository: `git clone https://github.com/HetLearn/iris_toolbox_learning.git`.
 2. **Get IRIS 20230622** from the [IRIS releases page](https://github.com/IRIS-Solutions-Team/IRIS-Toolbox/releases)
    (tag `Release-20230622`) and unzip it beside `iris_toolbox_learning/`, or anywhere else
    with `setenv('HETLEARN_IRIS_DIR', 'C:\path\to\IRIS-Toolbox-Release-20230622')`. Do not add
@@ -68,7 +68,7 @@ and the model packages use published parameter values: it does not estimate them
    later runs take 10-20 seconds.
 
 Details and the repository layout:
-[Installation](https://tolgaozden.net/iris_toolbox_learning/getting-started/installation/).
+[Installation](https://hetlearn.github.io/iris_toolbox_learning/getting-started/installation/).
 
 ## 4. Quick start
 
@@ -118,19 +118,19 @@ the learners' share of inflation expectations.*
 
 At the origin the learners' AR(1) coefficient is 1.061: after the 2021-22 surge they perceive
 inflation as explosive and extrapolate the peak. The full walkthrough:
-[Application 1](https://tolgaozden.net/iris_toolbox_learning/applications/app1-peak/).
+[Application 1](https://hetlearn.github.io/iris_toolbox_learning/applications/app1-peak/).
 
 ## 6. The applications
 
 | Application | Question | Key result (baseline) |
 |---|---|---|
-| [1. Peak forecast](https://tolgaozden.net/iris_toolbox_learning/applications/app1-peak/) | Disinflation from 2022Q2 with zero shocks | inflation 3.45% learning vs 2.59% RE |
-| [2. Shock replay](https://tolgaozden.net/iris_toolbox_learning/applications/app2-replay/) | Feed in the RE-smoothed shocks of 2022Q3-2026Q2 | RE replay = data; learning replay 4.64% vs 3.21% data |
-| [3. Policy deviations](https://tolgaozden.net/iris_toolbox_learning/applications/app3-policy/) | Rate 100 basis points below/above the rule for a year | inflation effect +0.72 percentage points (learning) vs +0.67 (RE) |
-| [4. Ramsey policy](https://tolgaozden.net/iris_toolbox_learning/applications/app4-ramsey/) | Optimal policy under commitment vs the rule | 80-quarter loss 127.7 vs 230.1 (RE), 184.5 vs 359.4 (learning) |
-| [5. Density forecasts](https://tolgaozden.net/iris_toolbox_learning/applications/app5-density/) | 500 draws of mark-up or demand shocks | 90% inflation band 14.6 vs 4.8 percentage points (learning vs RE) with mark-up shocks |
-| [6. History](https://tolgaozden.net/iris_toolbox_learning/applications/app6-history/) | The history backed out with the learning model; decompositions; Kalman likelihood | learners' share 0.811 (inversion) vs 0.591 at 2022Q2 |
-| [7. Further expectation rules](https://tolgaozden.net/iris_toolbox_learning/applications/app7-rules/) | Seven bounded-rationality rules in Application 1 | average inflation from 2.94% (intercept-only learners) to 4.75% (diagnostic expectations) |
+| [1. Peak forecast](https://hetlearn.github.io/iris_toolbox_learning/applications/app1-peak/) | Disinflation from 2022Q2 with zero shocks | inflation 3.45% learning vs 2.59% RE |
+| [2. Shock replay](https://hetlearn.github.io/iris_toolbox_learning/applications/app2-replay/) | Feed in the RE-smoothed shocks of 2022Q3-2026Q2 | RE replay = data; learning replay 4.64% vs 3.21% data |
+| [3. Policy deviations](https://hetlearn.github.io/iris_toolbox_learning/applications/app3-policy/) | Rate 100 basis points below/above the rule for a year | inflation effect +0.72 percentage points (learning) vs +0.67 (RE) |
+| [4. Ramsey policy](https://hetlearn.github.io/iris_toolbox_learning/applications/app4-ramsey/) | Optimal policy under commitment vs the rule | 80-quarter loss 127.7 vs 230.1 (RE), 184.5 vs 359.4 (learning) |
+| [5. Density forecasts](https://hetlearn.github.io/iris_toolbox_learning/applications/app5-density/) | 500 draws of mark-up or demand shocks | 90% inflation band 14.6 vs 4.8 percentage points (learning vs RE) with mark-up shocks |
+| [6. History](https://hetlearn.github.io/iris_toolbox_learning/applications/app6-history/) | The history backed out with the learning model; decompositions; Kalman likelihood | learners' share 0.811 (inversion) vs 0.591 at 2022Q2 |
+| [7. Further expectation rules](https://hetlearn.github.io/iris_toolbox_learning/applications/app7-rules/) | Seven bounded-rationality rules in Application 1 | average inflation from 2.94% (intercept-only learners) to 4.75% (diagnostic expectations) |
 
 `run_applications('app3')` runs one group and `run_applications('all')` every group and the
 evaluation (about 3 hours); `run_br_app1('run')` runs Application 7 (about two minutes).
@@ -149,7 +149,7 @@ opts = hetlearn.load_options(cfg, struct());
 [m, info] = hetlearn.load_model(spec, opts);   % writes the extended model, runs the collapse test
 ```
 
-Step by step: [Adding a model](https://tolgaozden.net/iris_toolbox_learning/adding-a-model/).
+Step by step: [Adding a model](https://hetlearn.github.io/iris_toolbox_learning/adding-a-model/).
 
 ## 8. Tests
 
@@ -159,12 +159,12 @@ run_tests({'test_options', 'test_rls', 'test_switching'})   % a subset, seconds
 run_tests()                                                  % every suite, more than 9 minutes
 ```
 
-The 24 suites (listed in `tests/run_tests.m`; 364 checks) cover the options, the learning and
+The 24 suites (listed in `tests/run_tests.m`; 371 checks) cover the options, the learning and
 switching code, the model generator, the engine, every history mode, Ramsey policy and the
 further expectation rules; several compare against references made with Dynare or
 hand-written models. The tests use their own option file (the toolbox defaults) and run in a
 separate MATLAB session at the default thread count
-([FAQ: tests](https://tolgaozden.net/iris_toolbox_learning/help/faq/#tests)).
+([FAQ: tests](https://hetlearn.github.io/iris_toolbox_learning/help/faq/#tests)).
 
 ## 9. Documentation
 
@@ -194,7 +194,7 @@ To cite the toolbox and the method:
   author       = {{\"O}zden, Tolga},
   title        = {{HetLearn}: a {MATLAB} toolbox for heterogeneous expectations in {IRIS} models},
   year         = {2026},
-  howpublished = {\url{https://github.com/tolgaozden/iris_toolbox_learning}}
+  howpublished = {\url{https://github.com/HetLearn/iris_toolbox_learning}}
 }
 ```
 
