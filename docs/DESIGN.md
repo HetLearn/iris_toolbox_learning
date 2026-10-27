@@ -538,7 +538,7 @@ Engine stages are in `toolbox/+hetlearn/+engine/` (`core`, `state_init`, `histor
 
 ## 8. Tests (`tests/`)
 Toy model: 3-equation hybrid NK (IJCB eq. 1) with an extra 2-step lead, written with mixed
-lead notations (`tests/toy_nk/`). `tests/run_tests.m` runs 24 suites (364 checks; the
+lead notations (`tests/toy_nk/`). `tests/run_tests.m` runs 24 suites (371 checks; the
 test models of `test_re_info` are in `tests/models/`); `run_tests({'suite', ...})` runs a subset, because the whole run
 exceeds one 9-minute batch call. The tests do not read `scenarios/` or `results/`: SW07
 runs use the test scenarios `tests/scenarios/tsw07_*.m` (calibration written out), and
@@ -559,7 +559,7 @@ simulate, conditions = IRIS Plan, inversion = smoother.
 | `test_inversion`, `test_decompose` | RE inversion = smoother, real time by construction; decomposition = IRIS, path reconstruction, `'tv'` with the beliefs in force after the facility (C6) |
 | `test_ramsey` | optimal policy against IRIS, loss accounting, multipliers at the origin |
 | `test_info` | `beliefs.info = 'current'`: forecasts = IRIS `x_exp1_BR`, timing assert, unchanged RLS |
-| `test_gain` | endogenous gain: recursion = a hand-coded loop, mu = 0 = constant gain bit for bit, bounds and events, signed-error behavior, `'common'` vs `'per_variable'`, `'rls'` vs `'forecast'` errors, the gain state through history, inversion, evaluation, density and Ramsey; SW07 smoke run |
+| `test_gain` | endogenous gain: recursion = a hand-coded loop, mu = 0 = constant gain bit for bit, bounds and events, signed-error behavior, `'common'` vs `'per_variable'`, `'rls'` vs `'forecast'` errors, the gain state through history, inversion, evaluation, density and Ramsey; SW07 smoke run; the decreasing gain (D1-D5: gain 1/(t0 + k + 1), missing data, running mean on a constant-only PLM, toy history and forecast) |
 | `test_facility` | projection facility (sec. 4.4): AR(1) block rule under each value, one explosive block among several and order independence, block detection, unstable ALM reverts every belief, history-stage ALM check, model shares kept when reverting the beliefs is not enough (F10: the run completes, `n1_model` kept while `n1` moves, `'tv'` rebuilds the paths), `almUnstable` (no earlier solved model) and `noSolution` errors, the explosive no-lead path under `'none'`, endogenous gain at revert periods, which stages solve |
 | `test_re_states` | `history.re_states` (sec. 5.2): default = the stored reference run, filtered databank, f^RE = IRIS prediction, the 2020Q1-Q3 data gap, realtime orthogonal, `history.learn = false`, `training_ols` |
 | `test_re_info` | `expectations.re_info` (sec. 19): options; SW07 RE(t-1) model = hand-written IRIS reference and Dynare `EXPECTATION(-1)`; closed form; n1 = 1 collapse; end-to-end runs (f^RE = independent two-step forecasts) and every stage; default files and runs unchanged |
