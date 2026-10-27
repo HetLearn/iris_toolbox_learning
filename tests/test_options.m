@@ -175,7 +175,7 @@ try
         && isequal(fieldnames(d.expectations.transforms)', {'kind', 'types', 'scope', 'exclude', 'value'}) ...
         && isempty(d.shares.init) && isempty(d.shares.fixed) ...
         && isequal(sort(fieldnames(d.switching))', sort({'rule', 'intensity', 'memory'})) ...
-        && ~isfield(d.beliefs, 'kf') && ~isfield(d.gain, 'decreasing') ...
+        && ~isfield(d.beliefs, 'kf') && isequal(d.gain.decreasing, struct('t0', 0)) ...
         && strcmp(d.history.kalman.init, 'stochastic') && strcmp(d.beliefs.update, 'rls') ...
         && strcmp(d.gain.rule, 'constant') && strcmp(d.history.mode, 're_smoother');
     o = hetlearn.load_options(struct(), struct());
@@ -307,10 +307,10 @@ x = c; x.beliefs.update = 'kf';
 E(end+1, :) = {'beliefs.update kf (removed)', x, [idV, {rm}]};
 x = c; x.beliefs.kf = struct('gamma', 0.031);
 E(end+1, :) = {'beliefs.kf (removed)', x, idU};
-x = c; x.gain.rule = 'decreasing';
-E(end+1, :) = {'gain.rule decreasing (removed)', x, [idV, {rm}]};
+x = c; x.gain.rule = 'decreasing'; x.gain.decreasing.t0 = -1;
+E(end+1, :) = {'gain.decreasing.t0 negative', x, idV};
 x = c; x.gain.decreasing = struct('n0', 5);
-E(end+1, :) = {'gain.decreasing off its old default (removed)', x, idU};
+E(end+1, :) = {'gain.decreasing.n0 off its old default (removed)', x, idU};
 x = c; x.history.mode = 'kalman'; x.history.re_states = 'filtered';
 E(end+1, :) = {'kalman with filtered RE states', x, idV};
 x = c; x.history.kalman.init = 'zero';
