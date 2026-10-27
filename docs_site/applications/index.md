@@ -15,7 +15,7 @@ and differ only in the lines their scenario files set.
 | [6. History and decompositions](app6-history.md) | What history does the learning model back out, and which shocks drove inflation? | `history.mode`, `hetlearn.decompose` | `app6_history/` | `app6` | ~40 s |
 | [7. Further expectation rules](app7-rules.md) | How do seven rules from the bounded-rationality literature change Application 1? | `expectations.types`, `expectations.transforms` | `br_portfolio/` | `run_br_app1('run')` | ~2 min |
 
-Four model variants change one assumption of Application 1. They are described on the option
+Five model variants change one assumption of Application 1. They are described on the option
 pages:
 
 | Variant | Change | Page |
@@ -23,7 +23,8 @@ pages:
 | `var1_re_variant/v1_mc_learn` | model-consistent instead of anchored RE agents | [RE agents](../options/re-agents.md) |
 | `var2_plm/v2_*` | AR(2), AR(1) without constant, regression and VAR(1) perceived laws of motion | [Perceived laws of motion](../options/plm.md) |
 | `var3_allvars/v3_*` | learning on all twelve forward-looking variables, under each facility | [Projection facility](../options/projection-facility.md) |
-| `var4_gain/v4_*` | constant gain against the endogenous gain | [Gains](../options/gains.md) |
+| `var4_gain/v4_*` | constant and decreasing gains against the endogenous gain | [Gains](../options/gains.md) |
+| `var5_switching/v5_*` | intensity of choice 0.5 or 5, memory 0.5 or 0.95 | [Shares and switching](../options/switching.md) |
 
 The recursive forecast evaluation (`scenarios/sw07/eval/`, group `eval`, about 2.7 hours of
 compute) is on the [Forecast evaluation](../options/evaluation.md) page.
