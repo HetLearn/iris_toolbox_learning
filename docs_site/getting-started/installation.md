@@ -15,7 +15,7 @@ once to validate the Smets and Wouters (2007) package (SW07) and the rational ex
 ## Step 1: get the code
 
 ```powershell
-git clone https://github.com/tolgaozden/iris_toolbox_learning.git
+git clone https://github.com/HetLearn/iris_toolbox_learning.git
 cd iris_toolbox_learning
 ```
 
@@ -139,7 +139,7 @@ iris_toolbox_learning/
   toolbox/iris_patches/      the R2025a fix for IRIS 20230622
   models/sw07/               Smets-Wouters (2007): model, two parameter sets, data, spec, validation
   models/ijcb3/, models/as07/  two smaller packages, kept as templates
-  scenarios/sw07/            scenario files: base/, app1_peak/ ... app6_history/, var1-var4, eval/, br_portfolio/
+  scenarios/sw07/            scenario files: base/, app1_peak/ ... app6_history/, var1-var5, eval/, br_portfolio/
   results/summary_v3/        summary script (the CSV tables are rebuilt, not versioned)
   reports/                   report builder of the estimation module
   tests/                     test suites, toy New Keynesian package, test models, reference results
