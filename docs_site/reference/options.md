@@ -58,7 +58,7 @@ of motion.
 
 | Option | Default | Values | Meaning | Page |
 |---|---|---|---|---|
-| `gain.rule` | `'constant'` | `'constant'`, `'koz'` | Gain rule. Baseline `'koz'` | [Gains](../options/gains.md) |
+| `gain.rule` | `'constant'` | `'constant'`, `'koz'`, `'decreasing'` | Gain rule. Baseline `'koz'` | [Gains](../options/gains.md) |
 | `gain.value` | `0.0585` | (0, 1] | Constant gain; start of `'koz'`. Baseline 0.05 | |
 | `gain.by_var.<x>` | none | number | Gain of one variable (free-form) | |
 | `gain.koz.mu` | `0.001` | >= 0 | Step size of the gain process | |
@@ -69,6 +69,7 @@ of motion.
 | `gain.koz.error_scale` | `1` | > 0 | Factor on the error | |
 | `gain.koz.structure` | `'common'` | `'common'`, `'per_variable'` | One process or one per equation | |
 | `gain.koz.master` | `''` | name or cellstr | Driver of the common process | |
+| `gain.decreasing.t0` | `0` | >= 0 | Weight of the initial beliefs, in observations minus one; gain 1/(t0 + t) | [Gains](../options/gains.md#the-decreasing-gain) |
 
 ## Shares and switching
 
