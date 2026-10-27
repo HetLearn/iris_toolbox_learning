@@ -76,7 +76,7 @@
 \title{\textbf{hetlearn: technical appendix}\\[4pt]
 \large Heterogeneous expectations with adaptive learning and switching\\ in IRIS models}
 \author{Tolga \"Ozden\thanks{Code and documentation:
-  \url{https://github.com/tolgaozden/iris_toolbox_learning}, released under the MIT License.}}
+  \url{https://github.com/HetLearn/iris_toolbox_learning}, released under the MIT License.}}
 \date{Version of 23 October 2026. Tested with IRIS 20230622 and MATLAB R2025a.}
 
 \begin{document}
@@ -1220,21 +1220,24 @@ interface): \code{'fields'} (extra series it records), \code{'init'} (initial st
 state lives in the learning state (\code{S.gain}), so every stage that carries the learning state
 carries the gain: the history, the inversion and its snapshots, the forecast, density draws,
 evaluation origins and the Ramsey loss continuation. With \code{'constant'} the gain is
-$g_{v,t} = \gamma_0$ (or the \code{gain.by_var} value of the equation).
+$g_{v,t} = \gamma_0$ (or the \code{gain.by_var} value of the equation). With
+\code{'decreasing'} it falls with the number of updates (Section~\ref{sec:decreasing}).
 
 \subsubsection{\texorpdfstring{\codem{gain.rule}}{gain.rule}}\label{opt:gain-rule}
 \begin{optspec}
   \item[Default] \code{'constant'}. (Project baseline: \code{'koz'}.)
-  \item[Values] \code{'constant'}, \code{'koz'}; the name must be a function in
-        \code{+gain/} (the removed rule \code{'decreasing'} raises
-        \code{hetlearn:options:removed}).
+  \item[Values] \code{'constant'}, \code{'koz'}, \code{'decreasing'}; the name must be a
+        function in \code{+gain/}.
   \item[Math] \code{'constant'}: $g_{v,t} = \gamma_0$ (or the \code{by_var} value).
         \code{'koz'}: $g_{v,t} = \gamma_{p(v),t-1}$, equations~\eqref{eq:koz}.
+        \code{'decreasing'}: $g_{v,t} = 1/(t_0 + k_{v,t} + 1)$, equation~\eqref{eq:decreasing}.
   \item[Assumptions] see the entries below.
-  \item[Interactions] \code{gain.value} is the constant gain and the KOZ start value;
-        \code{gain.koz.*} matter only for \code{'koz'}; with \code{beliefs.update = 'fixed'} no
-        rule is called.
-  \item[Code] \code{+gain/constant.m}, \code{+gain/koz.m}, \code{+engine/update_learning.m}.
+  \item[Interactions] \code{gain.value} is the constant gain and the KOZ start value, and is
+        not used by \code{'decreasing'}; \code{gain.koz.*} matter only for \code{'koz'} and
+        \code{gain.decreasing.t0} only for \code{'decreasing'}; with
+        \code{beliefs.update = 'fixed'} no rule is called.
+  \item[Code] \code{+gain/constant.m}, \code{+gain/koz.m}, \code{+gain/decreasing.m},
+        \code{+engine/update_learning.m}.
   \item[Example]
 \begin{lstlisting}
 cfg.gain.rule = 'koz';
@@ -1275,6 +1278,50 @@ cfg.gain.value = 0.02;
   \item[Example]
 \begin{lstlisting}
 cfg.gain.by_var.pinf = 0.02;
+\end{lstlisting}
+\end{optspec}
+
+\subsection{The decreasing gain}\label{sec:decreasing}
+
+With \code{gain.rule = 'decreasing'} the gain of equation $v$ falls with the number of its
+updates (\code{+gain/decreasing.m}):
+\begin{equation}\label{eq:decreasing}
+  g_{v,t} = \frac{1}{t_0 + k_{v,t} + 1},
+\end{equation}
+where $k_{v,t}$ counts the updates of equation $v$ up to and including quarter $t$ ($k_{v,t} = 1$
+in the first learning quarter, \code{beliefs.init.date}) and $t_0$ = \code{gain.decreasing.t0}.
+The initial beliefs $(\phi_{v,0}, R_{v,0})$ count as $t_0 + 1$ observations, so with $t_0 = 0$ the
+gain is $1/t$ with $t$ the number of observations including the initial beliefs: $1/2$ at the
+first update, $1/3$ at the second. The first update therefore averages $R_{v,0}$ and
+$z z\transp$, and $R_{v,t}$ stays invertible for a PLM with several coefficients (a first gain of
+1 would set $R_{v,1} = z z\transp$, which has rank one). With these gains the RLS
+recursion~\eqref{eq:rlsR}--\eqref{eq:rlsphi} gives least squares with equal weights on every
+observation and on the initial beliefs \citep[ch.~2]{evans2001}; for a constant-only PLM,
+$R_{v,0} = 1$ and the belief is the running mean
+$\alpha_{v,t} = (\alpha_{v,0} + \sum_{s \le t} x_{v,s})/(k_{v,t} + 1)$ when $t_0 = 0$
+(\code{test_gain} D3, D5). The gain goes to zero, so learning converges where the
+E-stability conditions hold, and beliefs move little late in a long history: from 1966Q1 the
+gain is about $1/227$ at 2022Q2.
+
+A quarter in which an equation's data are missing (event \code{rls_missing}) does not count.
+The count is part of the gain state, so it carries on from the history into the forecast,
+density draws, evaluation origins and the Ramsey continuation, and it moves whatever the
+projection facility does with the candidate beliefs. With $N$ agent types each learning type
+has its own count. \code{gain.value} and \code{gain.by_var} are not used.
+
+\subsubsection{\texorpdfstring{\codem{gain.decreasing.t0}}{gain.decreasing.t0}}\label{opt:gain-decreasing-t0}
+\begin{optspec}
+  \item[Default] \code{0}.
+  \item[Values] a finite number $\ge 0$.
+  \item[Math] $t_0$ in~\eqref{eq:decreasing}.
+  \item[Assumptions] the initial beliefs are worth $t_0 + 1$ observations; a larger $t_0$ gives
+        them more weight and lowers every gain.
+  \item[Interactions] read only under \code{gain.rule = 'decreasing'}.
+  \item[Code] \code{+gain/decreasing.m}, \code{load_options.m}.
+  \item[Example]
+\begin{lstlisting}
+cfg.gain.rule = 'decreasing';
+cfg.gain.decreasing.t0 = 19;      % initial beliefs worth 20 quarters: first gain 1/21
 \end{lstlisting}
 \end{optspec}
 
@@ -3312,6 +3359,7 @@ Option & Default & Section & Page \\
 \code{gain.koz.error_scale} & \code{1} & \ref{opt:gain-koz-error-scale} & \pageref{opt:gain-koz-error-scale} \\
 \code{gain.koz.structure} & \code{'common'} & \ref{opt:gain-koz-structure} & \pageref{opt:gain-koz-structure} \\
 \code{gain.koz.master} & \code{''} (first learning variable) & \ref{opt:gain-koz-master} & \pageref{opt:gain-koz-master} \\
+\code{gain.decreasing.t0} & \code{0} & \ref{opt:gain-decreasing-t0} & \pageref{opt:gain-decreasing-t0} \\
 \code{shares.structure} & \code{'per_variable'} & \ref{opt:shares-structure} & \pageref{opt:shares-structure} \\
 \code{shares.master} & \code{{}} & \ref{opt:shares-master} & \pageref{opt:shares-master} \\
 \code{shares.init_n2} & \code{0.5} & \ref{opt:shares-init-n2} & \pageref{opt:shares-init-n2} \\
