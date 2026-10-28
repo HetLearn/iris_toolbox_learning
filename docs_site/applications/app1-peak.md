@@ -341,8 +341,8 @@ The project runs a set of such variants as saved scenarios. Average inflation ov
 | `v4_const` | `gain.rule = 'constant'`, `gain.value = 0.05` | 3.50 | 0.595 |
 | `v4_decreasing` | `gain.rule = 'decreasing'` | 3.12 | 0.618 |
 | `v5_chi050` | `switching.intensity = 0.5` | 3.08 | 0.523 |
-| `v5_chi500` | `switching.intensity = 5` | 16.66 | 0.714 |
-| `v5_omega050` | `switching.memory = 0.5` | 13.00 | 0.697 |
+| `v5_chi225` | `switching.intensity = 2.25` | 3.74 | 0.602 |
+| `v5_omega075` | `switching.memory = 0.75` | 3.88 | 0.610 |
 | `v5_omega095` | `switching.memory = 0.95` | 3.19 | 0.559 |
 | `v2_ar2` | `beliefs.plm.default = 'ar2'` | 3.69 | 0.599 |
 | `v2_ar1nc` | `beliefs.plm.default = 'ar1_noconst'` | 3.25 | 0.611 |
