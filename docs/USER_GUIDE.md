@@ -141,7 +141,7 @@ Where the project baseline does not apply:
   already.
 - **Variants that change one baseline setting on purpose:** `v3_all_plm_alm` (facility
   `'plm_alm'`), `v4_const` (a constant gain of 0.05), `v4_decreasing` (the decreasing gain), the four
-  `v5_*` files (intensity of choice 0.5 or 5, memory 0.5 or 0.95) and `br26_experience` (a constant gain of
+  `v5_*` files (intensity of choice 0.5 or 2.25, memory 0.75 or 0.95) and `br26_experience` (a constant gain of
   0.018).
 - **The templates** (`i1_re.m`, `a1as_re.m`) pin their own settings and set `model_params = ''`,
   so the project baseline does not reach them.
@@ -254,7 +254,7 @@ sw07_re                          base: every option listed, commented at its def
             v4_const             constant gain 0.05 (the project baseline gain is endogenous)
                 v4_const_full
             v4_decreasing        decreasing gain 1/t
-            v5_chi050, v5_chi500, v5_omega050, v5_omega095   intensity of choice or memory changed alone
+            v5_chi050, v5_chi225, v5_omega075, v5_omega095   intensity of choice or memory changed alone
             br05b_cd_learn, br07_myopia_anchoring, br10_diagnostic, br19_target_believers,
             br23_intercept_only, br24_mean_only, br26_experience      further rules (section 7)
 i1_re                            ijcb3 template (starts from struct(), not from sw07_re)
@@ -288,7 +288,7 @@ Files are in `scenarios/sw07/` unless a path is given. Each entry names the line
 | PLM | the `cfg.beliefs.plm.*` lines of `var2_plm/v2_ar2.m`, `v2_ar1nc.m`, `v2_reg.m`, `v2_var3.m`, `v2_var12.m` | the matching `e05`-`e09` | var2, eval |
 | Information timing of the learners | `beliefs.info = 'lagged'` (project baseline and toolbox default) | | |
 | Gain | project baseline: the endogenous gain from 0.05; `var4_gain/v4_const.m` (`gain.rule = 'constant'`, 0.05) and `br_portfolio/br26_experience.m` (0.018) set a constant gain; `var4_gain/v4_decreasing.m` the decreasing gain | `v4_const_full` | var4 |
-| Intensity of choice, memory | project baseline 2 and 0.8; the `cfg.switching.*` line of `var5_switching/v5_chi050.m`, `v5_chi500.m`, `v5_omega050.m`, `v5_omega095.m` | | var5 |
+| Intensity of choice, memory | project baseline 2 and 0.8; the `cfg.switching.*` line of `var5_switching/v5_chi050.m`, `v5_chi225.m`, `v5_omega075.m`, `v5_omega095.m` | | var5 |
 | Policy deviation: size, dates | the `cfg.conditions` struct of `app3_policy/a3_loose_re.m`; sign: `cfg.conditions.values = 0.25` in `a3_tight_re.m` and `a3_tight_learn.m` | all four app3 files | app3 |
 | Ramsey loss weights | the `cfg.policy.loss` line of `app4_ramsey/a4_ramsey_balanced_re.m` and of the hawk, dove and smooth files; the summary builder repeats them (`W` in `build_summary_v3.m`) | the matching `_re_mc` and `_learn` files | app4 |
 | Loss horizon (80 quarters) | the `cfg.policy.loss_horizon` line of `app4_ramsey/a4_rule_re.m` and `a4_rule_learn.m` | every app4 file | app4 |
