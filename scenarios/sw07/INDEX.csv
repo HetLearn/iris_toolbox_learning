@@ -62,6 +62,6 @@ var4_gain,v4_const,a1_learn,gain.rule = 'constant'; gain.value = 0.05,{'a1_learn
 var4_gain,v4_const_full,v4_const,"forecast.origin = qq(2026, 2); forecast.horizon = 4",{'a6_smooth_learn'},true,Variant 4: constant gain of 0.05 on the history 1966Q1-2026Q2
 var4_gain,v4_decreasing,a1_learn,gain.rule = 'decreasing'; gain.decreasing.t0 = 0,{'a1_learn'},true,Variant 4: learning on inflation with a decreasing gain 1/t (baseline: endogenous KOZ gain)
 var5_switching,v5_chi050,a1_learn,switching.intensity = 0.5,{'a1_learn'},true,"Variant 5: learning on inflation, intensity of choice 0.5"
-var5_switching,v5_chi500,a1_learn,switching.intensity = 5,{'a1_learn'},true,"Variant 5: learning on inflation, intensity of choice 5"
-var5_switching,v5_omega050,a1_learn,switching.memory = 0.5,{'a1_learn'},true,"Variant 5: learning on inflation, memory 0.5"
+var5_switching,v5_chi225,a1_learn,switching.intensity = 2.25,{'a1_learn'},true,"Variant 5: learning on inflation, intensity of choice 2.25"
+var5_switching,v5_omega075,a1_learn,switching.memory = 0.75,{'a1_learn'},true,"Variant 5: learning on inflation, memory 0.75"
 var5_switching,v5_omega095,a1_learn,switching.memory = 0.95,{'a1_learn'},true,"Variant 5: learning on inflation, memory 0.95"
