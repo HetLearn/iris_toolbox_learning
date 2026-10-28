@@ -47,7 +47,7 @@ function L = run_applications(groups, varargin)
 %                             facility is 'alm')
 %   var4   var4_gain          v4_const, v4_const_full: constant gain 0.05 against the    ~15 s
 %                             baseline KOZ gain; v4_decreasing: decreasing gain 1/t
-%   var5   var5_switching     v5_chi050, v5_chi500, v5_omega050, v5_omega095: intensity   ~20 s
+%   var5   var5_switching     v5_chi050, v5_chi225, v5_omega075, v5_omega095: intensity   ~20 s
 %                             of choice and memory changed one at a time
 %   eval   eval               recursive real-time evaluation of e01_re ... e10_allvars:  ~2.7 hours
 %                             origins 1990Q1-2024Q2, horizon 8, benchmark e01_re, in
@@ -158,7 +158,7 @@ G = {
     'var2', {'v2_ar2', 'v2_ar1nc', 'v2_reg', 'v2_var3', 'v2_var12'}
     'var3', {'v3_all', 'v3_all_plm_alm', 'v3_all_alm'}
     'var4', {'v4_const', 'v4_const_full', 'v4_decreasing'}
-    'var5', {'v5_chi050', 'v5_chi500', 'v5_omega050', 'v5_omega095'}
+    'var5', {'v5_chi050', 'v5_chi225', 'v5_omega075', 'v5_omega095'}
     'eval', {}
     };
 end
