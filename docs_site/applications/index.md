@@ -24,7 +24,7 @@ pages:
 | `var2_plm/v2_*` | AR(2), AR(1) without constant, regression and VAR(1) perceived laws of motion | [Perceived laws of motion](../options/plm.md) |
 | `var3_allvars/v3_*` | learning on all twelve forward-looking variables, under each facility | [Projection facility](../options/projection-facility.md) |
 | `var4_gain/v4_*` | constant and decreasing gains against the endogenous gain | [Gains](../options/gains.md) |
-| `var5_switching/v5_*` | intensity of choice 0.5 or 5, memory 0.5 or 0.95 | [Shares and switching](../options/switching.md) |
+| `var5_switching/v5_*` | intensity of choice 0.5 or 2.25, memory 0.75 or 0.95 | [Shares and switching](../options/switching.md) |
 
 The recursive forecast evaluation (`scenarios/sw07/eval/`, group `eval`, about 2.7 hours of
 compute) is on the [Forecast evaluation](../options/evaluation.md) page.
